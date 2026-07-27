@@ -6,7 +6,7 @@ export interface Env {
   // Bindings
   DB: D1Database;
   ASSETS: Fetcher;
-  BACKUP_BUCKET: R2Bucket;
+  BACKUP_BUCKET?: R2Bucket; // absent until R2 is enabled for the account and ENABLE_R2_BACKUP=true
 
   // Non-secret config (wrangler.toml [vars])
   ENABLE_R2_BACKUP: string; // "true" | "false"

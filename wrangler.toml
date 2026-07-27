@@ -2,6 +2,7 @@ name = "team-handoff-notes"
 main = "worker/index.ts"
 compatibility_date = "2024-11-01"
 compatibility_flags = ["nodejs_compat"]
+account_id = "419923cdce967c667d26cdb9238fb5d8"
 
 # Static frontend build output served by Workers Static Assets.
 [assets]
@@ -11,23 +12,23 @@ not_found_handling = "single-page-application"
 
 # ---------------------------------------------------------------------------
 # D1 — metadata database (users, pages, attachments metadata, comments, etc.)
-# Replace database_id below with the real ID after running:
-#   wrangler d1 create team_handoff_db
 # ---------------------------------------------------------------------------
 [[d1_databases]]
 binding = "DB"
 database_name = "team_handoff_db"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "5877c774-412f-4d1f-9b98-7ed63d06926a"
 migrations_dir = "migrations"
 
 # ---------------------------------------------------------------------------
 # R2 — OPTIONAL private backup mirror of Google Drive originals.
-# Only used when ENABLE_R2_BACKUP=true. Safe to leave unconfigured otherwise.
-#   wrangler r2 bucket create team-handoff-backup
+# Commented out until R2 is enabled for this Cloudflare account (Dashboard →
+# Storage & Databases → R2 → Enable — free tier, no purchase needed). Once
+# enabled, run `wrangler r2 bucket create team-handoff-backup`, uncomment
+# below, and set ENABLE_R2_BACKUP back to "true".
 # ---------------------------------------------------------------------------
-[[r2_buckets]]
-binding = "BACKUP_BUCKET"
-bucket_name = "team-handoff-backup"
+# [[r2_buckets]]
+# binding = "BACKUP_BUCKET"
+# bucket_name = "team-handoff-backup"
 
 # ---------------------------------------------------------------------------
 # Cron trigger for incremental Google Drive sync (default: every 15 minutes).
@@ -49,15 +50,14 @@ crons = ["*/15 * * * *"]
 #   wrangler secret put GOOGLE_INITIAL_ADMIN_EMAILS
 # ---------------------------------------------------------------------------
 [vars]
-ENABLE_R2_BACKUP = "true"
+ENABLE_R2_BACKUP = "false"
 MAX_UPLOAD_MB = "100"
 DEMO_MODE = "false"
 GOOGLE_DRIVE_FOLDER_ID = "1h8vtzWQLT2rl-6D3AOIxyhd4i3ZyVyKs"
 GOOGLE_DRIVE_SHARED_DRIVE_ID = ""
 GOOGLE_SERVICE_ACCOUNT_EMAIL = ""
 GOOGLE_OAUTH_CLIENT_ID = "224415624262-vu5f0o8ks0cal3v7haenaf172325vau7.apps.googleusercontent.com"
-# Fill in once the deployment domain is decided (workers.dev vs custom domain).
-OAUTH_REDIRECT_BASE_URL = ""
+OAUTH_REDIRECT_BASE_URL = "https://team-handoff-notes.wegoinnteam.workers.dev"
 
 [env.preview]
 [env.preview.vars]

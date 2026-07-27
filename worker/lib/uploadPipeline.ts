@@ -72,7 +72,8 @@ export async function runUploadPipeline(env: Env, req: UploadRequest): Promise<A
         body: driveStream,
       }),
       backupStream
-        ? env.BACKUP_BUCKET.put(`attachments/${pending.id}`, backupStream, {
+        // Non-null: backupStream is only set when r2Enabled already checked env.BACKUP_BUCKET exists.
+        ? env.BACKUP_BUCKET!.put(`attachments/${pending.id}`, backupStream, {
             httpMetadata: { contentType: req.mimeType },
           })
         : Promise.resolve(null),
