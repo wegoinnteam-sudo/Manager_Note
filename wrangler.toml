@@ -55,7 +55,7 @@ MAX_UPLOAD_MB = "100"
 DEMO_MODE = "false"
 GOOGLE_DRIVE_FOLDER_ID = "1h8vtzWQLT2rl-6D3AOIxyhd4i3ZyVyKs"
 GOOGLE_DRIVE_SHARED_DRIVE_ID = ""
-GOOGLE_SERVICE_ACCOUNT_EMAIL = ""
+GOOGLE_SERVICE_ACCOUNT_EMAIL = "wegoinn@gen-lang-client-0087622891.iam.gserviceaccount.com"
 GOOGLE_OAUTH_CLIENT_ID = "224415624262-vu5f0o8ks0cal3v7haenaf172325vau7.apps.googleusercontent.com"
 OAUTH_REDIRECT_BASE_URL = "https://team-handoff-notes.wegoinnteam.workers.dev"
 
