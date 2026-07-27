@@ -1,0 +1,61 @@
+name = "team-handoff-notes"
+main = "worker/index.ts"
+compatibility_date = "2024-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Static frontend build output served by Workers Static Assets.
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+# ---------------------------------------------------------------------------
+# D1 — metadata database (users, pages, attachments metadata, comments, etc.)
+# Replace database_id below with the real ID after running:
+#   wrangler d1 create team_handoff_db
+# ---------------------------------------------------------------------------
+[[d1_databases]]
+binding = "DB"
+database_name = "team_handoff_db"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+# ---------------------------------------------------------------------------
+# R2 — OPTIONAL private backup mirror of Google Drive originals.
+# Only used when ENABLE_R2_BACKUP=true. Safe to leave unconfigured otherwise.
+#   wrangler r2 bucket create team-handoff-backup
+# ---------------------------------------------------------------------------
+[[r2_buckets]]
+binding = "BACKUP_BUCKET"
+bucket_name = "team-handoff-backup"
+
+# ---------------------------------------------------------------------------
+# Cron trigger for incremental Google Drive sync (default: every 15 minutes).
+# ---------------------------------------------------------------------------
+[triggers]
+crons = ["*/15 * * * *"]
+
+# ---------------------------------------------------------------------------
+# Non-secret configuration. Real secrets (private keys, client secret,
+# refresh token, session secret) must be set with `wrangler secret put`,
+# never written here or committed to git.
+# ---------------------------------------------------------------------------
+[vars]
+ENABLE_R2_BACKUP = "true"
+MAX_UPLOAD_MB = "50"
+DEMO_MODE = "false"
+GOOGLE_DRIVE_FOLDER_ID = ""
+GOOGLE_DRIVE_SHARED_DRIVE_ID = ""
+GOOGLE_SERVICE_ACCOUNT_EMAIL = ""
+GOOGLE_ALLOWED_EMAILS = ""
+GOOGLE_INITIAL_ADMIN_EMAILS = ""
+GOOGLE_OAUTH_CLIENT_ID = ""
+OAUTH_REDIRECT_BASE_URL = ""
+
+[env.preview]
+[env.preview.vars]
+DEMO_MODE = "true"
+
+[env.production]
+[env.production.vars]
+DEMO_MODE = "false"

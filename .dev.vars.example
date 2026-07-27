@@ -1,0 +1,28 @@
+# Copy to .dev.vars for local development. NEVER commit the real .dev.vars file.
+# .dev.vars is already listed in .gitignore.
+
+# --- Google service account (preferred Drive auth method) ---
+GOOGLE_SERVICE_ACCOUNT_EMAIL=
+# PEM private key, keep the literal \n line breaks or wrap in quotes.
+GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY=
+
+# --- Or, if a service account cannot be granted access to the shared folder ---
+# (this same OAuth client is also used for the "Google 로그인" sign-in flow)
+GOOGLE_OAUTH_CLIENT_ID=
+GOOGLE_OAUTH_CLIENT_SECRET=
+GOOGLE_OAUTH_REFRESH_TOKEN=
+
+# --- Drive target ---
+GOOGLE_DRIVE_FOLDER_ID=
+GOOGLE_DRIVE_SHARED_DRIVE_ID=
+
+# --- Access control ---
+GOOGLE_ALLOWED_EMAILS=someone@example.com,other@example.com
+GOOGLE_INITIAL_ADMIN_EMAILS=someone@example.com
+OAUTH_REDIRECT_BASE_URL=http://localhost:8787
+SESSION_SECRET=
+
+# --- App config ---
+MAX_UPLOAD_MB=50
+ENABLE_R2_BACKUP=true
+DEMO_MODE=false

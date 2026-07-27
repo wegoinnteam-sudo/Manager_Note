@@ -1,3 +1,15 @@
+# Cloudflare / Wrangler
+.wrangler/
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+wrangler.toml.bak
+
+# Google service account / credential files
+*service-account*.json
+*credentials*.json
+google-credentials*.json
+
 # Logs
 logs
 *.log
