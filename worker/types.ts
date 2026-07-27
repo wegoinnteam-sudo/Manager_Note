@@ -15,16 +15,18 @@ export interface Env {
   GOOGLE_DRIVE_FOLDER_ID: string;
   GOOGLE_DRIVE_SHARED_DRIVE_ID: string;
   GOOGLE_SERVICE_ACCOUNT_EMAIL: string;
-  GOOGLE_ALLOWED_EMAILS: string; // comma-separated, who may log in at all
-  GOOGLE_INITIAL_ADMIN_EMAILS: string; // comma-separated, promoted to admin on first login
   GOOGLE_OAUTH_CLIENT_ID: string;
   OAUTH_REDIRECT_BASE_URL: string; // e.g. https://handoff.example.com (no trailing slash)
 
-  // Secrets (wrangler secret put)
+  // Secrets (wrangler secret put). GOOGLE_ALLOWED_EMAILS/GOOGLE_INITIAL_ADMIN_EMAILS
+  // aren't sensitive the way a key is, but they're real teammates' email
+  // addresses and this repo is public, so they're kept out of [vars] too.
   GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?: string;
   GOOGLE_OAUTH_CLIENT_SECRET?: string;
   GOOGLE_OAUTH_REFRESH_TOKEN?: string;
   SESSION_SECRET?: string;
+  GOOGLE_ALLOWED_EMAILS?: string; // comma-separated, who may log in at all
+  GOOGLE_INITIAL_ADMIN_EMAILS?: string; // comma-separated, promoted to admin on first login
 }
 
 export type Role = "admin" | "editor" | "viewer";

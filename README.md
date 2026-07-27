@@ -63,19 +63,23 @@ npm run dev          # React 개발 서버 — http://localhost:3000 (내부적�
 | `GOOGLE_OAUTH_REFRESH_TOKEN` | **secret** | 서비스 계정을 못 쓸 때만 (Drive OAuth 대안 경로) |
 | `GOOGLE_DRIVE_FOLDER_ID` | 변수 | 팀 공유 루트 폴더 ID |
 | `GOOGLE_DRIVE_SHARED_DRIVE_ID` | 변수 | Shared Drive 사용 시에만 |
-| `GOOGLE_ALLOWED_EMAILS` | 변수 | 최초 로그인이 허용되는 이메일 목록(부트스트랩용, 이후 초대는 관리자 화면에서) |
-| `GOOGLE_INITIAL_ADMIN_EMAILS` | 변수 | 최초 로그인 시 관리자로 지정될 이메일 |
+| `GOOGLE_ALLOWED_EMAILS` | **secret**\* | 최초 로그인이 허용되는 이메일 목록(부트스트랩용, 이후 초대는 관리자 화면에서) |
+| `GOOGLE_INITIAL_ADMIN_EMAILS` | **secret**\* | 최초 로그인 시 관리자로 지정될 이메일 |
 | `OAUTH_REDIRECT_BASE_URL` | 변수 | 예: `https://your-worker.example.workers.dev` (뒤에 `/api/auth/google/callback`이 붙음) |
 | `SESSION_SECRET` | **secret** | 세션 쿠키 서명용 무작위 문자열 |
-| `MAX_UPLOAD_MB` | 변수 | 업로드 파일 크기 제한 (기본 50) |
+| `MAX_UPLOAD_MB` | 변수 | 업로드 파일 크기 제한 (기본 100). Cloudflare Workers는 플랜에 따라 요청 본문 크기 한도가 있어(Free/Pro 대략 100MB) 이 값을 한도 이상으로 올려도 실제로는 실패합니다. GB 단위 대용량 파일이 꼭 필요하면 브라우저→Drive 직접 업로드 구조로 바꿔야 하며 현재는 지원하지 않습니다. |
 | `ENABLE_R2_BACKUP` | 변수 | R2 비공개 백업 사용 여부 (기본 true, R2 미연결 시 false로) |
 
-로컬 개발: 위 값을 `.dev.vars`에 넣습니다(`.gitignore`에 이미 포함, 절대 커밋 금지). 배포 환경: 아래처럼 `wrangler secret put`으로 secret만 등록하고, 변수는 `wrangler.toml`의 `[vars]`에 둡니다.
+\* `GOOGLE_ALLOWED_EMAILS`/`GOOGLE_INITIAL_ADMIN_EMAILS`는 값 자체가 위험한 secret은 아니지만, 실제 팀원 이메일이라 이 저장소가 **public**이면 `wrangler.toml`의 `[vars]`에 그대로 적지 않고 secret으로 등록합니다.
+
+로컬 개발: 위 값을 `.dev.vars`에 넣습니다(`.gitignore`에 이미 포함, 절대 커밋 금지). 배포 환경: 아래처럼 `wrangler secret put`으로 secret을 등록하고, 나머지 비민감 변수만 `wrangler.toml`의 `[vars]`에 둡니다.
 
 ```bash
 npx wrangler secret put GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY
 npx wrangler secret put GOOGLE_OAUTH_CLIENT_SECRET
 npx wrangler secret put SESSION_SECRET
+npx wrangler secret put GOOGLE_ALLOWED_EMAILS
+npx wrangler secret put GOOGLE_INITIAL_ADMIN_EMAILS
 ```
 
 ## Google Cloud / Drive 설정

@@ -40,16 +40,23 @@ crons = ["*/15 * * * *"]
 # refresh token, session secret) must be set with `wrangler secret put`,
 # never written here or committed to git.
 # ---------------------------------------------------------------------------
+#
+# GOOGLE_ALLOWED_EMAILS and GOOGLE_INITIAL_ADMIN_EMAILS are deliberately NOT
+# here even though they aren't "secret" in the private-key sense — this repo
+# is a public GitHub repo, so real teammates' email addresses would be
+# world-readable if committed here. Set them with:
+#   wrangler secret put GOOGLE_ALLOWED_EMAILS
+#   wrangler secret put GOOGLE_INITIAL_ADMIN_EMAILS
+# ---------------------------------------------------------------------------
 [vars]
 ENABLE_R2_BACKUP = "true"
-MAX_UPLOAD_MB = "50"
+MAX_UPLOAD_MB = "100"
 DEMO_MODE = "false"
-GOOGLE_DRIVE_FOLDER_ID = ""
+GOOGLE_DRIVE_FOLDER_ID = "1h8vtzWQLT2rl-6D3AOIxyhd4i3ZyVyKs"
 GOOGLE_DRIVE_SHARED_DRIVE_ID = ""
 GOOGLE_SERVICE_ACCOUNT_EMAIL = ""
-GOOGLE_ALLOWED_EMAILS = ""
-GOOGLE_INITIAL_ADMIN_EMAILS = ""
-GOOGLE_OAUTH_CLIENT_ID = ""
+GOOGLE_OAUTH_CLIENT_ID = "224415624262-vu5f0o8ks0cal3v7haenaf172325vau7.apps.googleusercontent.com"
+# Fill in once the deployment domain is decided (workers.dev vs custom domain).
 OAUTH_REDIRECT_BASE_URL = ""
 
 [env.preview]
