@@ -89,6 +89,29 @@ export async function updateUserRole(db: Env["DB"], userId: string, role: Role):
 }
 
 export const SYSTEM_USER_ID = "user_system_drive_sync";
+export const PUBLIC_EDITOR_USER_ID = "user_public_editor";
+
+/** Shared editor identity used when the app is intentionally running without login. */
+export async function ensurePublicEditor(db: Env["DB"]): Promise<UserRow> {
+  const existing = await getUserById(db, PUBLIC_EDITOR_USER_ID);
+  if (existing) return existing;
+
+  await db
+    .prepare(
+      "INSERT OR IGNORE INTO users (id, email, name, role, is_active) VALUES (?1, ?2, ?3, 'editor', 1)",
+    )
+    .bind(PUBLIC_EDITOR_USER_ID, "public-editor@system.local", "공용 편집자")
+    .run();
+
+  return {
+    id: PUBLIC_EDITOR_USER_ID,
+    email: "public-editor@system.local",
+    name: "공용 편집자",
+    avatar_url: null,
+    role: "editor",
+    is_active: 1,
+  };
+}
 
 /** Attribution for attachments/pages created by the background Drive sync, not a person. */
 export async function ensureSystemUser(db: Env["DB"]): Promise<UserRow> {

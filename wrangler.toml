@@ -52,7 +52,7 @@ crons = ["*/15 * * * *"]
 [vars]
 ENABLE_R2_BACKUP = "false"
 MAX_UPLOAD_MB = "100"
-DEMO_MODE = "false"
+DEMO_MODE = "true"
 GOOGLE_DRIVE_FOLDER_ID = "1h8vtzWQLT2rl-6D3AOIxyhd4i3ZyVyKs"
 GOOGLE_DRIVE_SHARED_DRIVE_ID = ""
 GOOGLE_SERVICE_ACCOUNT_EMAIL = "wegoinn@gen-lang-client-0087622891.iam.gserviceaccount.com"

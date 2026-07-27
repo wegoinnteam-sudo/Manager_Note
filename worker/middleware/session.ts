@@ -1,10 +1,11 @@
 import { createMiddleware } from "hono/factory";
-import { getCookie } from "hono/cookie";
+import { getCookie, setCookie } from "hono/cookie";
 import type { AppBindings, AuthedUser } from "../types";
 import { hmacVerify } from "../lib/crypto";
 import { getSessionUserId } from "../db/sessions";
-import { getUserById } from "../db/users";
+import { ensurePublicEditor, getUserById } from "../db/users";
 import { ensureDefaultTeam, ensureTeamMembership } from "../db/teams";
+import { CSRF_COOKIE_NAME } from "./csrf";
 
 export const SESSION_COOKIE_NAME = "th_session";
 
@@ -35,13 +36,37 @@ export const sessionMiddleware = createMiddleware<AppBindings>(async (c, next) =
             role: userRow.role,
           };
           c.set("user", authed);
-
-          const team = await ensureDefaultTeam(c.env.DB, c.env);
-          await ensureTeamMembership(c.env.DB, team.id, authed.id, authed.role);
-          c.set("teamId", team.id);
         }
       }
     }
+  }
+
+  if (!c.var.user && c.env.DEMO_MODE === "true") {
+    const publicEditor = await ensurePublicEditor(c.env.DB);
+    c.set("user", {
+      id: publicEditor.id,
+      email: publicEditor.email,
+      name: publicEditor.name,
+      avatarUrl: publicEditor.avatar_url,
+      role: publicEditor.role,
+    });
+
+    if (!getCookie(c, CSRF_COOKIE_NAME)) {
+      setCookie(c, CSRF_COOKIE_NAME, crypto.randomUUID(), {
+        httpOnly: false,
+        secure: true,
+        sameSite: "Lax",
+        path: "/",
+        maxAge: 30 * 24 * 60 * 60,
+      });
+    }
+  }
+
+  const user = c.var.user;
+  if (user) {
+    const team = await ensureDefaultTeam(c.env.DB, c.env);
+    await ensureTeamMembership(c.env.DB, team.id, user.id, user.role);
+    c.set("teamId", team.id);
   }
 
   await next();
