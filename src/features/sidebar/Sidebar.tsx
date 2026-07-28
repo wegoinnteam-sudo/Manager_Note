@@ -57,6 +57,11 @@ function PageTreeRow({
           {hasChildren ? (expanded ? "▾" : "▸") : "·"}
         </button>
         <span className="page-tree__title">{node.page.title}</span>
+        {node.page.openQuestionCount > 0 && (
+          <span className="page-tree__question-badge" title={`미해결 질문 ${node.page.openQuestionCount}개`}>
+            ? {node.page.openQuestionCount}
+          </span>
+        )}
         {canReorder && (
           <span
             className="page-tree__drag-handle"

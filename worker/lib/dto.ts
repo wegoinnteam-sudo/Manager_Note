@@ -29,6 +29,7 @@ export function toPageSummaryDTO(row: PageRow): PageSummaryDTO {
     dueDate: row.due_date,
     orderKey: row.order_key,
     version: row.version,
+    openQuestionCount: row.open_question_count ?? 0,
     isDeleted: !!row.is_deleted,
     updatedAt: row.updated_at,
   };

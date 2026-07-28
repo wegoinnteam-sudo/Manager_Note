@@ -28,6 +28,14 @@ import { createComment, listCommentsByPage } from "../db/comments";
 import { listStatusHistory } from "../db/statusHistory";
 import { toCommentDTO, toStatusHistoryDTO } from "../lib/dto";
 import { createCommentSchema } from "../lib/validation";
+import { createQuestionSchema, onboardingProgressSchema, resolveQuestionSchema } from "../lib/validation";
+import {
+  createQuestion,
+  listOnboardingProgress,
+  listQuestions,
+  setOnboardingProgress,
+  setQuestionResolved,
+} from "../db/handoff";
 
 export const pagesRoute = new Hono<AppBindings>();
 
@@ -224,6 +232,80 @@ pagesRoute.get("/:id/history", async (c) => {
   if (!page) throw Errors.notFound();
   const rows = await listStatusHistory(c.env.DB, page.id);
   return c.json({ history: rows.map(toStatusHistoryDTO) });
+});
+
+pagesRoute.get("/:id/questions", async (c) => {
+  const page = await getPageById(c.env.DB, c.var.teamId, c.req.param("id"));
+  if (!page) throw Errors.notFound();
+  const rows = await listQuestions(c.env.DB, page.id);
+  return c.json({
+    questions: rows.map((row) => ({
+      id: row.id,
+      pageId: row.page_id,
+      blockId: row.block_id,
+      blockLabel: row.block_label,
+      authorId: row.author_id,
+      authorName: row.author_name,
+      body: row.body,
+      status: row.status,
+      resolvedByName: row.resolved_by_name,
+      resolvedAt: row.resolved_at,
+      createdAt: row.created_at,
+    })),
+  });
+});
+
+pagesRoute.post("/:id/questions", async (c) => {
+  const page = await getPageById(c.env.DB, c.var.teamId, c.req.param("id"));
+  if (!page) throw Errors.notFound();
+  const body = createQuestionSchema.parse(await c.req.json());
+  const id = await createQuestion(c.env.DB, {
+    pageId: page.id,
+    authorId: c.var.user!.id,
+    blockId: body.blockId ?? null,
+    blockLabel: body.blockLabel ?? null,
+    body: body.body,
+  });
+  await logActivity(c.env.DB, {
+    teamId: c.var.teamId,
+    pageId: page.id,
+    actorId: c.var.user!.id,
+    action: "question.created",
+    metadata: { questionId: id, blockId: body.blockId ?? null },
+  });
+  return c.json({ id }, 201);
+});
+
+pagesRoute.patch("/:id/questions/:questionId", async (c) => {
+  const page = await getPageById(c.env.DB, c.var.teamId, c.req.param("id"));
+  if (!page) throw Errors.notFound();
+  const body = resolveQuestionSchema.parse(await c.req.json());
+  await setQuestionResolved(c.env.DB, {
+    id: c.req.param("questionId"),
+    pageId: page.id,
+    userId: c.var.user!.id,
+    resolved: body.resolved,
+  });
+  return c.json({ ok: true });
+});
+
+pagesRoute.get("/:id/onboarding-progress", async (c) => {
+  const page = await getPageById(c.env.DB, c.var.teamId, c.req.param("id"));
+  if (!page) throw Errors.notFound();
+  return c.json({ completedBlockIds: await listOnboardingProgress(c.env.DB, page.id, c.var.user!.id) });
+});
+
+pagesRoute.put("/:id/onboarding-progress", async (c) => {
+  const page = await getPageById(c.env.DB, c.var.teamId, c.req.param("id"));
+  if (!page) throw Errors.notFound();
+  const body = onboardingProgressSchema.parse(await c.req.json());
+  await setOnboardingProgress(c.env.DB, {
+    pageId: page.id,
+    userId: c.var.user!.id,
+    blockId: body.blockId,
+    completed: body.completed,
+  });
+  return c.json({ ok: true });
 });
 
 pagesRoute.post("/:id/restore", requireRole("editor"), async (c) => {

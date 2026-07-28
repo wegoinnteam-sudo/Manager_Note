@@ -13,6 +13,7 @@ function page(overrides: Partial<PageSummaryDTO>): PageSummaryDTO {
     dueDate: null,
     orderKey: 0,
     version: 1,
+    openQuestionCount: 0,
     isDeleted: false,
     updatedAt: "2026-01-01T00:00:00Z",
     ...overrides,

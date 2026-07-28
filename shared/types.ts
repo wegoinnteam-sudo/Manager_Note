@@ -25,6 +25,7 @@ export interface PageSummaryDTO {
   dueDate: string | null;
   orderKey: number;
   version: number;
+  openQuestionCount: number;
   isDeleted: boolean;
   updatedAt: string;
 }
@@ -95,6 +96,20 @@ export interface CommentDTO {
   authorId: string;
   authorName: string;
   body: string;
+  createdAt: string;
+}
+
+export interface InlineQuestionDTO {
+  id: string;
+  pageId: string;
+  blockId: string | null;
+  blockLabel: string | null;
+  authorId: string;
+  authorName: string;
+  body: string;
+  status: "open" | "resolved";
+  resolvedByName: string | null;
+  resolvedAt: string | null;
   createdAt: string;
 }
 

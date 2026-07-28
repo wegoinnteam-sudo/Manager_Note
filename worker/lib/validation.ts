@@ -60,6 +60,19 @@ export const createCommentSchema = z.object({
   body: z.string().min(1).max(5000),
 });
 
+export const createQuestionSchema = z.object({
+  body: z.string().min(1).max(5000),
+  blockId: z.string().max(100).nullable().optional(),
+  blockLabel: z.string().max(300).nullable().optional(),
+});
+
+export const resolveQuestionSchema = z.object({ resolved: z.boolean() });
+
+export const onboardingProgressSchema = z.object({
+  blockId: z.string().min(1).max(100),
+  completed: z.boolean(),
+});
+
 export const attachmentInitSchema = z.object({
   fileName: z.string().min(1).max(255),
   mimeType: z.string().min(1).max(255),

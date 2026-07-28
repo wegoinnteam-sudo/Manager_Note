@@ -15,6 +15,7 @@ export interface PageRow {
   tags: string; // JSON
   order_key: number;
   version: number;
+  open_question_count?: number;
   is_system: number;
   is_deleted: number;
   deleted_at: string | null;
@@ -37,9 +38,13 @@ export async function listPages(
   teamId: string,
   opts: { includeDeleted?: boolean } = {},
 ): Promise<PageRow[]> {
+  const count = `(
+    SELECT COUNT(*) FROM inline_questions q
+    WHERE q.page_id = pages.id AND q.status = 'open'
+  ) AS open_question_count`;
   const sql = opts.includeDeleted
-    ? "SELECT * FROM pages WHERE team_id = ?1 ORDER BY order_key ASC, created_at ASC"
-    : "SELECT * FROM pages WHERE team_id = ?1 AND is_deleted = 0 ORDER BY order_key ASC, created_at ASC";
+    ? `SELECT pages.*, ${count} FROM pages WHERE team_id = ?1 ORDER BY order_key ASC, created_at ASC`
+    : `SELECT pages.*, ${count} FROM pages WHERE team_id = ?1 AND is_deleted = 0 ORDER BY order_key ASC, created_at ASC`;
   const { results } = await db.prepare(sql).bind(teamId).all<PageRow>();
   return results ?? [];
 }

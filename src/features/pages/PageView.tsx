@@ -5,6 +5,7 @@ import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
 import { Editor, type EditorHandle } from "./Editor";
 import { Comments } from "@/features/comments/Comments";
 import { History } from "@/features/history/History";
+import { HandoffTools } from "./HandoffTools";
 
 type SaveState = "idle" | "saving" | "saved" | "error" | "conflict";
 
@@ -148,6 +149,8 @@ export function PageView({
           저장 실패 — 네트워크를 확인하세요
         </div>
       )}
+
+      <HandoffTools pageId={page.id} content={page.contentJson} onQuestionsChanged={onPagesChanged} />
 
       <Editor
         ref={editorRef}

@@ -9,6 +9,7 @@ import type {
   HandoffStatus,
   Role,
   TeamMemberDTO,
+  InlineQuestionDTO,
 } from "@shared/types";
 
 export class ApiClientError extends Error {
@@ -85,6 +86,23 @@ export const api = {
   listComments: (pageId: string) => request<{ comments: CommentDTO[] }>(`/api/pages/${pageId}/comments`),
   createComment: (pageId: string, body: string) =>
     request<CommentDTO>(`/api/pages/${pageId}/comments`, { method: "POST", body: JSON.stringify({ body }) }),
+
+  listQuestions: (pageId: string) =>
+    request<{ questions: InlineQuestionDTO[] }>(`/api/pages/${pageId}/questions`),
+  createQuestion: (pageId: string, input: { body: string; blockId?: string | null; blockLabel?: string | null }) =>
+    request<{ id: string }>(`/api/pages/${pageId}/questions`, { method: "POST", body: JSON.stringify(input) }),
+  setQuestionResolved: (pageId: string, questionId: string, resolved: boolean) =>
+    request<{ ok: true }>(`/api/pages/${pageId}/questions/${questionId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ resolved }),
+    }),
+  getOnboardingProgress: (pageId: string) =>
+    request<{ completedBlockIds: string[] }>(`/api/pages/${pageId}/onboarding-progress`),
+  setOnboardingProgress: (pageId: string, blockId: string, completed: boolean) =>
+    request<{ ok: true }>(`/api/pages/${pageId}/onboarding-progress`, {
+      method: "PUT",
+      body: JSON.stringify({ blockId, completed }),
+    }),
 
   listHistory: (pageId: string) => request<{ history: StatusHistoryDTO[] }>(`/api/pages/${pageId}/history`),
 
