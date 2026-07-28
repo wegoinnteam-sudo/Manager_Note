@@ -1,10 +1,42 @@
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AttachmentDTO, PageBlock } from "@shared/types";
 import { renderInline } from "./inlineMarkdown";
+import { api } from "@/lib/api";
 
 const TEXTAREA_TYPES = new Set(["heading1", "heading2", "heading3", "paragraph", "bulleted_list_item", "numbered_list_item"]);
 
 export type HeadingRef = { id: string; text: string; level: 1 | 2 | 3 };
+
+function PageLinkRow({ pageId, onOpenPage }: { pageId: string; onOpenPage: (id: string) => void }) {
+  const [title, setTitle] = useState<string | null>(null);
+  const [missing, setMissing] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getPage(pageId)
+      .then((page) => {
+        if (!cancelled) setTitle(page.title);
+      })
+      .catch(() => {
+        if (!cancelled) setMissing(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pageId]);
+
+  if (missing) {
+    return <span className="page-link-block__title" style={{ color: "var(--color-text-muted)" }}>(삭제된 페이지)</span>;
+  }
+
+  return (
+    <button type="button" className="page-link-block" onClick={() => onOpenPage(pageId)}>
+      <span className="page-link-block__icon">📄</span>
+      <span className="page-link-block__title">{title ?? "불러오는 중…"}</span>
+    </button>
+  );
+}
 
 export function Block({
   block,
@@ -19,6 +51,7 @@ export function Block({
   onKeyDownBlock,
   onRemoveBlock,
   onPatch,
+  onOpenPage,
   registerRef,
 }: {
   block: PageBlock;
@@ -33,6 +66,7 @@ export function Block({
   onKeyDownBlock: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   onRemoveBlock: () => void;
   onPatch: (patch: Partial<PageBlock>) => void;
+  onOpenPage: (pageId: string) => void;
   registerRef: (el: HTMLTextAreaElement | null) => void;
 }) {
   const localRef = useRef<HTMLTextAreaElement | null>(null);
@@ -134,6 +168,68 @@ export function Block({
               {h.text || "(제목 없음)"}
             </button>
           ))}
+        </div>
+        {editable && (
+          <button type="button" className="block-row__handle" onClick={onRemoveBlock} title="블록 제거">
+            ✕
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (block.type === "page_link") {
+    return (
+      <div id={domId} className="block-row">
+        <PageLinkRow pageId={block.pageId} onOpenPage={onOpenPage} />
+        {editable && (
+          <button type="button" className="block-row__handle" onClick={onRemoveBlock} title="블록 제거">
+            ✕
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (block.type === "columns") {
+    const cols = block.columns;
+    const updateColumn = (i2: number, value: string) => {
+      onPatch({ columns: cols.map((c, ci) => (ci === i2 ? value : c)) });
+    };
+    const addColumn = () => cols.length < 5 && onPatch({ columns: [...cols, ""] });
+    const removeColumn = (i2: number) => cols.length > 2 && onPatch({ columns: cols.filter((_, ci) => ci !== i2) });
+
+    return (
+      <div id={domId} className="block-row">
+        <div className="columns-block">
+          <div className="columns-block__grid" style={{ gridTemplateColumns: `repeat(${cols.length}, 1fr)` }}>
+            {cols.map((c, ci) => (
+              <div key={ci} className="columns-block__col">
+                {editable && cols.length > 2 && (
+                  <button type="button" className="columns-block__col-remove" onClick={() => removeColumn(ci)} title="열 삭제">
+                    ✕
+                  </button>
+                )}
+                <textarea
+                  className="columns-block__textarea"
+                  value={c}
+                  disabled={!editable}
+                  placeholder={`${ci + 1}번째 단`}
+                  onChange={(e) => updateColumn(ci, e.target.value)}
+                  onInput={(e) => {
+                    const el = e.currentTarget;
+                    el.style.height = "auto";
+                    el.style.height = `${el.scrollHeight}px`;
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+          {editable && cols.length < 5 && (
+            <button type="button" className="columns-block__add" onClick={addColumn}>
+              + 단 추가
+            </button>
+          )}
         </div>
         {editable && (
           <button type="button" className="block-row__handle" onClick={onRemoveBlock} title="블록 제거">

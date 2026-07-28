@@ -63,6 +63,7 @@ function AppShell({ user }: { user: UserDTO }) {
         registerFileDropHandler={registerFileDropHandler}
         onDeleted={() => navigate("/")}
         onPagesChanged={refreshPages}
+        onOpenPage={openPage}
       />
     );
   } else {

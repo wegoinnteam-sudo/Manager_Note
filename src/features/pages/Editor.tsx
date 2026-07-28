@@ -2,6 +2,8 @@ import { useCallback, useRef, useState } from "react";
 import type { AttachmentDTO, PageBlock, PageContent } from "@shared/types";
 import { Block, type HeadingRef } from "./Block";
 import { AttachmentPicker } from "./AttachmentPicker";
+import { TEMPLATES, buildTemplateBlocks, type TemplateKey } from "./templates";
+import { api } from "@/lib/api";
 
 function newBlockId(): string {
   return crypto.randomUUID();
@@ -24,6 +26,10 @@ function emptyBlockOfType(type: PageBlock["type"]): PageBlock {
       return { id, type, url: "" };
     case "bookmark":
       return { id, type, url: "" };
+    case "page_link":
+      return { id, type, pageId: "" };
+    case "columns":
+      return { id, type, columns: ["", ""] };
     default:
       return { id, type: type as any, text: "" };
   }
@@ -45,7 +51,10 @@ type SlashCommandType =
   | "embed"
   | "bookmark"
   | "image"
-  | "file";
+  | "file"
+  | "page_link"
+  | "columns"
+  | "template";
 
 const SLASH_COMMANDS: { label: string; type: SlashCommandType; aliases: string[] }[] = [
   { label: "텍스트", type: "paragraph", aliases: ["text"] },
@@ -64,6 +73,9 @@ const SLASH_COMMANDS: { label: string; type: SlashCommandType; aliases: string[]
   { label: "북마크", type: "bookmark", aliases: ["bookmark", "link"] },
   { label: "이미지 삽입", type: "image", aliases: ["image"] },
   { label: "파일 첨부", type: "file", aliases: ["file", "pdf"] },
+  { label: "페이지", type: "page_link", aliases: ["page", "새 페이지"] },
+  { label: "컬럼 (2~5단)", type: "columns", aliases: ["columns", "column", "단 나누기"] },
+  { label: "템플릿", type: "template", aliases: ["template"] },
 ];
 
 function filterCommands(query: string) {
@@ -85,15 +97,20 @@ export function Editor({
   attachments,
   editable,
   onChange,
+  onOpenPage,
+  onPagesChanged,
 }: {
   pageId: string;
   content: PageContent;
   attachments: AttachmentDTO[];
   editable: boolean;
   onChange: (next: PageContent) => void;
+  onOpenPage: (pageId: string) => void;
+  onPagesChanged: () => void;
 }) {
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [picker, setPicker] = useState<"image" | "file" | null>(null);
+  const [picker, setPicker] = useState<"image" | "file" | "template" | null>(null);
+  const [templateTargetId, setTemplateTargetId] = useState<string | null>(null);
   const [slashMenu, setSlashMenu] = useState<{ blockId: string; query: string; highlighted: number } | null>(null);
   const refs = useRef(new Map<string, HTMLTextAreaElement>());
   const attachmentsById = new Map(attachments.map((a) => [a.id, a]));
@@ -178,6 +195,21 @@ export function Editor({
     }
   };
 
+  const applyTemplate = (key: TemplateKey) => {
+    setPicker(null);
+    const targetId = templateTargetId;
+    setTemplateTargetId(null);
+    if (!targetId) return;
+    const idx = content.blocks.findIndex((b) => b.id === targetId);
+    if (idx === -1) return;
+    const newBlocks = buildTemplateBlocks(key);
+    const blocks = [...content.blocks];
+    blocks.splice(idx, 1, ...newBlocks);
+    setBlocks(blocks);
+    setActiveId(newBlocks[0].id);
+    requestAnimationFrame(() => refs.current.get(newBlocks[0].id)?.focus());
+  };
+
   const runSlashCommand = (block: PageBlock, cmd: { label: string; type: SlashCommandType }) => {
     setSlashMenu(null);
 
@@ -185,6 +217,27 @@ export function Editor({
       updateBlock(block.id, { text: "" } as Partial<PageBlock>);
       setActiveId(block.id);
       setPicker(cmd.type);
+      return;
+    }
+
+    if (cmd.type === "template") {
+      updateBlock(block.id, { text: "" } as Partial<PageBlock>);
+      setTemplateTargetId(block.id);
+      setPicker("template");
+      return;
+    }
+
+    if (cmd.type === "page_link") {
+      updateBlock(block.id, { text: "" } as Partial<PageBlock>);
+      api.createPage({ parentId: pageId }).then((newPage) => {
+        updateBlock(block.id, { type: "page_link", pageId: newPage.id } as Partial<PageBlock>);
+        onPagesChanged();
+      });
+      return;
+    }
+
+    if (cmd.type === "columns") {
+      updateBlock(block.id, { type: "columns", columns: ["", ""] } as Partial<PageBlock>);
       return;
     }
 
@@ -338,6 +391,7 @@ export function Editor({
             onKeyDownBlock={(e) => handleKeyDown(block, e)}
             onRemoveBlock={() => removeBlock(block.id)}
             onPatch={(patch) => updateBlock(block.id, patch)}
+            onOpenPage={onOpenPage}
             registerRef={(el) => {
               if (el) refs.current.set(block.id, el);
               else refs.current.delete(block.id);
@@ -366,13 +420,39 @@ export function Editor({
         </div>
       ))}
 
-      {picker && (
+      {(picker === "image" || picker === "file") && (
         <AttachmentPicker
           pageId={pageId}
           filterImagesOnly={picker === "image"}
           onPick={(a) => insertReferenceBlock(picker, a)}
           onClose={() => setPicker(null)}
         />
+      )}
+
+      {picker === "template" && (
+        <div className="modal-backdrop" onClick={() => setPicker(null)}>
+          <div className="modal" style={{ width: 420 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal__header">
+              <strong>템플릿 선택</strong>
+              <button type="button" onClick={() => setPicker(null)} style={{ border: "none", background: "none", cursor: "pointer", fontSize: 16 }}>
+                ✕
+              </button>
+            </div>
+            <div className="modal__body" style={{ alignItems: "stretch", gap: 8 }}>
+              {TEMPLATES.map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  className="template-picker__item"
+                  onClick={() => applyTemplate(t.key)}
+                >
+                  <div className="template-picker__label">{t.label}</div>
+                  <div className="template-picker__desc">{t.description}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

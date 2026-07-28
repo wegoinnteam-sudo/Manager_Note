@@ -19,6 +19,7 @@ export function PageView({
   registerFileDropHandler,
   onDeleted,
   onPagesChanged,
+  onOpenPage,
 }: {
   pageId: string;
   canEdit: boolean;
@@ -29,6 +30,7 @@ export function PageView({
   registerFileDropHandler: (handler: (files: FileList) => void) => void;
   onDeleted: () => void;
   onPagesChanged: () => void;
+  onOpenPage: (pageId: string) => void;
 }) {
   const [page, setPage] = useState<PageDetailDTO | null>(null);
   const [attachments, setAttachments] = useState<AttachmentDTO[]>([]);
@@ -149,6 +151,8 @@ export function PageView({
           setPage({ ...page, contentJson: content });
           debouncedSaveContent(content);
         }}
+        onOpenPage={onOpenPage}
+        onPagesChanged={onPagesChanged}
       />
 
       <AttachmentsPanel

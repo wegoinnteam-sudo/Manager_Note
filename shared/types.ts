@@ -52,7 +52,9 @@ export type PageBlock =
   | { id: string; type: "table"; rows: string[][] }
   | { id: string; type: "embed"; url: string }
   | { id: string; type: "bookmark"; url: string }
-  | { id: string; type: "toc" };
+  | { id: string; type: "toc" }
+  | { id: string; type: "page_link"; pageId: string }
+  | { id: string; type: "columns"; columns: string[] };
 
 export interface PageContent {
   blocks: PageBlock[];
