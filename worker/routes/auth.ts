@@ -21,16 +21,6 @@ const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo";
 const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive";
 const DRIVE_REFRESH_TOKEN_SETTING = "google_drive_refresh_token";
 
-authRoute.get("/google/config-check", (c) => {
-  const secret = c.env.GOOGLE_OAUTH_CLIENT_SECRET || "";
-  return c.json({
-    clientId: c.env.GOOGLE_OAUTH_CLIENT_ID,
-    clientSecretLength: secret.length,
-    clientSecretSuffix: secret ? secret.slice(-4) : null,
-    redirectUri: redirectUri(c.env),
-  });
-});
-
 function redirectUri(env: AppBindings["Bindings"]): string {
   if (!env.OAUTH_REDIRECT_BASE_URL) {
     throw Errors.internal("OAUTH_REDIRECT_BASE_URL이 설정되지 않았습니다.");
