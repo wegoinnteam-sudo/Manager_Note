@@ -67,7 +67,15 @@ export function PageView({
       setSaveState("saving");
       try {
         const updated = await api.updatePageMeta(page.id, { expectedVersion: page.version, ...patch });
-        setPage(updated);
+        // Local state already has whatever we just sent (applied optimistically
+        // at input time), possibly plus even newer edits typed during this
+        // request's round trip. Only take version/timestamp bookkeeping from the
+        // response — re-applying the echoed patch would revert those newer edits.
+        setPage((current) =>
+          current && current.id === updated.id
+            ? { ...current, version: updated.version, updatedAt: updated.updatedAt, updatedBy: updated.updatedBy }
+            : current,
+        );
         setSaveState("saved");
         onPagesChanged();
       } catch (err) {
@@ -89,7 +97,14 @@ export function PageView({
       setSaveState("saving");
       try {
         const updated = await api.updatePageContent(page.id, page.contentVersion, content);
-        setPage(updated);
+        // Same reasoning as saveMeta: only take the version/timestamp bookkeeping
+        // from the response, never overwrite contentJson with the (possibly
+        // now-stale) echo — the user may have kept typing during the round trip.
+        setPage((current) =>
+          current && current.id === updated.id
+            ? { ...current, contentVersion: updated.contentVersion, updatedAt: updated.updatedAt, updatedBy: updated.updatedBy }
+            : current,
+        );
         setSaveState("saved");
       } catch (err) {
         if (err instanceof ApiClientError && err.status === 409) {
