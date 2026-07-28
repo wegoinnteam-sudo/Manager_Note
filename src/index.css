@@ -1026,6 +1026,30 @@ button.breadcrumb-block__item:hover {
   bottom: -4px;
 }
 
+.block-wrapper--align-left .block-wrapper__content,
+.block-wrapper--align-center .block-wrapper__content,
+.block-wrapper--align-right .block-wrapper__content {
+  border-radius: 6px;
+}
+
+.block-wrapper--align-left .block-wrapper__content {
+  background: linear-gradient(to right, rgba(37, 99, 235, 0.08) 33.333%, transparent 33.333%);
+}
+
+.block-wrapper--align-center .block-wrapper__content {
+  background: linear-gradient(
+    to right,
+    transparent 33.333%,
+    rgba(37, 99, 235, 0.08) 33.333%,
+    rgba(37, 99, 235, 0.08) 66.666%,
+    transparent 66.666%
+  );
+}
+
+.block-wrapper--align-right .block-wrapper__content {
+  background: linear-gradient(to left, rgba(37, 99, 235, 0.08) 33.333%, transparent 33.333%);
+}
+
 .block-wrapper__content {
   flex: 1;
   min-width: 0;

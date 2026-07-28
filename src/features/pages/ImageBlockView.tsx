@@ -60,7 +60,15 @@ export function ImageBlockView({
   return (
     <div className="block-row">
       <div className="image-block">
-        <div className="image-block__frame" ref={frameRef} style={{ width: `${block.width ?? 100}%` }}>
+        <div
+          className="image-block__frame"
+          ref={frameRef}
+          style={{
+            width: `${block.width ?? 100}%`,
+            marginLeft: block.align === "right" ? "auto" : block.align === "center" ? "auto" : 0,
+            marginRight: block.align === "left" || !block.align ? "auto" : block.align === "center" ? "auto" : 0,
+          }}
+        >
           <img src={src} alt={att?.fileName ?? "이미지"} />
           {editable && (
             <>

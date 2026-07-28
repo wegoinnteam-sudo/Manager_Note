@@ -189,7 +189,11 @@ export const Editor = forwardRef<EditorHandle, {
   const [imageReplaceTargetId, setImageReplaceTargetId] = useState<string | null>(null);
   const [pagePickerQuery, setPagePickerQuery] = useState("");
   const [draggedId, setDraggedId] = useState<string | null>(null);
-  const [dragTarget, setDragTarget] = useState<{ id: string; position: "before" | "after" } | null>(null);
+  const [dragTarget, setDragTarget] = useState<{
+    id: string;
+    position: "before" | "after";
+    align: "left" | "center" | "right";
+  } | null>(null);
   const [slashMenu, setSlashMenu] = useState<{ blockId: string; query: string; highlighted: number } | null>(null);
   const [mentionMenu, setMentionMenu] = useState<{ blockId: string; query: string; highlighted: number; triggerStart: number } | null>(null);
   const [pendingUploads, setPendingUploads] = useState<{ id: string; previewUrl: string; afterId: string | null }[]>([]);
@@ -364,15 +368,26 @@ export const Editor = forwardRef<EditorHandle, {
     }
   };
 
-  const moveBlock = (draggedBlockId: string, targetBlockId: string, position: "before" | "after") => {
-    if (draggedBlockId === targetBlockId) return;
+  const moveBlock = (
+    draggedBlockId: string,
+    targetBlockId: string,
+    position: "before" | "after",
+    align: "left" | "center" | "right",
+  ) => {
     const blocks = [...content.blocks];
     const fromIdx = blocks.findIndex((b) => b.id === draggedBlockId);
     if (fromIdx === -1) return;
+    if (draggedBlockId === targetBlockId) {
+      const current = blocks[fromIdx];
+      if (current.type === "image") blocks[fromIdx] = { ...current, align };
+      setBlocks(blocks);
+      return;
+    }
     const [moved] = blocks.splice(fromIdx, 1);
     const targetIdx = blocks.findIndex((b) => b.id === targetBlockId);
     if (targetIdx === -1) return;
-    blocks.splice(position === "after" ? targetIdx + 1 : targetIdx, 0, moved);
+    const positioned = moved.type === "image" ? { ...moved, align } : moved;
+    blocks.splice(position === "after" ? targetIdx + 1 : targetIdx, 0, positioned);
     setBlocks(blocks);
   };
 
@@ -733,6 +748,7 @@ export const Editor = forwardRef<EditorHandle, {
               block.type === "image" && editable ? "block-wrapper--image-movable" : "",
               draggedId === block.id ? "block-wrapper--dragging" : "",
               dragTarget?.id === block.id ? `block-wrapper--drop-${dragTarget.position}` : "",
+              dragTarget?.id === block.id ? `block-wrapper--align-${dragTarget.align}` : "",
             ]
               .filter(Boolean)
               .join(" ")}
@@ -749,18 +765,21 @@ export const Editor = forwardRef<EditorHandle, {
               setDraggedId(block.id);
             }}
             onDragOver={(e) => {
-              if (!editable || !draggedId || draggedId === block.id) return;
+              if (!editable || !draggedId) return;
               e.preventDefault();
               e.dataTransfer.dropEffect = "move";
               const rect = e.currentTarget.getBoundingClientRect();
               const position = e.clientY < rect.top + rect.height / 2 ? "before" : "after";
-              setDragTarget({ id: block.id, position });
+              const horizontalRatio = (e.clientX - rect.left) / rect.width;
+              const align = horizontalRatio < 1 / 3 ? "left" : horizontalRatio > 2 / 3 ? "right" : "center";
+              setDragTarget({ id: block.id, position, align });
             }}
             onDrop={(e) => {
               if (!editable || !draggedId) return;
               e.preventDefault();
               const position = dragTarget?.id === block.id ? dragTarget.position : "before";
-              moveBlock(draggedId, block.id, position);
+              const align = dragTarget?.id === block.id ? dragTarget.align : "left";
+              moveBlock(draggedId, block.id, position, align);
               setDraggedId(null);
               setDragTarget(null);
             }}

@@ -45,7 +45,15 @@ export type PageBlock =
   | { id: string; type: "bulleted_list_item" | "numbered_list_item"; text: string }
   | { id: string; type: "checklist_item"; text: string; checked: boolean }
   | { id: string; type: "divider" }
-  | { id: string; type: "image"; attachmentId?: string; url?: string; caption?: string; width?: number }
+  | {
+      id: string;
+      type: "image";
+      attachmentId?: string;
+      url?: string;
+      caption?: string;
+      width?: number;
+      align?: "left" | "center" | "right";
+    }
   | { id: string; type: "file"; attachmentId: string }
   | { id: string; type: "toggle"; text: string; body: string; expanded: boolean }
   | { id: string; type: "callout"; text: string }
