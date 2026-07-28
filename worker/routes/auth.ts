@@ -90,7 +90,14 @@ authRoute.get("/google/callback", async (c) => {
       grant_type: "authorization_code",
     }),
   });
-  if (!tokenRes.ok) throw Errors.upstream("Google 로그인 토큰 교환에 실패했습니다.");
+  if (!tokenRes.ok) {
+    const tokenError = (await tokenRes.json().catch(() => null)) as
+      | { error?: string; error_description?: string }
+      | null;
+    const reason = [tokenError?.error, tokenError?.error_description].filter(Boolean).join(": ");
+    console.error("Google OAuth token exchange failed:", tokenRes.status, reason || "unknown_error");
+    throw Errors.upstream(`Google 로그인 토큰 교환에 실패했습니다.${reason ? ` (${reason})` : ""}`);
+  }
   const tokenJson = (await tokenRes.json()) as { access_token: string; refresh_token?: string };
 
   const userinfoRes = await fetch(GOOGLE_USERINFO_URL, {
