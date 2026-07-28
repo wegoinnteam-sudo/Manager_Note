@@ -244,6 +244,14 @@ export const Editor = forwardRef<EditorHandle, {
       setPendingUploads((prev) => prev.filter((p) => !pending.some((done) => done.id === p.id)));
       pending.forEach((p) => p.previewUrl && URL.revokeObjectURL(p.previewUrl));
 
+      const failedNames = results
+        .map((r, i) => (r.status === "rejected" ? { file: pending[i].file.name, reason: r.reason } : null))
+        .filter((f): f is { file: string; reason: unknown } => f !== null);
+      if (failedNames.length > 0) {
+        console.error("업로드 실패:", failedNames);
+        alert(failedNames.map((f) => `${f.file}: ${f.reason instanceof Error ? f.reason.message : String(f.reason)}`).join("\n"));
+      }
+
       const uploaded = results.filter((r): r is PromiseFulfilledResult<AttachmentDTO> => r.status === "fulfilled").map((r) => r.value);
       if (uploaded.length === 0) return;
       uploaded.forEach((a) => onAttachmentUploaded(a));
@@ -346,8 +354,9 @@ export const Editor = forwardRef<EditorHandle, {
       const blocks = [...contentRef.current.blocks];
       blocks.splice(idx === -1 ? blocks.length : idx + 1, 0, newBlock);
       setBlocks(blocks);
-    } catch {
-      /* silently ignore — user can still use /image */
+    } catch (err) {
+      console.error("붙여넣기 업로드 실패:", err);
+      alert(`이미지 붙여넣기에 실패했습니다: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setPendingUploads((prev) => prev.filter((p) => p.id !== pendingId));
       URL.revokeObjectURL(previewUrl);
