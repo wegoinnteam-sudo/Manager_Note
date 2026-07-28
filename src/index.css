@@ -987,9 +987,43 @@ button.breadcrumb-block__item:hover {
 }
 
 .block-wrapper {
+  position: relative;
   display: flex;
   align-items: flex-start;
   gap: 2px;
+}
+
+.block-wrapper--image-movable .image-block__frame {
+  cursor: grab;
+}
+
+.block-wrapper--image-movable .image-block__frame:active {
+  cursor: grabbing;
+}
+
+.block-wrapper--dragging {
+  opacity: 0.45;
+}
+
+.block-wrapper--drop-before::before,
+.block-wrapper--drop-after::after {
+  content: "";
+  position: absolute;
+  left: 16px;
+  right: 0;
+  height: 3px;
+  z-index: 5;
+  border-radius: 999px;
+  background: var(--color-accent);
+  pointer-events: none;
+}
+
+.block-wrapper--drop-before::before {
+  top: -4px;
+}
+
+.block-wrapper--drop-after::after {
+  bottom: -4px;
 }
 
 .block-wrapper__content {

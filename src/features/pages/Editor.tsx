@@ -189,6 +189,7 @@ export const Editor = forwardRef<EditorHandle, {
   const [imageReplaceTargetId, setImageReplaceTargetId] = useState<string | null>(null);
   const [pagePickerQuery, setPagePickerQuery] = useState("");
   const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragTarget, setDragTarget] = useState<{ id: string; position: "before" | "after" } | null>(null);
   const [slashMenu, setSlashMenu] = useState<{ blockId: string; query: string; highlighted: number } | null>(null);
   const [mentionMenu, setMentionMenu] = useState<{ blockId: string; query: string; highlighted: number; triggerStart: number } | null>(null);
   const [pendingUploads, setPendingUploads] = useState<{ id: string; previewUrl: string; afterId: string | null }[]>([]);
@@ -363,14 +364,15 @@ export const Editor = forwardRef<EditorHandle, {
     }
   };
 
-  const moveBlock = (draggedBlockId: string, targetBlockId: string) => {
+  const moveBlock = (draggedBlockId: string, targetBlockId: string, position: "before" | "after") => {
     if (draggedBlockId === targetBlockId) return;
     const blocks = [...content.blocks];
     const fromIdx = blocks.findIndex((b) => b.id === draggedBlockId);
-    const toIdx = blocks.findIndex((b) => b.id === targetBlockId);
-    if (fromIdx === -1 || toIdx === -1) return;
+    if (fromIdx === -1) return;
     const [moved] = blocks.splice(fromIdx, 1);
-    blocks.splice(toIdx, 0, moved);
+    const targetIdx = blocks.findIndex((b) => b.id === targetBlockId);
+    if (targetIdx === -1) return;
+    blocks.splice(position === "after" ? targetIdx + 1 : targetIdx, 0, moved);
     setBlocks(blocks);
   };
 
@@ -726,15 +728,45 @@ export const Editor = forwardRef<EditorHandle, {
       {content.blocks.map((block, i) => (
         <div key={block.id}>
           <div
-            className="block-wrapper"
+            className={[
+              "block-wrapper",
+              block.type === "image" && editable ? "block-wrapper--image-movable" : "",
+              draggedId === block.id ? "block-wrapper--dragging" : "",
+              dragTarget?.id === block.id ? `block-wrapper--drop-${dragTarget.position}` : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            draggable={editable && block.type === "image"}
+            onDragStart={(e) => {
+              if (!editable || block.type !== "image") return;
+              const target = e.target as HTMLElement;
+              if (target.closest("button, a, input, .image-block__handle")) {
+                e.preventDefault();
+                return;
+              }
+              e.dataTransfer.effectAllowed = "move";
+              e.dataTransfer.setData("text/plain", block.id);
+              setDraggedId(block.id);
+            }}
             onDragOver={(e) => {
-              if (editable && draggedId) e.preventDefault();
+              if (!editable || !draggedId || draggedId === block.id) return;
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+              const rect = e.currentTarget.getBoundingClientRect();
+              const position = e.clientY < rect.top + rect.height / 2 ? "before" : "after";
+              setDragTarget({ id: block.id, position });
             }}
             onDrop={(e) => {
               if (!editable || !draggedId) return;
               e.preventDefault();
-              moveBlock(draggedId, block.id);
+              const position = dragTarget?.id === block.id ? dragTarget.position : "before";
+              moveBlock(draggedId, block.id, position);
               setDraggedId(null);
+              setDragTarget(null);
+            }}
+            onDragEnd={() => {
+              setDraggedId(null);
+              setDragTarget(null);
             }}
           >
             {editable && (
@@ -743,9 +775,13 @@ export const Editor = forwardRef<EditorHandle, {
                 draggable
                 onDragStart={(e) => {
                   e.dataTransfer.effectAllowed = "move";
+                  e.dataTransfer.setData("text/plain", block.id);
                   setDraggedId(block.id);
                 }}
-                onDragEnd={() => setDraggedId(null)}
+                onDragEnd={() => {
+                  setDraggedId(null);
+                  setDragTarget(null);
+                }}
                 title="드래그해서 순서 변경"
               >
                 ⋮⋮
