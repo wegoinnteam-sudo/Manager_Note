@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -76,8 +76,9 @@ export class FakeD1 {
 export function createTestDb(): any {
   const db = new DatabaseSync(":memory:");
   const here = path.dirname(fileURLToPath(import.meta.url));
-  const migrationPath = path.resolve(here, "../../../migrations/0001_init.sql");
-  const sql = readFileSync(migrationPath, "utf8");
-  db.exec(sql);
+  const migrationsDir = path.resolve(here, "../../../migrations");
+  for (const fileName of readdirSync(migrationsDir).filter((name) => name.endsWith(".sql")).sort()) {
+    db.exec(readFileSync(path.join(migrationsDir, fileName), "utf8"));
+  }
   return new FakeD1(db);
 }
