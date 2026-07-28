@@ -9,6 +9,7 @@ import type { DatabaseViewType } from "./DatabaseView";
 import { api, uploadAttachment } from "@/lib/api";
 
 const MAX_UPLOAD_MB = Number((import.meta as any).env?.VITE_MAX_UPLOAD_MB ?? 50);
+const INTERNAL_BLOCK_DRAG_TYPE = "application/x-team-note-block";
 
 function extensionOf(name: string): string {
   const idx = name.lastIndexOf(".");
@@ -762,6 +763,7 @@ export const Editor = forwardRef<EditorHandle, {
               }
               e.dataTransfer.effectAllowed = "move";
               e.dataTransfer.setData("text/plain", block.id);
+              e.dataTransfer.setData(INTERNAL_BLOCK_DRAG_TYPE, block.id);
               setDraggedId(block.id);
             }}
             onDragOver={(e) => {
@@ -795,6 +797,7 @@ export const Editor = forwardRef<EditorHandle, {
                 onDragStart={(e) => {
                   e.dataTransfer.effectAllowed = "move";
                   e.dataTransfer.setData("text/plain", block.id);
+                  e.dataTransfer.setData(INTERNAL_BLOCK_DRAG_TYPE, block.id);
                   setDraggedId(block.id);
                 }}
                 onDragEnd={() => {

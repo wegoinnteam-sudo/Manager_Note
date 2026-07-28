@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
+const INTERNAL_BLOCK_DRAG_TYPE = "application/x-team-note-block";
+
 /**
  * Makes the ENTIRE page a drop target, not just a small upload box. Files
  * dropped anywhere on screen attach to whatever page is currently open
@@ -13,7 +15,9 @@ export function GlobalDropzone({ active, onFiles, children }: { active: boolean;
     if (!active) return;
 
     function hasFiles(e: DragEvent) {
-      return !!e.dataTransfer && Array.from(e.dataTransfer.types).includes("Files");
+      if (!e.dataTransfer) return false;
+      const types = Array.from(e.dataTransfer.types);
+      return types.includes("Files") && !types.includes(INTERNAL_BLOCK_DRAG_TYPE);
     }
 
     function onDragEnter(e: DragEvent) {
