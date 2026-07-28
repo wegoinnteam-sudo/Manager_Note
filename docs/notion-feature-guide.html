@@ -1,0 +1,646 @@
+<title>노션 기능 안내서</title>
+<style>
+  :root {
+    --paper: #F2F4F2;
+    --surface: #FFFFFF;
+    --surface-2: #EAEDEA;
+    --ink: #1D2220;
+    --ink-muted: #5B655F;
+    --ink-faint: #8B958F;
+    --line: #DCE1DC;
+    --accent: #2C6656;
+    --accent-ink: #FFFFFF;
+    --accent-soft: #DEEBE4;
+    --accent-soft-ink: #1F5443;
+    --kbd-bg: #FFFFFF;
+    --kbd-border: #C9D0C9;
+    --kbd-shadow: #C2CAC3;
+    --shadow-color: 220 20% 40%;
+  }
+
+  :root[data-theme="dark"] {
+    --paper: #181C1A;
+    --surface: #212624;
+    --surface-2: #262B29;
+    --ink: #E9EEEA;
+    --ink-muted: #9AA69E;
+    --ink-faint: #6B7670;
+    --line: #333B37;
+    --accent: #6FBFA0;
+    --accent-ink: #10241E;
+    --accent-soft: #24413A;
+    --accent-soft-ink: #8FD4B8;
+    --kbd-bg: #2B302D;
+    --kbd-border: #414944;
+    --kbd-shadow: #0E100F;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #181C1A;
+      --surface: #212624;
+      --surface-2: #262B29;
+      --ink: #E9EEEA;
+      --ink-muted: #9AA69E;
+      --ink-faint: #6B7670;
+      --line: #333B37;
+      --accent: #6FBFA0;
+      --accent-ink: #10241E;
+      --accent-soft: #24413A;
+      --accent-soft-ink: #8FD4B8;
+      --kbd-bg: #2B302D;
+      --kbd-border: #414944;
+      --kbd-shadow: #0E100F;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+  }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo",
+      "Segoe UI", "Malgun Gothic", system-ui, sans-serif;
+    font-size: 15.5px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: inherit; }
+
+  .wrap {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 0 24px 96px;
+  }
+
+  /* ---------- Masthead ---------- */
+
+  header.masthead {
+    padding: 56px 0 32px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent-soft-ink);
+    background: var(--accent-soft);
+    padding: 5px 11px 5px 9px;
+    border-radius: 999px;
+    margin-bottom: 18px;
+  }
+
+  .eyebrow svg { width: 13px; height: 13px; flex: none; }
+
+  h1.title {
+    font-size: clamp(28px, 4.2vw, 38px);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin: 0 0 12px;
+    text-wrap: balance;
+  }
+
+  p.dek {
+    margin: 0;
+    max-width: 62ch;
+    color: var(--ink-muted);
+    font-size: 16px;
+  }
+
+  .meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 22px;
+    margin-top: 22px;
+    font-size: 13px;
+    color: var(--ink-faint);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .meta-row span { display: inline-flex; align-items: center; gap: 6px; }
+  .meta-row .dot { width: 4px; height: 4px; border-radius: 50%; background: var(--ink-faint); }
+
+  /* ---------- Section nav ---------- */
+
+  nav.toc {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: color-mix(in srgb, var(--paper) 92%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+
+  nav.toc .toc-inner {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 12px 24px;
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  nav.toc .toc-inner::-webkit-scrollbar { display: none; }
+
+  nav.toc a {
+    flex: none;
+    text-decoration: none;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--ink-muted);
+    padding: 7px 13px;
+    border-radius: 8px;
+    white-space: nowrap;
+  }
+
+  nav.toc a:hover { background: var(--surface-2); color: var(--ink); }
+  nav.toc a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---------- Sections ---------- */
+
+  section.group {
+    scroll-margin-top: 56px;
+    padding-top: 52px;
+  }
+
+  .group-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    margin-bottom: 6px;
+  }
+
+  .group-icon {
+    flex: none;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: var(--accent-soft);
+    color: var(--accent-soft-ink);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .group-icon svg { width: 20px; height: 20px; }
+
+  h2.group-title {
+    font-size: 21px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    margin: 4px 0 2px;
+  }
+
+  p.group-desc {
+    margin: 0 0 22px 52px;
+    color: var(--ink-muted);
+    font-size: 14.5px;
+  }
+
+  h3.subhead {
+    font-size: 12.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 26px 0 10px 52px;
+  }
+
+  h3.subhead:first-of-type { margin-top: 4px; }
+
+  /* ---------- Feature list ---------- */
+
+  .flist {
+    margin-left: 52px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--surface);
+  }
+
+  .frow {
+    display: grid;
+    grid-template-columns: minmax(120px, 0.9fr) 2fr auto;
+    gap: 14px;
+    align-items: center;
+    padding: 11px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .frow:last-child { border-bottom: none; }
+  .frow:nth-child(even) { background: var(--surface-2); }
+
+  .frow .fname {
+    font-weight: 700;
+    font-size: 14.5px;
+  }
+
+  .frow .fdesc {
+    color: var(--ink-muted);
+    font-size: 13.5px;
+  }
+
+  .frow .fkey {
+    justify-self: end;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  @media (max-width: 640px) {
+    .frow {
+      grid-template-columns: 1fr;
+      gap: 4px;
+    }
+    .frow .fkey { justify-self: start; justify-content: flex-start; }
+    .flist, h3.subhead, p.group-desc { margin-left: 0; }
+  }
+
+  /* keycap */
+  kbd {
+    font-family: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink);
+    background: var(--kbd-bg);
+    border: 1px solid var(--kbd-border);
+    border-bottom: 2px solid var(--kbd-shadow);
+    border-radius: 6px;
+    padding: 3px 7px 4px;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .plus { color: var(--ink-faint); font-size: 11px; }
+
+  /* slash command pill */
+  .slash {
+    font-family: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--accent-soft-ink);
+    background: var(--accent-soft);
+    border-radius: 999px;
+    padding: 4px 11px;
+    white-space: nowrap;
+  }
+
+  .plain-tag {
+    font-size: 12.5px;
+    color: var(--ink-faint);
+    white-space: nowrap;
+  }
+
+  /* simple list variant (no shortcut column) — used for pages/collab/media/productivity */
+  .flist.plain .frow {
+    grid-template-columns: minmax(140px, 1fr) 2.2fr;
+  }
+
+  /* ---------- Learning path ---------- */
+
+  .path {
+    margin-left: 52px;
+    position: relative;
+  }
+
+  .path::before {
+    content: "";
+    position: absolute;
+    left: 15px;
+    top: 6px;
+    bottom: 6px;
+    width: 2px;
+    background: var(--line);
+  }
+
+  .step {
+    position: relative;
+    display: grid;
+    grid-template-columns: 32px 1fr;
+    gap: 16px;
+    padding: 14px 0;
+  }
+
+  .step-num {
+    position: relative;
+    z-index: 1;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 2px solid var(--accent);
+    color: var(--accent);
+    font-weight: 800;
+    font-size: 13.5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .step-body .step-title {
+    font-weight: 700;
+    font-size: 15px;
+    margin-bottom: 2px;
+  }
+
+  .step-body .step-desc {
+    color: var(--ink-muted);
+    font-size: 13.5px;
+  }
+
+  @media (max-width: 640px) {
+    .path { margin-left: 0; }
+  }
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <span class="eyebrow">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 5h16M4 12h16M4 19h10"/></svg>
+      NOTION FEATURE REFERENCE
+    </span>
+    <h1 class="title">노션 기능 안내서</h1>
+    <p class="dek">문서 작성부터 데이터베이스, 협업, 멀티미디어까지 — AI 기능을 제외한 노션의 핵심 기능을 단축키와 슬래시 명령어까지 한 페이지에 정리했습니다.</p>
+    <div class="meta-row">
+      <span><span class="dot"></span>90여 개 기능</span>
+      <span><span class="dot"></span>단축키 &amp; 슬래시 명령어 포함</span>
+      <span><span class="dot"></span>처음 배우는 분을 위한 학습 순서 포함</span>
+    </div>
+  </header>
+
+  <nav class="toc" aria-label="섹션 이동">
+    <div class="toc-inner">
+      <a href="#doc">문서 작성</a>
+      <a href="#db">데이터베이스</a>
+      <a href="#page">페이지</a>
+      <a href="#collab">협업</a>
+      <a href="#media">멀티미디어</a>
+      <a href="#productivity">생산성</a>
+      <a href="#path">학습 순서</a>
+    </div>
+  </nav>
+
+  <!-- 문서 작성 기능 -->
+  <section class="group" id="doc">
+    <div class="group-head">
+      <span class="group-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l3 3v15H6z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>
+      </span>
+      <div>
+        <h2 class="group-title">문서 작성 기능</h2>
+      </div>
+    </div>
+    <p class="group-desc">텍스트를 입력하고, 서식을 지정하고, 다양한 블록을 만드는 데 쓰는 기본기입니다.</p>
+
+    <h3 class="subhead">기본 편집</h3>
+    <div class="flist">
+      <div class="frow"><div class="fname">제목 작성</div><div class="fdesc">페이지 제목 입력 — 클릭 후 입력</div><div class="fkey"></div></div>
+      <div class="frow"><div class="fname">본문 작성</div><div class="fdesc">그냥 입력하면 됩니다</div><div class="fkey"></div></div>
+      <div class="frow"><div class="fname">줄바꿈</div><div class="fdesc">한 블록 안에서 줄 바꾸기</div><div class="fkey"><kbd>Shift</kbd><span class="plus">+</span><kbd>Enter</kbd></div></div>
+      <div class="frow"><div class="fname">새 블록 생성</div><div class="fdesc">다음 블록으로 이동</div><div class="fkey"><kbd>Enter</kbd></div></div>
+      <div class="frow"><div class="fname">블록 이동</div><div class="fdesc">블록 왼쪽 ⋮⋮ 손잡이를 드래그</div><div class="fkey"></div></div>
+      <div class="frow"><div class="fname">블록 복사</div><div class="fdesc">블록 선택 후 복사·붙여넣기</div><div class="fkey"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>C</kbd> <kbd>Ctrl</kbd><span class="plus">+</span><kbd>V</kbd></div></div>
+      <div class="frow"><div class="fname">블록 삭제</div><div class="fdesc">빈 블록에서 뒤로 지우기</div><div class="fkey"><kbd>Backspace</kbd></div></div>
+      <div class="frow"><div class="fname">블록 색상</div><div class="fdesc">텍스트 선택 → 서식 메뉴에서 Color</div><div class="fkey"></div></div>
+    </div>
+
+    <h3 class="subhead">서식</h3>
+    <div class="flist">
+      <div class="frow"><div class="fname">굵게</div><div class="fdesc">선택한 텍스트를 굵게</div><div class="fkey"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>B</kbd></div></div>
+      <div class="frow"><div class="fname">기울임</div><div class="fdesc">선택한 텍스트를 기울임체로</div><div class="fkey"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>I</kbd></div></div>
+      <div class="frow"><div class="fname">밑줄</div><div class="fdesc">선택한 텍스트에 밑줄</div><div class="fkey"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>U</kbd></div></div>
+      <div class="frow"><div class="fname">취소선</div><div class="fdesc">텍스트 선택 → 서식 메뉴</div><div class="fkey"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>S</kbd></div></div>
+      <div class="frow"><div class="fname">인라인 코드</div><div class="fdesc">문장 속 짧은 코드 표시</div><div class="fkey"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>E</kbd></div></div>
+    </div>
+
+    <h3 class="subhead">블록 &amp; 슬래시 명령어</h3>
+    <div class="flist">
+      <div class="frow"><div class="fname">코드 블록</div><div class="fdesc">여러 줄 코드 작성, 언어 지정 가능</div><div class="fkey"><span class="slash">/code</span></div></div>
+      <div class="frow"><div class="fname">인용문</div><div class="fdesc">문단을 인용구로 표시</div><div class="fkey"><span class="slash">/quote</span></div></div>
+      <div class="frow"><div class="fname">구분선</div><div class="fdesc">섹션을 나누는 가로선</div><div class="fkey"><span class="slash">/divider</span></div></div>
+      <div class="frow"><div class="fname">큰 제목 (H1)</div><div class="fdesc">가장 큰 제목 블록</div><div class="fkey"><span class="slash">/h1</span></div></div>
+      <div class="frow"><div class="fname">중간 제목 (H2)</div><div class="fdesc">중간 크기 제목 블록</div><div class="fkey"><span class="slash">/h2</span></div></div>
+      <div class="frow"><div class="fname">작은 제목 (H3)</div><div class="fdesc">가장 작은 제목 블록</div><div class="fkey"><span class="slash">/h3</span></div></div>
+      <div class="frow"><div class="fname">글머리 기호</div><div class="fdesc">순서 없는 목록</div><div class="fkey"><span class="slash">/bulleted list</span></div></div>
+      <div class="frow"><div class="fname">번호 목록</div><div class="fdesc">순서 있는 목록</div><div class="fkey"><span class="slash">/numbered list</span></div></div>
+      <div class="frow"><div class="fname">체크리스트</div><div class="fdesc">할 일 목록, 체크박스 포함</div><div class="fkey"><span class="slash">/todo</span></div></div>
+      <div class="frow"><div class="fname">토글</div><div class="fdesc">클릭하면 접히는 접이식 블록</div><div class="fkey"><span class="slash">/toggle</span></div></div>
+      <div class="frow"><div class="fname">콜아웃</div><div class="fdesc">아이콘과 배경색으로 강조하는 박스</div><div class="fkey"><span class="slash">/callout</span></div></div>
+      <div class="frow"><div class="fname">표 (Table)</div><div class="fdesc">문서 안에 표 삽입</div><div class="fkey"><span class="slash">/table</span></div></div>
+    </div>
+  </section>
+
+  <!-- 데이터베이스 기능 -->
+  <section class="group" id="db">
+    <div class="group-head">
+      <span class="group-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11"/></svg>
+      </span>
+      <div>
+        <h2 class="group-title">데이터베이스 기능</h2>
+      </div>
+    </div>
+    <p class="group-desc">같은 데이터를 표·보드·달력 등 다양한 형태로 보여주고, 속성으로 정보를 관리합니다.</p>
+
+    <h3 class="subhead">보기 유형 (View)</h3>
+    <div class="flist plain">
+      <div class="frow"><div class="fname">Table</div><div class="fdesc">행과 열로 데이터를 정리하는 기본 표 형태</div></div>
+      <div class="frow"><div class="fname">Board</div><div class="fdesc">칸반 보드 — 상태별로 카드를 옮겨가며 관리</div></div>
+      <div class="frow"><div class="fname">Calendar</div><div class="fdesc">날짜 속성 기준으로 달력에 표시</div></div>
+      <div class="frow"><div class="fname">Gallery</div><div class="fdesc">사진·카드 형태로 항목을 보여줌</div></div>
+      <div class="frow"><div class="fname">Timeline</div><div class="fdesc">시작일~종료일 기준 시간순 관리</div></div>
+      <div class="frow"><div class="fname">List</div><div class="fdesc">가장 단순한 목록 형태</div></div>
+    </div>
+
+    <h3 class="subhead">속성 (Property)</h3>
+    <div class="flist plain">
+      <div class="frow"><div class="fname">상태 (Status)</div><div class="fdesc">할 일 · 진행 중 · 완료 같은 진행 단계</div></div>
+      <div class="frow"><div class="fname">Select</div><div class="fdesc">여러 옵션 중 하나만 선택</div></div>
+      <div class="frow"><div class="fname">Multi-select</div><div class="fdesc">여러 옵션을 동시에 선택</div></div>
+      <div class="frow"><div class="fname">Date</div><div class="fdesc">날짜 또는 날짜 범위 지정</div></div>
+      <div class="frow"><div class="fname">Person</div><div class="fdesc">담당자 지정</div></div>
+      <div class="frow"><div class="fname">Checkbox</div><div class="fdesc">체크 여부로 완료 표시</div></div>
+      <div class="frow"><div class="fname">URL</div><div class="fdesc">외부 링크 저장</div></div>
+      <div class="frow"><div class="fname">Email</div><div class="fdesc">이메일 주소 저장</div></div>
+      <div class="frow"><div class="fname">Phone</div><div class="fdesc">전화번호 저장</div></div>
+      <div class="frow"><div class="fname">Files &amp; media</div><div class="fdesc">파일 첨부</div></div>
+      <div class="frow"><div class="fname">Formula</div><div class="fdesc">다른 속성 값으로 계산하는 수식</div></div>
+      <div class="frow"><div class="fname">Relation</div><div class="fdesc">다른 데이터베이스와 항목을 연결</div></div>
+      <div class="frow"><div class="fname">Rollup</div><div class="fdesc">연결된 데이터베이스의 값을 집계·계산</div></div>
+      <div class="frow"><div class="fname">Created time</div><div class="fdesc">항목 생성일 자동 기록</div></div>
+      <div class="frow"><div class="fname">Edited time</div><div class="fdesc">항목 최종 수정일 자동 기록</div></div>
+      <div class="frow"><div class="fname">Created by</div><div class="fdesc">작성자 자동 기록</div></div>
+      <div class="frow"><div class="fname">Edited by</div><div class="fdesc">최종 수정자 자동 기록</div></div>
+    </div>
+
+    <h3 class="subhead">정리</h3>
+    <div class="flist plain">
+      <div class="frow"><div class="fname">정렬 (Sort)</div><div class="fdesc">속성 기준으로 항목 순서 정리</div></div>
+      <div class="frow"><div class="fname">필터 (Filter)</div><div class="fdesc">조건에 맞는 항목만 걸러서 표시</div></div>
+    </div>
+  </section>
+
+  <!-- 페이지 기능 -->
+  <section class="group" id="page">
+    <div class="group-head">
+      <span class="group-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 3h8l4 4v14H7z"/><path d="M14 3v5h5"/></svg>
+      </span>
+      <div>
+        <h2 class="group-title">페이지 기능</h2>
+      </div>
+    </div>
+    <p class="group-desc">개별 페이지를 구성하고 관리하는 기능들입니다.</p>
+
+    <div class="flist plain">
+      <div class="frow"><div class="fname">하위 페이지 만들기</div><div class="fdesc">페이지 안에 또 다른 페이지 생성</div></div>
+      <div class="frow"><div class="fname">아이콘 추가</div><div class="fdesc">제목 위 이모지·이미지 아이콘 설정</div></div>
+      <div class="frow"><div class="fname">커버 이미지</div><div class="fdesc">페이지 상단 배경 이미지</div></div>
+      <div class="frow"><div class="fname">페이지 잠금</div><div class="fdesc">실수로 수정되지 않도록 편집 잠금</div></div>
+      <div class="frow"><div class="fname">페이지 링크 복사</div><div class="fdesc">다른 곳에 붙여넣을 수 있는 링크 생성</div></div>
+      <div class="frow"><div class="fname">페이지 복제</div><div class="fdesc">같은 내용의 페이지를 복사</div></div>
+      <div class="frow"><div class="fname">페이지 이동</div><div class="fdesc">다른 페이지·팀스페이스 하위로 이동</div></div>
+      <div class="frow"><div class="fname">페이지 삭제</div><div class="fdesc">휴지통으로 이동 후 완전 삭제</div></div>
+      <div class="frow"><div class="fname">페이지 공유</div><div class="fdesc">사람 또는 링크로 공유</div></div>
+      <div class="frow"><div class="fname">댓글 작성</div><div class="fdesc">페이지 또는 특정 블록에 댓글</div></div>
+    </div>
+  </section>
+
+  <!-- 협업 기능 -->
+  <section class="group" id="collab">
+    <div class="group-head">
+      <span class="group-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.5 2.7-6 6-6s6 2.5 6 6"/><circle cx="17" cy="9" r="2.4"/><path d="M15.5 14c2.5.3 4.5 2.5 4.5 6"/></svg>
+      </span>
+      <div>
+        <h2 class="group-title">협업 기능</h2>
+      </div>
+    </div>
+    <p class="group-desc">여러 사람이 함께 문서를 만들고 관리할 때 필요한 기능입니다.</p>
+
+    <div class="flist plain">
+      <div class="frow"><div class="fname">실시간 공동 편집</div><div class="fdesc">여러 명이 동시에 같은 문서 편집</div></div>
+      <div class="frow"><div class="fname">멘션 (@)</div><div class="fdesc">사람·페이지·날짜를 호출해 연결</div></div>
+      <div class="frow"><div class="fname">알림</div><div class="fdesc">멘션·댓글·변경 사항 알림 수신</div></div>
+      <div class="frow"><div class="fname">댓글</div><div class="fdesc">특정 블록에 의견 남기기</div></div>
+      <div class="frow"><div class="fname">권한 관리 — 보기 권한</div><div class="fdesc">읽기만 가능하도록 제한</div></div>
+      <div class="frow"><div class="fname">권한 관리 — 편집 권한</div><div class="fdesc">내용을 수정할 수 있도록 허용</div></div>
+      <div class="frow"><div class="fname">링크 공유</div><div class="fdesc">링크를 가진 사람에게 접근 허용</div></div>
+      <div class="frow"><div class="fname">팀스페이스</div><div class="fdesc">팀 단위로 페이지를 모아 관리</div></div>
+      <div class="frow"><div class="fname">변경 기록</div><div class="fdesc">과거 편집 내역 확인 및 복원</div></div>
+    </div>
+  </section>
+
+  <!-- 멀티미디어 -->
+  <section class="group" id="media">
+    <div class="group-head">
+      <span class="group-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="m9 9 6 3-6 3z"/></svg>
+      </span>
+      <div>
+        <h2 class="group-title">멀티미디어</h2>
+      </div>
+    </div>
+    <p class="group-desc">문서에 이미지, 영상, 파일, 외부 콘텐츠를 삽입하는 기능입니다.</p>
+
+    <div class="flist plain">
+      <div class="frow"><div class="fname">이미지 삽입</div><div class="fdesc">업로드 또는 링크로 이미지 추가</div></div>
+      <div class="frow"><div class="fname">동영상 삽입</div><div class="fdesc">업로드 또는 유튜브 등 링크 삽입</div></div>
+      <div class="frow"><div class="fname">오디오 삽입</div><div class="fdesc">음성·음악 파일 재생</div></div>
+      <div class="frow"><div class="fname">PDF 삽입</div><div class="fdesc">PDF 파일을 문서 안에서 바로 보기</div></div>
+      <div class="frow"><div class="fname">코드 블록</div><div class="fdesc">문법 강조가 적용된 코드 표시</div></div>
+      <div class="frow"><div class="fname">수식 (LaTeX)</div><div class="fdesc">수학 기호·공식 표시</div></div>
+      <div class="frow"><div class="fname">북마크</div><div class="fdesc">웹 링크를 미리보기 카드로 저장</div></div>
+      <div class="frow"><div class="fname">웹 링크 임베드</div><div class="fdesc">외부 페이지를 문서 안에 삽입</div></div>
+      <div class="frow"><div class="fname">Figma 삽입</div><div class="fdesc">디자인 파일을 문서에 임베드</div></div>
+      <div class="frow"><div class="fname">Google Maps 삽입</div><div class="fdesc">지도를 문서 안에 삽입</div></div>
+    </div>
+  </section>
+
+  <!-- 생산성 기능 -->
+  <section class="group" id="productivity">
+    <div class="group-head">
+      <span class="group-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg>
+      </span>
+      <div>
+        <h2 class="group-title">생산성 기능</h2>
+      </div>
+    </div>
+    <p class="group-desc">반복 작업을 줄이고 필요한 내용을 빠르게 찾도록 도와주는 기능입니다.</p>
+
+    <div class="flist plain">
+      <div class="frow"><div class="fname">템플릿</div><div class="fdesc">반복 템플릿, 데이터베이스 템플릿</div></div>
+      <div class="frow"><div class="fname">검색</div><div class="fdesc">워크스페이스 전체에서 내용 검색</div></div>
+      <div class="frow"><div class="fname">즐겨찾기</div><div class="fdesc">자주 쓰는 페이지 사이드바에 고정</div></div>
+      <div class="frow"><div class="fname">최근 페이지</div><div class="fdesc">최근에 열어본 페이지 목록</div></div>
+      <div class="frow"><div class="fname">단축키</div><div class="fdesc">키보드로 빠르게 명령 실행</div></div>
+      <div class="frow"><div class="fname">내보내기</div><div class="fdesc">PDF, Markdown 등으로 저장</div></div>
+      <div class="frow"><div class="fname">가져오기</div><div class="fdesc">Word, Excel 등 외부 파일 불러오기</div></div>
+      <div class="frow"><div class="fname">자동화</div><div class="fdesc">버튼, 데이터베이스 자동화, 외부 서비스 연동</div></div>
+    </div>
+  </section>
+
+  <!-- 학습 순서 -->
+  <section class="group" id="path">
+    <div class="group-head">
+      <span class="group-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V6a2 2 0 0 1 2-2h9l5 5v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M9 12h6M9 16h6"/></svg>
+      </span>
+      <div>
+        <h2 class="group-title">처음 배우는 분께 추천하는 학습 순서</h2>
+      </div>
+    </div>
+    <p class="group-desc">노션은 기능이 매우 많기 때문에, 아래 순서대로 익히면 헤매지 않고 효율적으로 배울 수 있습니다.</p>
+
+    <div class="path">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body"><div class="step-title">기본 문서 작성</div><div class="step-desc">제목, 본문, 체크리스트, 이미지, 표</div></div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body"><div class="step-title">블록 이해</div><div class="step-desc">/ 명령어, 토글, 콜아웃, 코드 블록</div></div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body"><div class="step-title">페이지 구조</div><div class="step-desc">하위 페이지, 링크, 즐겨찾기</div></div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body"><div class="step-title">데이터베이스</div><div class="step-desc">Table → Board → Calendar → Gallery</div></div>
+      </div>
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-body"><div class="step-title">속성 활용</div><div class="step-desc">상태, 날짜, 담당자, 태그, 필터, 정렬</div></div>
+      </div>
+      <div class="step">
+        <div class="step-num">6</div>
+        <div class="step-body"><div class="step-title">협업</div><div class="step-desc">공유, 댓글, 멘션, 권한</div></div>
+      </div>
+      <div class="step">
+        <div class="step-num">7</div>
+        <div class="step-body"><div class="step-title">고급 기능</div><div class="step-desc">Formula, Relation, Rollup, 자동화, 템플릿</div></div>
+      </div>
+    </div>
+  </section>
+</div>
