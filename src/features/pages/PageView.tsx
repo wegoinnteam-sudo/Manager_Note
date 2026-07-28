@@ -116,70 +116,75 @@ export function PageView({
   }
 
   return (
-    <div className="page-view">
-      {saveState === "conflict" && (
-        <div style={{ background: "var(--color-warn-bg)", border: "1px solid #f59e0b", borderRadius: 6, padding: "8px 12px", marginBottom: 12, fontSize: 13 }}>
-          다른 사용자가 먼저 이 페이지를 수정했습니다.{" "}
-          <button type="button" onClick={load} style={{ textDecoration: "underline", border: "none", background: "none", cursor: "pointer" }}>
-            새로고침해서 최신 내용 보기
-          </button>
-        </div>
-      )}
+    <div className="page-shell">
+      <div className="page-view">
+        {saveState === "conflict" && (
+          <div style={{ background: "var(--color-warn-bg)", border: "1px solid #f59e0b", borderRadius: 6, padding: "8px 12px", marginBottom: 12, fontSize: 13 }}>
+            다른 사용자가 먼저 이 페이지를 수정했습니다.{" "}
+            <button type="button" onClick={load} style={{ textDecoration: "underline", border: "none", background: "none", cursor: "pointer" }}>
+              새로고침해서 최신 내용 보기
+            </button>
+          </div>
+        )}
 
-      <input
-        ref={titleRef}
-        className="page-view__title"
-        value={page.title}
-        disabled={!canEdit}
-        onChange={(e) => {
-          setPage({ ...page, title: e.target.value });
-          debouncedSaveTitle(e.target.value);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            editorRef.current?.focusFirstBlock();
-          }
-        }}
-        placeholder="제목 없음"
-      />
+        <input
+          ref={titleRef}
+          className="page-view__title"
+          value={page.title}
+          disabled={!canEdit}
+          onChange={(e) => {
+            setPage({ ...page, title: e.target.value });
+            debouncedSaveTitle(e.target.value);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              editorRef.current?.focusFirstBlock();
+            }
+          }}
+          placeholder="제목 없음"
+        />
 
-      {saveState === "error" && (
-        <div style={{ fontSize: 12, color: "var(--color-danger)", marginBottom: 12 }}>
-          저장 실패 — 네트워크를 확인하세요
-        </div>
-      )}
+        {saveState === "error" && (
+          <div style={{ fontSize: 12, color: "var(--color-danger)", marginBottom: 12 }}>
+            저장 실패 — 네트워크를 확인하세요
+          </div>
+        )}
 
-      <HandoffTools pageId={page.id} content={page.contentJson} onQuestionsChanged={onPagesChanged} />
+        <Editor
+          ref={editorRef}
+          pageId={page.id}
+          content={page.contentJson}
+          attachments={attachments}
+          editable={canEdit}
+          onChange={(content) => {
+            setPage({ ...page, contentJson: content });
+            debouncedSaveContent(content);
+          }}
+          onOpenPage={onOpenPage}
+          onPagesChanged={onPagesChanged}
+          onAttachmentUploaded={(a) => setAttachments((prev) => [...prev, a])}
+          pages={pages}
+          members={members}
+          registerFileDropHandler={registerFileDropHandler}
+        />
 
-      <Editor
-        ref={editorRef}
-        pageId={page.id}
-        content={page.contentJson}
-        attachments={attachments}
-        editable={canEdit}
-        onChange={(content) => {
-          setPage({ ...page, contentJson: content });
-          debouncedSaveContent(content);
-        }}
-        onOpenPage={onOpenPage}
-        onPagesChanged={onPagesChanged}
-        onAttachmentUploaded={(a) => setAttachments((prev) => [...prev, a])}
-        pages={pages}
-        members={members}
-        registerFileDropHandler={registerFileDropHandler}
-      />
+        <Comments pageId={page.id} canComment={canEdit} />
+        <History pageId={page.id} members={members} />
 
-      <Comments pageId={page.id} canComment={canEdit} />
-      <History pageId={page.id} members={members} />
+        {canDelete && (
+          <div style={{ marginTop: 24 }}>
+            <button type="button" onClick={handleDelete} style={{ fontSize: 12, color: "var(--color-danger)", background: "none", border: "1px solid var(--color-danger)", borderRadius: 6, padding: "6px 12px", cursor: "pointer" }}>
+              페이지 삭제
+            </button>
+          </div>
+        )}
+      </div>
 
-      {canDelete && (
-        <div style={{ marginTop: 24 }}>
-          <button type="button" onClick={handleDelete} style={{ fontSize: 12, color: "var(--color-danger)", background: "none", border: "1px solid var(--color-danger)", borderRadius: 6, padding: "6px 12px", cursor: "pointer" }}>
-            페이지 삭제
-          </button>
-        </div>
-      )}
+      <aside className="page-side">
+        <div className="page-side__label">참고</div>
+        <HandoffTools pageId={page.id} content={page.contentJson} onQuestionsChanged={onPagesChanged} />
+      </aside>
     </div>
   );
 }
