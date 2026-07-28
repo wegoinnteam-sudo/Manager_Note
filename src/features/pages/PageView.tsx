@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { AttachmentDTO, HandoffStatus, PageDetailDTO, TeamMemberDTO } from "@shared/types";
+import type { AttachmentDTO, PageDetailDTO, TeamMemberDTO } from "@shared/types";
 import { api, ApiClientError } from "@/lib/api";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
-import { StatusSelect } from "@/features/status/Status";
 import { Editor } from "./Editor";
 import { AttachmentsPanel } from "@/features/files/AttachmentsPanel";
 import { Comments } from "@/features/comments/Comments";
 import { History } from "@/features/history/History";
-import { memberName } from "@/hooks/useTeamMembers";
 
 type SaveState = "idle" | "saving" | "saved" | "error" | "conflict";
 
@@ -136,47 +134,11 @@ export function PageView({
         placeholder="제목 없음"
       />
 
-      <div className="page-view__properties">
-        <span className="property-chip">
-          상태:{" "}
-          <StatusSelect status={page.status} disabled={!canEdit} onChange={(next: HandoffStatus) => saveMeta({ status: next })} />
-        </span>
-        <span className="property-chip">
-          담당자:{" "}
-          <select
-            value={page.assigneeId ?? ""}
-            disabled={!canEdit}
-            onChange={(e) => saveMeta({ assigneeId: e.target.value || null })}
-            style={{ fontSize: 12, border: "none" }}
-          >
-            <option value="">미지정</option>
-            {members.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </select>
-        </span>
-        <span className="property-chip">
-          마감일:{" "}
-          <input
-            type="date"
-            value={page.dueDate ?? ""}
-            disabled={!canEdit}
-            onChange={(e) => saveMeta({ dueDate: e.target.value || null })}
-            style={{ fontSize: 12, border: "none" }}
-          />
-        </span>
-        <span className="property-chip">태그: {page.tags.join(", ") || "-"}</span>
-        <span className="property-chip">최근 수정: {memberName(members, page.updatedBy)}</span>
-      </div>
-
-      <div className={`save-status${saveState === "error" ? " save-status--error" : ""}`}>
-        {saveState === "saving" && "저장 중…"}
-        {saveState === "saved" && "저장됨"}
-        {saveState === "error" && "저장 실패 — 네트워크를 확인하세요"}
-        {saveState === "idle" && " "}
-      </div>
+      {saveState === "error" && (
+        <div style={{ fontSize: 12, color: "var(--color-danger)", marginBottom: 12 }}>
+          저장 실패 — 네트워크를 확인하세요
+        </div>
+      )}
 
       <Editor
         pageId={page.id}

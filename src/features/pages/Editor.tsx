@@ -19,6 +19,27 @@ function emptyBlockOfType(type: PageBlock["type"]): PageBlock {
   }
 }
 
+type SlashCommandType = "paragraph" | "heading1" | "heading2" | "heading3" | "bulleted_list_item" | "numbered_list_item" | "checklist_item" | "divider" | "image" | "file";
+
+const SLASH_COMMANDS: { label: string; type: SlashCommandType }[] = [
+  { label: "텍스트", type: "paragraph" },
+  { label: "제목1", type: "heading1" },
+  { label: "제목2", type: "heading2" },
+  { label: "제목3", type: "heading3" },
+  { label: "글머리표", type: "bulleted_list_item" },
+  { label: "번호 목록", type: "numbered_list_item" },
+  { label: "체크리스트", type: "checklist_item" },
+  { label: "구분선", type: "divider" },
+  { label: "이미지 삽입", type: "image" },
+  { label: "파일 첨부", type: "file" },
+];
+
+function filterCommands(query: string) {
+  const q = query.trim().toLowerCase();
+  if (!q) return SLASH_COMMANDS;
+  return SLASH_COMMANDS.filter((c) => c.label.toLowerCase().includes(q));
+}
+
 export function Editor({
   pageId,
   content,
@@ -34,6 +55,7 @@ export function Editor({
 }) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [picker, setPicker] = useState<"image" | "file" | null>(null);
+  const [slashMenu, setSlashMenu] = useState<{ blockId: string; query: string; highlighted: number } | null>(null);
   const refs = useRef(new Map<string, HTMLTextAreaElement>());
   const attachmentsById = new Map(attachments.map((a) => [a.id, a]));
 
@@ -94,7 +116,113 @@ export function Editor({
     });
   };
 
+  const applyLink = () => {
+    const id = activeId;
+    if (!id) return;
+    const url = prompt("링크 URL을 입력하세요 (https://...)");
+    if (!url) return;
+    const el = refs.current.get(id);
+    const block = content.blocks.find((b) => b.id === id);
+    if (el && block && "text" in block) {
+      const start = el.selectionStart ?? block.text.length;
+      const end = el.selectionEnd ?? block.text.length;
+      const label = block.text.slice(start, end) || "링크";
+      const next = `${block.text.slice(0, start)}[${label}](${url})${block.text.slice(end)}`;
+      updateBlock(id, { text: next } as Partial<PageBlock>);
+    }
+  };
+
+  const runSlashCommand = (block: PageBlock, cmd: { label: string; type: SlashCommandType }) => {
+    setSlashMenu(null);
+
+    if (cmd.type === "image" || cmd.type === "file") {
+      updateBlock(block.id, { text: "" } as Partial<PageBlock>);
+      setActiveId(block.id);
+      setPicker(cmd.type);
+      return;
+    }
+
+    if (cmd.type === "divider") {
+      const idx = content.blocks.findIndex((b) => b.id === block.id);
+      const dividerBlock: PageBlock = { id: block.id, type: "divider" };
+      const nextParagraph = emptyBlockOfType("paragraph");
+      const blocks = [...content.blocks];
+      blocks[idx] = dividerBlock;
+      blocks.splice(idx + 1, 0, nextParagraph);
+      setBlocks(blocks);
+      setActiveId(nextParagraph.id);
+      requestAnimationFrame(() => refs.current.get(nextParagraph.id)?.focus());
+      return;
+    }
+
+    if (cmd.type === "checklist_item") {
+      updateBlock(block.id, { type: "checklist_item", text: "", checked: false } as Partial<PageBlock>);
+      setActiveId(block.id);
+      requestAnimationFrame(() => refs.current.get(block.id)?.focus());
+      return;
+    }
+
+    updateBlock(block.id, { type: cmd.type, text: "" } as Partial<PageBlock>);
+    setActiveId(block.id);
+    requestAnimationFrame(() => refs.current.get(block.id)?.focus());
+  };
+
+  const handleChangeText = (block: PageBlock, text: string) => {
+    updateBlock(block.id, { text } as Partial<PageBlock>);
+    if (text.startsWith("/")) {
+      setSlashMenu({ blockId: block.id, query: text.slice(1), highlighted: 0 });
+    } else if (slashMenu?.blockId === block.id) {
+      setSlashMenu(null);
+    }
+  };
+
   const handleKeyDown = (block: PageBlock, e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (slashMenu && slashMenu.blockId === block.id) {
+      const filtered = filterCommands(slashMenu.query);
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSlashMenu({ ...slashMenu, highlighted: filtered.length ? (slashMenu.highlighted + 1) % filtered.length : 0 });
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSlashMenu({ ...slashMenu, highlighted: filtered.length ? (slashMenu.highlighted - 1 + filtered.length) % filtered.length : 0 });
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const cmd = filtered[slashMenu.highlighted];
+        if (cmd) runSlashCommand(block, cmd);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setSlashMenu(null);
+        return;
+      }
+    }
+
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
+      e.preventDefault();
+      applyInlineWrap("**");
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "i") {
+      e.preventDefault();
+      applyInlineWrap("*");
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "u") {
+      e.preventDefault();
+      applyInlineWrap("__");
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      applyLink();
+      return;
+    }
+
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       const followType = block.type === "bulleted_list_item" || block.type === "numbered_list_item" || block.type === "checklist_item" ? block.type : "paragraph";
@@ -116,62 +244,45 @@ export function Editor({
   return (
     <div className="editor">
       {content.blocks.map((block, i) => (
-        <Block
-          key={block.id}
-          block={block}
-          index={i}
-          active={activeId === block.id}
-          attachmentsById={attachmentsById}
-          editable={editable}
-          onFocus={() => setActiveId(block.id)}
-          onChangeText={(text) => updateBlock(block.id, { text } as Partial<PageBlock>)}
-          onToggleChecked={() => block.type === "checklist_item" && updateBlock(block.id, { checked: !block.checked })}
-          onKeyDownBlock={(e) => handleKeyDown(block, e)}
-          onRemoveImage={() => removeBlock(block.id)}
-          registerRef={(el) => {
-            if (el) refs.current.set(block.id, el);
-            else refs.current.delete(block.id);
-          }}
-        />
-      ))}
-
-      {editable && (
-        <div className="block-toolbar">
-          <button type="button" onClick={() => insertBlock(activeId, "paragraph")}>텍스트</button>
-          <button type="button" onClick={() => insertBlock(activeId, "heading1")}>제목1</button>
-          <button type="button" onClick={() => insertBlock(activeId, "heading2")}>제목2</button>
-          <button type="button" onClick={() => insertBlock(activeId, "heading3")}>제목3</button>
-          <button type="button" onClick={() => insertBlock(activeId, "bulleted_list_item")}>글머리표</button>
-          <button type="button" onClick={() => insertBlock(activeId, "numbered_list_item")}>번호 목록</button>
-          <button type="button" onClick={() => insertBlock(activeId, "checklist_item")}>체크리스트</button>
-          <button type="button" onClick={() => insertBlock(activeId, "divider")}>구분선</button>
-          <span style={{ width: 1, background: "var(--color-border)", margin: "0 4px" }} />
-          <button type="button" onClick={() => applyInlineWrap("**")} title="굵게"><b>B</b></button>
-          <button type="button" onClick={() => applyInlineWrap("*")} title="기울임"><i>I</i></button>
-          <button type="button" onClick={() => applyInlineWrap("__")} title="밑줄"><u>U</u></button>
-          <button
-            type="button"
-            onClick={() => {
-              const url = prompt("링크 URL을 입력하세요 (https://...)");
-              if (!url || !activeId) return;
-              const el = refs.current.get(activeId);
-              const block = content.blocks.find((b) => b.id === activeId);
-              if (el && block && "text" in block) {
-                const start = el.selectionStart ?? block.text.length;
-                const end = el.selectionEnd ?? block.text.length;
-                const label = block.text.slice(start, end) || "링크";
-                const next = `${block.text.slice(0, start)}[${label}](${url})${block.text.slice(end)}`;
-                updateBlock(activeId, { text: next } as Partial<PageBlock>);
-              }
+        <div key={block.id}>
+          <Block
+            block={block}
+            index={i}
+            active={activeId === block.id}
+            attachmentsById={attachmentsById}
+            editable={editable}
+            onFocus={() => setActiveId(block.id)}
+            onChangeText={(text) => handleChangeText(block, text)}
+            onToggleChecked={() => block.type === "checklist_item" && updateBlock(block.id, { checked: !block.checked })}
+            onKeyDownBlock={(e) => handleKeyDown(block, e)}
+            onRemoveImage={() => removeBlock(block.id)}
+            registerRef={(el) => {
+              if (el) refs.current.set(block.id, el);
+              else refs.current.delete(block.id);
             }}
-          >
-            🔗 링크
-          </button>
-          <span style={{ width: 1, background: "var(--color-border)", margin: "0 4px" }} />
-          <button type="button" onClick={() => setPicker("image")}>🖼 이미지 삽입</button>
-          <button type="button" onClick={() => setPicker("file")}>📎 파일 첨부</button>
+          />
+
+          {slashMenu?.blockId === block.id && (
+            <div className="slash-menu">
+              {filterCommands(slashMenu.query).length === 0 && <div className="slash-menu__empty">일치하는 명령어가 없습니다</div>}
+              {filterCommands(slashMenu.query).map((cmd, ci) => (
+                <button
+                  key={cmd.label}
+                  type="button"
+                  className={`slash-menu__item${ci === slashMenu.highlighted ? " slash-menu__item--active" : ""}`}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    runSlashCommand(block, cmd);
+                  }}
+                  onMouseEnter={() => setSlashMenu({ ...slashMenu, highlighted: ci })}
+                >
+                  {cmd.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-      )}
+      ))}
 
       {picker && (
         <AttachmentPicker

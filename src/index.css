@@ -174,34 +174,6 @@ code {
   margin-bottom: 12px;
 }
 
-.page-view__properties {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 20px;
-  font-size: 13px;
-}
-
-.property-chip {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  background: #fff;
-}
-
-.save-status {
-  font-size: 12px;
-  color: var(--color-text-muted);
-  margin-bottom: 16px;
-}
-
-.save-status--error {
-  color: var(--color-danger);
-}
-
 .editor {
   min-height: 200px;
 }
@@ -244,26 +216,38 @@ code {
 .block-input--h2 { font-size: 22px; font-weight: 700; }
 .block-input--h3 { font-size: 18px; font-weight: 700; }
 
-.block-toolbar {
+.slash-menu {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 20px 0;
-  padding-top: 16px;
-  border-top: 1px solid var(--color-border);
+  flex-direction: column;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: #fff;
+  width: max-content;
+  min-width: 180px;
+  margin: 2px 0 10px 8px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
 }
 
-.block-toolbar button {
-  border: 1px solid var(--color-border);
-  background: #fff;
-  border-radius: var(--radius);
-  padding: 4px 10px;
-  font-size: 12px;
+.slash-menu__item {
+  text-align: left;
+  border: none;
+  background: none;
+  padding: 8px 12px;
+  font-size: 13px;
   cursor: pointer;
 }
 
-.block-toolbar button:hover {
+.slash-menu__item--active,
+.slash-menu__item:hover {
   background: var(--color-accent-bg);
+}
+
+.slash-menu__empty {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--color-text-muted);
 }
 
 .divider {

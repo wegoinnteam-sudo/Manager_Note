@@ -1,5 +1,5 @@
 import type { Env } from "../types";
-import type { HandoffStatus, PageContent } from "../../shared/types";
+import type { HandoffStatus, PageBlock, PageContent } from "../../shared/types";
 import { newId, nowIso } from "../lib/ids";
 import { Errors } from "../lib/errors";
 import { UNTITLED_PAGE_TITLE } from "../../shared/types";
@@ -81,11 +81,18 @@ export async function createPage(
     .bind(id, params.teamId, params.parentId, title, orderKey, params.isSystem ? 1 : 0, params.createdBy, now)
     .run();
 
+  const initialBlocks: PageBlock[] = params.isSystem
+    ? []
+    : [
+        { id: crypto.randomUUID(), type: "heading2", text: "" },
+        { id: crypto.randomUUID(), type: "paragraph", text: "" },
+      ];
+
   await db
     .prepare(
       "INSERT INTO page_contents (page_id, content_json, updated_by, updated_at) VALUES (?1, ?2, ?3, ?4)",
     )
-    .bind(id, JSON.stringify({ blocks: [] }), params.createdBy, now)
+    .bind(id, JSON.stringify({ blocks: initialBlocks } satisfies PageContent), params.createdBy, now)
     .run();
 
   const page = await getPageById(db, params.teamId, id);
