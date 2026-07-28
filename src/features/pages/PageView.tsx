@@ -3,7 +3,6 @@ import type { AttachmentDTO, PageDetailDTO, PageSummaryDTO, TeamMemberDTO } from
 import { api, ApiClientError } from "@/lib/api";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
 import { Editor, type EditorHandle } from "./Editor";
-import { AttachmentsPanel } from "@/features/files/AttachmentsPanel";
 import { Comments } from "@/features/comments/Comments";
 import { History } from "@/features/history/History";
 
@@ -166,14 +165,7 @@ export function PageView({
         onAttachmentUploaded={(a) => setAttachments((prev) => [...prev, a])}
         pages={pages}
         members={members}
-      />
-
-      <AttachmentsPanel
-        pageId={page.id}
-        canEdit={canEdit}
-        registerFileDropHandler={(handler) => {
-          registerFileDropHandler(handler);
-        }}
+        registerFileDropHandler={registerFileDropHandler}
       />
 
       <Comments pageId={page.id} canComment={canEdit} />

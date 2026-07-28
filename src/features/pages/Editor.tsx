@@ -1,11 +1,19 @@
-import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { AttachmentDTO, PageBlock, PageContent, PageSummaryDTO, TeamMemberDTO } from "@shared/types";
+import { ALLOWED_UPLOAD_EXTENSIONS } from "@shared/types";
 import { Block, type HeadingRef } from "./Block";
 import { AttachmentPicker } from "./AttachmentPicker";
 import { TEMPLATES, buildTemplateBlocks, type TemplateKey } from "./templates";
 import { FORM_LIST, type FormKey } from "./forms";
 import type { DatabaseViewType } from "./DatabaseView";
 import { api, uploadAttachment } from "@/lib/api";
+
+const MAX_UPLOAD_MB = Number((import.meta as any).env?.VITE_MAX_UPLOAD_MB ?? 50);
+
+function extensionOf(name: string): string {
+  const idx = name.lastIndexOf(".");
+  return idx === -1 ? "" : name.slice(idx + 1).toLowerCase();
+}
 
 function newBlockId(): string {
   return crypto.randomUUID();
@@ -170,8 +178,9 @@ export const Editor = forwardRef<EditorHandle, {
   onAttachmentUploaded: (attachment: AttachmentDTO) => void;
   pages: PageSummaryDTO[];
   members: TeamMemberDTO[];
+  registerFileDropHandler: (handler: (files: FileList) => void) => void;
 }>(function Editor(
-  { pageId, content, attachments, editable, onChange, onOpenPage, onPagesChanged, onAttachmentUploaded, pages, members },
+  { pageId, content, attachments, editable, onChange, onOpenPage, onPagesChanged, onAttachmentUploaded, pages, members, registerFileDropHandler },
   ref,
 ) {
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -205,6 +214,48 @@ export const Editor = forwardRef<EditorHandle, {
     (blocks: PageBlock[]) => onChange({ blocks }),
     [onChange],
   );
+
+  const droppedFilesHandlerRef = useRef<(files: FileList) => void>(() => {});
+
+  const handleDroppedFiles = (files: FileList) => {
+    const valid: File[] = [];
+    for (const file of Array.from(files)) {
+      const ext = extensionOf(file.name);
+      if (!(ALLOWED_UPLOAD_EXTENSIONS as readonly string[]).includes(ext)) {
+        alert(`허용되지 않은 파일 형식입니다: .${ext || "?"} (${file.name})`);
+        continue;
+      }
+      if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
+        alert(`파일 크기는 ${MAX_UPLOAD_MB}MB를 초과할 수 없습니다: ${file.name}`);
+        continue;
+      }
+      valid.push(file);
+    }
+    if (valid.length === 0) return;
+
+    Promise.allSettled(valid.map((file) => uploadAttachment(pageId, file, { idempotencyKey: crypto.randomUUID() }))).then((results) => {
+      const uploaded = results.filter((r): r is PromiseFulfilledResult<AttachmentDTO> => r.status === "fulfilled").map((r) => r.value);
+      if (uploaded.length === 0) return;
+      uploaded.forEach((a) => onAttachmentUploaded(a));
+      const newBlocks: PageBlock[] = uploaded.map((a) =>
+        a.isImage ? { id: newBlockId(), type: "image", attachmentId: a.id } : { id: newBlockId(), type: "file", attachmentId: a.id },
+      );
+      const blocks = [...content.blocks];
+      if (activeId) {
+        const idx = blocks.findIndex((b) => b.id === activeId);
+        blocks.splice(idx + 1, 0, ...newBlocks);
+      } else {
+        blocks.push(...newBlocks);
+      }
+      setBlocks(blocks);
+    });
+  };
+
+  droppedFilesHandlerRef.current = handleDroppedFiles;
+
+  useEffect(() => {
+    registerFileDropHandler((files) => droppedFilesHandlerRef.current(files));
+  }, [registerFileDropHandler]);
 
   const updateBlock = (id: string, patch: Partial<PageBlock>) => {
     setBlocks(content.blocks.map((b) => (b.id === id ? ({ ...b, ...patch } as PageBlock) : b)));

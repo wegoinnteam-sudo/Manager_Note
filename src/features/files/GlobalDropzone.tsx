@@ -54,7 +54,7 @@ export function GlobalDropzone({ active, onFiles, children }: { active: boolean;
   return (
     <>
       {children}
-      {active && dragging && <div className="drop-overlay">여기에 놓으면 현재 페이지에 첨부됩니다</div>}
+      {active && dragging && <div className="drop-overlay">여기에 놓으면 페이지에 바로 삽입됩니다</div>}
     </>
   );
 }
