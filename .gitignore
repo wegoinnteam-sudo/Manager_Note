@@ -9,6 +9,7 @@ wrangler.toml.bak
 *service-account*.json
 *credentials*.json
 google-credentials*.json
+client_secret_*.json
 
 # Logs
 logs
