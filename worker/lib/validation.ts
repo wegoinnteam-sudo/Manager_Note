@@ -8,6 +8,12 @@ export const pageBlockSchema = z.discriminatedUnion("type", [
   z.object({ id: z.string(), type: z.literal("divider") }),
   z.object({ id: z.string(), type: z.literal("image"), attachmentId: z.string() }),
   z.object({ id: z.string(), type: z.literal("file"), attachmentId: z.string() }),
+  z.object({ id: z.string(), type: z.literal("toggle"), text: z.string().max(2000), body: z.string().max(20000), expanded: z.boolean() }),
+  z.object({ id: z.string(), type: z.literal("callout"), text: z.string().max(20000) }),
+  z.object({ id: z.string(), type: z.literal("table"), rows: z.array(z.array(z.string().max(2000)).max(20)).max(200) }),
+  z.object({ id: z.string(), type: z.literal("embed"), url: z.string().url().max(2000) }),
+  z.object({ id: z.string(), type: z.literal("bookmark"), url: z.string().url().max(2000) }),
+  z.object({ id: z.string(), type: z.literal("toc") }),
 ]);
 
 export const pageContentSchema = z.object({

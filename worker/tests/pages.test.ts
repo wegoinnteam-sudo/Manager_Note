@@ -17,7 +17,10 @@ describe("pages", () => {
   it("creates a page with the default untitled title and persists it", async () => {
     const { page, content } = await createPage(db, { teamId: TEAM, parentId: null, title: null, createdBy: USER });
     expect(page.title).toBe("제목 없음");
-    expect(content.content_json).toBe(JSON.stringify({ blocks: [] }));
+    const parsed = JSON.parse(content.content_json);
+    expect(parsed.blocks).toHaveLength(2);
+    expect(parsed.blocks[0]).toMatchObject({ type: "heading2", text: "" });
+    expect(parsed.blocks[1]).toMatchObject({ type: "paragraph", text: "" });
 
     const reloaded = await getPageById(db, TEAM, page.id);
     expect(reloaded?.id).toBe(page.id);

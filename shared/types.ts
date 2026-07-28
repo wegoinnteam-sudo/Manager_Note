@@ -46,7 +46,13 @@ export type PageBlock =
   | { id: string; type: "checklist_item"; text: string; checked: boolean }
   | { id: string; type: "divider" }
   | { id: string; type: "image"; attachmentId: string }
-  | { id: string; type: "file"; attachmentId: string };
+  | { id: string; type: "file"; attachmentId: string }
+  | { id: string; type: "toggle"; text: string; body: string; expanded: boolean }
+  | { id: string; type: "callout"; text: string }
+  | { id: string; type: "table"; rows: string[][] }
+  | { id: string; type: "embed"; url: string }
+  | { id: string; type: "bookmark"; url: string }
+  | { id: string; type: "toc" };
 
 export interface PageContent {
   blocks: PageBlock[];

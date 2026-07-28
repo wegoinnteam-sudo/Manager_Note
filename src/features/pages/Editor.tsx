@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import type { AttachmentDTO, PageBlock, PageContent } from "@shared/types";
-import { Block } from "./Block";
+import { Block, type HeadingRef } from "./Block";
 import { AttachmentPicker } from "./AttachmentPicker";
 
 function newBlockId(): string {
@@ -14,30 +14,69 @@ function emptyBlockOfType(type: PageBlock["type"]): PageBlock {
       return { id, type, text: "", checked: false };
     case "divider":
       return { id, type };
+    case "toggle":
+      return { id, type, text: "", body: "", expanded: true };
+    case "table":
+      return { id, type, rows: [["", ""], ["", ""]] };
+    case "toc":
+      return { id, type };
+    case "embed":
+      return { id, type, url: "" };
+    case "bookmark":
+      return { id, type, url: "" };
     default:
       return { id, type: type as any, text: "" };
   }
 }
 
-type SlashCommandType = "paragraph" | "heading1" | "heading2" | "heading3" | "bulleted_list_item" | "numbered_list_item" | "checklist_item" | "divider" | "image" | "file";
+type SlashCommandType =
+  | "paragraph"
+  | "heading1"
+  | "heading2"
+  | "heading3"
+  | "bulleted_list_item"
+  | "numbered_list_item"
+  | "checklist_item"
+  | "divider"
+  | "toggle"
+  | "callout"
+  | "table"
+  | "toc"
+  | "embed"
+  | "bookmark"
+  | "image"
+  | "file";
 
-const SLASH_COMMANDS: { label: string; type: SlashCommandType }[] = [
-  { label: "텍스트", type: "paragraph" },
-  { label: "제목1", type: "heading1" },
-  { label: "제목2", type: "heading2" },
-  { label: "제목3", type: "heading3" },
-  { label: "글머리표", type: "bulleted_list_item" },
-  { label: "번호 목록", type: "numbered_list_item" },
-  { label: "체크리스트", type: "checklist_item" },
-  { label: "구분선", type: "divider" },
-  { label: "이미지 삽입", type: "image" },
-  { label: "파일 첨부", type: "file" },
+const SLASH_COMMANDS: { label: string; type: SlashCommandType; aliases: string[] }[] = [
+  { label: "텍스트", type: "paragraph", aliases: ["text"] },
+  { label: "제목1", type: "heading1", aliases: ["heading 1", "h1"] },
+  { label: "제목2", type: "heading2", aliases: ["heading 2", "h2"] },
+  { label: "제목3", type: "heading3", aliases: ["heading 3", "h3"] },
+  { label: "글머리표", type: "bulleted_list_item", aliases: ["bullet"] },
+  { label: "번호 목록", type: "numbered_list_item", aliases: ["numbered"] },
+  { label: "체크리스트", type: "checklist_item", aliases: ["to-do", "todo"] },
+  { label: "토글", type: "toggle", aliases: ["toggle"] },
+  { label: "콜아웃", type: "callout", aliases: ["callout"] },
+  { label: "구분선", type: "divider", aliases: ["divider"] },
+  { label: "표", type: "table", aliases: ["table"] },
+  { label: "목차", type: "toc", aliases: ["table of contents", "toc"] },
+  { label: "임베드", type: "embed", aliases: ["embed", "youtube", "google drive"] },
+  { label: "북마크", type: "bookmark", aliases: ["bookmark", "link"] },
+  { label: "이미지 삽입", type: "image", aliases: ["image"] },
+  { label: "파일 첨부", type: "file", aliases: ["file", "pdf"] },
 ];
 
 function filterCommands(query: string) {
   const q = query.trim().toLowerCase();
   if (!q) return SLASH_COMMANDS;
-  return SLASH_COMMANDS.filter((c) => c.label.toLowerCase().includes(q));
+  return SLASH_COMMANDS.filter((c) => c.label.toLowerCase().includes(q) || c.aliases.some((a) => a.includes(q)));
+}
+
+function headingLevel(type: PageBlock["type"]): 1 | 2 | 3 | null {
+  if (type === "heading1") return 1;
+  if (type === "heading2") return 2;
+  if (type === "heading3") return 3;
+  return null;
 }
 
 export function Editor({
@@ -58,6 +97,13 @@ export function Editor({
   const [slashMenu, setSlashMenu] = useState<{ blockId: string; query: string; highlighted: number } | null>(null);
   const refs = useRef(new Map<string, HTMLTextAreaElement>());
   const attachmentsById = new Map(attachments.map((a) => [a.id, a]));
+
+  const headings: HeadingRef[] = content.blocks
+    .map((b) => {
+      const level = headingLevel(b.type);
+      return level && "text" in b ? { id: b.id, text: b.text, level } : null;
+    })
+    .filter((h): h is HeadingRef => h !== null);
 
   const setBlocks = useCallback(
     (blocks: PageBlock[]) => onChange({ blocks }),
@@ -142,6 +188,16 @@ export function Editor({
       return;
     }
 
+    if (cmd.type === "embed" || cmd.type === "bookmark") {
+      const url = prompt(cmd.type === "embed" ? "임베드할 URL을 입력하세요 (YouTube, Google Drive 미리보기 링크 등)" : "북마크할 URL을 입력하세요 (https://...)");
+      if (!url) {
+        updateBlock(block.id, { text: "" } as Partial<PageBlock>);
+        return;
+      }
+      updateBlock(block.id, { type: cmd.type, url } as Partial<PageBlock>);
+      return;
+    }
+
     if (cmd.type === "divider") {
       const idx = content.blocks.findIndex((b) => b.id === block.id);
       const dividerBlock: PageBlock = { id: block.id, type: "divider" };
@@ -159,6 +215,30 @@ export function Editor({
       updateBlock(block.id, { type: "checklist_item", text: "", checked: false } as Partial<PageBlock>);
       setActiveId(block.id);
       requestAnimationFrame(() => refs.current.get(block.id)?.focus());
+      return;
+    }
+
+    if (cmd.type === "toggle") {
+      updateBlock(block.id, { type: "toggle", text: "", body: "", expanded: true } as Partial<PageBlock>);
+      setActiveId(block.id);
+      requestAnimationFrame(() => refs.current.get(block.id)?.focus());
+      return;
+    }
+
+    if (cmd.type === "callout") {
+      updateBlock(block.id, { type: "callout", text: "" } as Partial<PageBlock>);
+      setActiveId(block.id);
+      requestAnimationFrame(() => refs.current.get(block.id)?.focus());
+      return;
+    }
+
+    if (cmd.type === "table") {
+      updateBlock(block.id, { type: "table", rows: [["", ""], ["", ""]] } as Partial<PageBlock>);
+      return;
+    }
+
+    if (cmd.type === "toc") {
+      updateBlock(block.id, { type: "toc" } as Partial<PageBlock>);
       return;
     }
 
@@ -250,12 +330,14 @@ export function Editor({
             index={i}
             active={activeId === block.id}
             attachmentsById={attachmentsById}
+            headings={headings}
             editable={editable}
             onFocus={() => setActiveId(block.id)}
             onChangeText={(text) => handleChangeText(block, text)}
             onToggleChecked={() => block.type === "checklist_item" && updateBlock(block.id, { checked: !block.checked })}
             onKeyDownBlock={(e) => handleKeyDown(block, e)}
-            onRemoveImage={() => removeBlock(block.id)}
+            onRemoveBlock={() => removeBlock(block.id)}
+            onPatch={(patch) => updateBlock(block.id, patch)}
             registerRef={(el) => {
               if (el) refs.current.set(block.id, el);
               else refs.current.delete(block.id);
