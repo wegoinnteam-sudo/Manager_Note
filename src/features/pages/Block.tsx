@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import type { AttachmentDTO, PageBlock, PageSummaryDTO, TeamMemberDTO } from "@shared/types";
+import type { PresenceUser } from "@/hooks/usePresence";
 import { renderInline } from "./inlineMarkdown";
 import { api } from "@/lib/api";
 import { DatabaseView } from "./DatabaseView";
 import { ChartView } from "./ChartView";
 import { FormBlockView } from "./FormBlockView";
 import { ImageBlockView } from "./ImageBlockView";
+import { RemoteCaretMarkers, RemotePresenceBadge } from "./RemoteCursors";
 
 const TEXTAREA_TYPES = new Set(["heading1", "heading2", "heading3", "paragraph", "bulleted_list_item", "numbered_list_item"]);
 
@@ -63,6 +65,7 @@ export function Block({
   onPagesChanged,
   onInsertTemplateAfter,
   onReplaceImage,
+  remoteCursors,
   registerRef,
 }: {
   block: PageBlock;
@@ -85,10 +88,16 @@ export function Block({
   onPagesChanged: () => void;
   onInsertTemplateAfter: (afterId: string, templateKey: "meeting_notes" | "handoff_note") => void;
   onReplaceImage: (blockId: string) => void;
+  remoteCursors: PresenceUser[];
   registerRef: (el: HTMLTextAreaElement | null) => void;
 }) {
   const localRef = useRef<HTMLTextAreaElement | null>(null);
+  const [, bumpRender] = useState(0);
+  useEffect(() => {
+    bumpRender((v) => v + 1);
+  }, [active]);
   const domId = `block-${block.id}`;
+  const remoteMarkers = active && editable ? <RemoteCaretMarkers textarea={localRef.current} users={remoteCursors} /> : <RemotePresenceBadge users={remoteCursors} />;
 
   if (block.type === "divider") {
     return <hr id={domId} className="divider" />;
@@ -429,27 +438,30 @@ export function Block({
           {block.expanded ? "▾" : "▸"}
         </button>
         <div className="toggle-block__body-wrap">
-          {editable && active ? (
-            <textarea
-              ref={(el) => {
-                localRef.current = el;
-                registerRef(el);
-              }}
-              className="block-input"
-              rows={1}
-              value={block.text}
-              placeholder="토글 제목"
-              onFocus={onFocus}
-              onChange={(e) => onChangeText(e.target.value, e.target.selectionStart ?? e.target.value.length)}
-              onKeyDown={onKeyDownBlock}
-              onPaste={onPasteBlock}
-              autoFocus={active}
-            />
-          ) : (
-            <div className="block-input" onClick={editable ? onFocus : undefined} style={{ minHeight: 24, cursor: editable ? "text" : "default", fontWeight: 600 }}>
-              {block.text ? renderInline(block.text) : <span style={{ opacity: 0.35 }}>{editable ? "토글 제목" : ""}</span>}
-            </div>
-          )}
+          <div style={{ position: "relative" }}>
+            {editable && active ? (
+              <textarea
+                ref={(el) => {
+                  localRef.current = el;
+                  registerRef(el);
+                }}
+                className="block-input"
+                rows={1}
+                value={block.text}
+                placeholder="토글 제목"
+                onFocus={onFocus}
+                onChange={(e) => onChangeText(e.target.value, e.target.selectionStart ?? e.target.value.length)}
+                onKeyDown={onKeyDownBlock}
+                onPaste={onPasteBlock}
+                autoFocus={active}
+              />
+            ) : (
+              <div className="block-input" onClick={editable ? onFocus : undefined} style={{ minHeight: 24, cursor: editable ? "text" : "default", fontWeight: 600 }}>
+                {block.text ? renderInline(block.text) : <span style={{ opacity: 0.35 }}>{editable ? "토글 제목" : ""}</span>}
+              </div>
+            )}
+            {remoteMarkers}
+          </div>
           {block.expanded && (
             <textarea
               className="toggle-block__body"
@@ -480,27 +492,30 @@ export function Block({
       <div id={domId} className="block-row">
         <div className="callout-block">
           <span className="callout-block__icon">💡</span>
-          {editable && active ? (
-            <textarea
-              ref={(el) => {
-                localRef.current = el;
-                registerRef(el);
-              }}
-              className="block-input"
-              rows={1}
-              value={block.text}
-              placeholder="강조할 내용을 입력하세요"
-              onFocus={onFocus}
-              onChange={(e) => onChangeText(e.target.value, e.target.selectionStart ?? e.target.value.length)}
-              onKeyDown={onKeyDownBlock}
-              onPaste={onPasteBlock}
-              autoFocus={active}
-            />
-          ) : (
-            <div className="block-input" onClick={editable ? onFocus : undefined} style={{ minHeight: 24, cursor: editable ? "text" : "default" }}>
-              {block.text ? renderInline(block.text) : <span style={{ opacity: 0.35 }}>{editable ? "강조할 내용을 입력하세요" : ""}</span>}
-            </div>
-          )}
+          <div style={{ position: "relative", flex: 1 }}>
+            {editable && active ? (
+              <textarea
+                ref={(el) => {
+                  localRef.current = el;
+                  registerRef(el);
+                }}
+                className="block-input"
+                rows={1}
+                value={block.text}
+                placeholder="강조할 내용을 입력하세요"
+                onFocus={onFocus}
+                onChange={(e) => onChangeText(e.target.value, e.target.selectionStart ?? e.target.value.length)}
+                onKeyDown={onKeyDownBlock}
+                onPaste={onPasteBlock}
+                autoFocus={active}
+              />
+            ) : (
+              <div className="block-input" onClick={editable ? onFocus : undefined} style={{ minHeight: 24, cursor: editable ? "text" : "default" }}>
+                {block.text ? renderInline(block.text) : <span style={{ opacity: 0.35 }}>{editable ? "강조할 내용을 입력하세요" : ""}</span>}
+              </div>
+            )}
+            {remoteMarkers}
+          </div>
         </div>
       </div>
     );
@@ -509,7 +524,7 @@ export function Block({
   if (block.type === "quote") {
     return (
       <div id={domId} className="block-row">
-        <div className="quote-block">
+        <div className="quote-block" style={{ position: "relative" }}>
           {editable && active ? (
             <textarea
               ref={(el) => {
@@ -531,6 +546,7 @@ export function Block({
               {block.text ? renderInline(block.text) : <span style={{ opacity: 0.35 }}>{editable ? "인용할 내용을 입력하세요" : ""}</span>}
             </div>
           )}
+          {remoteMarkers}
         </div>
         {editable && (
           <button type="button" className="block-row__handle" onClick={onRemoveBlock} title="블록 제거">
@@ -579,26 +595,29 @@ export function Block({
     return (
       <div id={domId} className="block-row">
         <input type="checkbox" checked={block.checked} onChange={onToggleChecked} disabled={!editable} style={{ marginTop: 8 }} />
-        {editable && active ? (
-          <textarea
-            ref={(el) => {
-              localRef.current = el;
-              registerRef(el);
-            }}
-            className="block-input"
-            rows={1}
-            value={block.text}
-            onFocus={onFocus}
-            onChange={(e) => onChangeText(e.target.value, e.target.selectionStart ?? e.target.value.length)}
-            onKeyDown={onKeyDownBlock}
-            onPaste={onPasteBlock}
-            autoFocus={active}
-          />
-        ) : (
-          <div className="block-input" onClick={editable ? onFocus : undefined} style={{ textDecoration: block.checked ? "line-through" : undefined, color: block.checked ? "var(--color-text-muted)" : undefined }}>
-            {renderInline(block.text) || <span style={{ opacity: 0.4 }}>{index === 0 ? "체크리스트" : ""}</span>}
-          </div>
-        )}
+        <div style={{ position: "relative", flex: 1 }}>
+          {editable && active ? (
+            <textarea
+              ref={(el) => {
+                localRef.current = el;
+                registerRef(el);
+              }}
+              className="block-input"
+              rows={1}
+              value={block.text}
+              onFocus={onFocus}
+              onChange={(e) => onChangeText(e.target.value, e.target.selectionStart ?? e.target.value.length)}
+              onKeyDown={onKeyDownBlock}
+              onPaste={onPasteBlock}
+              autoFocus={active}
+            />
+          ) : (
+            <div className="block-input" onClick={editable ? onFocus : undefined} style={{ textDecoration: block.checked ? "line-through" : undefined, color: block.checked ? "var(--color-text-muted)" : undefined }}>
+              {renderInline(block.text) || <span style={{ opacity: 0.4 }}>{index === 0 ? "체크리스트" : ""}</span>}
+            </div>
+          )}
+          {remoteMarkers}
+        </div>
       </div>
     );
   }
@@ -611,32 +630,35 @@ export function Block({
     return (
       <div id={domId} className="block-row">
         {prefix && <span style={{ paddingTop: 6, color: "var(--color-text-muted)" }}>{prefix}</span>}
-        {editable && active ? (
-          <textarea
-            ref={(el) => {
-              localRef.current = el;
-              registerRef(el);
-            }}
-            className={cls}
-            rows={1}
-            value={block.text}
-            placeholder={block.type === "paragraph" ? "내용을 입력하세요…" : ""}
-            onFocus={onFocus}
-            onChange={(e) => onChangeText(e.target.value, e.target.selectionStart ?? e.target.value.length)}
-            onKeyDown={onKeyDownBlock}
-            onPaste={onPasteBlock}
-            autoFocus={active}
-            onInput={(e) => {
-              const el = e.currentTarget;
-              el.style.height = "auto";
-              el.style.height = `${el.scrollHeight}px`;
-            }}
-          />
-        ) : (
-          <div className={cls} onClick={editable ? onFocus : undefined} style={{ minHeight: 24, cursor: editable ? "text" : "default" }}>
-            {block.text ? renderInline(block.text) : <span style={{ opacity: 0.35 }}>{editable ? "내용을 입력하세요…" : ""}</span>}
-          </div>
-        )}
+        <div style={{ position: "relative", flex: 1 }}>
+          {editable && active ? (
+            <textarea
+              ref={(el) => {
+                localRef.current = el;
+                registerRef(el);
+              }}
+              className={cls}
+              rows={1}
+              value={block.text}
+              placeholder={block.type === "paragraph" ? "내용을 입력하세요…" : ""}
+              onFocus={onFocus}
+              onChange={(e) => onChangeText(e.target.value, e.target.selectionStart ?? e.target.value.length)}
+              onKeyDown={onKeyDownBlock}
+              onPaste={onPasteBlock}
+              autoFocus={active}
+              onInput={(e) => {
+                const el = e.currentTarget;
+                el.style.height = "auto";
+                el.style.height = `${el.scrollHeight}px`;
+              }}
+            />
+          ) : (
+            <div className={cls} onClick={editable ? onFocus : undefined} style={{ minHeight: 24, cursor: editable ? "text" : "default" }}>
+              {block.text ? renderInline(block.text) : <span style={{ opacity: 0.35 }}>{editable ? "내용을 입력하세요…" : ""}</span>}
+            </div>
+          )}
+          {remoteMarkers}
+        </div>
       </div>
     );
   }

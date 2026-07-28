@@ -1,6 +1,7 @@
 import { useMemo, useState, type DragEvent } from "react";
 import type { PageSummaryDTO, UserDTO } from "@shared/types";
 import { buildPageTree, type PageTreeNode } from "@/hooks/usePages";
+import type { PresenceUser } from "@/hooks/usePresence";
 
 function PageTreeRow({
   node,
@@ -14,6 +15,7 @@ function PageTreeRow({
   onDragOver,
   onDrop,
   onDragEnd,
+  viewersByPage,
 }: {
   node: PageTreeNode;
   depth: number;
@@ -26,7 +28,9 @@ function PageTreeRow({
   onDragOver: (event: DragEvent, page: PageSummaryDTO) => void;
   onDrop: (event: DragEvent, page: PageSummaryDTO) => void;
   onDragEnd: () => void;
+  viewersByPage: Map<string, PresenceUser[]>;
 }) {
+  const viewers = viewersByPage.get(node.page.id) ?? [];
   const [expanded, setExpanded] = useState(true);
   const hasChildren = node.children.length > 0;
   return (
@@ -57,6 +61,13 @@ function PageTreeRow({
           {hasChildren ? (expanded ? "▾" : "▸") : "·"}
         </button>
         <span className="page-tree__title">{node.page.title}</span>
+        {viewers.length > 0 && (
+          <span className="page-tree__viewers" title={viewers.map((v) => v.name).join(", ")}>
+            {viewers.slice(0, 3).map((v) => (
+              <span key={v.clientId} className="page-tree__viewer-dot" style={{ background: v.color }} />
+            ))}
+          </span>
+        )}
         {node.page.openQuestionCount > 0 && (
           <span className="page-tree__question-badge" title={`미해결 질문 ${node.page.openQuestionCount}개`}>
             ? {node.page.openQuestionCount}
@@ -92,6 +103,7 @@ function PageTreeRow({
               onDragOver={onDragOver}
               onDrop={onDrop}
               onDragEnd={onDragEnd}
+              viewersByPage={viewersByPage}
             />
           ))}
         </div>
@@ -112,6 +124,7 @@ export function Sidebar({
   onNavigate,
   onSearch,
   className,
+  presenceUsers,
 }: {
   teamName: string;
   user: UserDTO;
@@ -124,6 +137,7 @@ export function Sidebar({
   onNavigate: (path: string) => void;
   onSearch: (q: string) => void;
   className?: string;
+  presenceUsers: PresenceUser[];
 }) {
   const [query, setQuery] = useState("");
   const [draggedPageId, setDraggedPageId] = useState<string | null>(null);
@@ -133,6 +147,16 @@ export function Sidebar({
     () => [...pages].sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1)).slice(0, 5),
     [pages],
   );
+  const viewersByPage = useMemo(() => {
+    const map = new Map<string, PresenceUser[]>();
+    for (const u of presenceUsers) {
+      if (!u.pageId) continue;
+      const list = map.get(u.pageId) ?? [];
+      list.push(u);
+      map.set(u.pageId, list);
+    }
+    return map;
+  }, [presenceUsers]);
 
   const handleDragStart = (event: DragEvent, page: PageSummaryDTO) => {
     setDraggedPageId(page.id);
@@ -242,6 +266,7 @@ export function Sidebar({
               setDraggedPageId(null);
               setDropTarget(null);
             }}
+            viewersByPage={viewersByPage}
           />
         ))}
       </div>

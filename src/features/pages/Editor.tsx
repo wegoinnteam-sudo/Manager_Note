@@ -7,6 +7,7 @@ import { TEMPLATES, buildTemplateBlocks, type TemplateKey } from "./templates";
 import { FORM_LIST, type FormKey } from "./forms";
 import type { DatabaseViewType } from "./DatabaseView";
 import { api, uploadAttachment } from "@/lib/api";
+import type { PresenceUser } from "@/hooks/usePresence";
 
 const MAX_UPLOAD_MB = Number((import.meta as any).env?.VITE_MAX_UPLOAD_MB ?? 50);
 const INTERNAL_BLOCK_DRAG_TYPE = "application/x-team-note-block";
@@ -180,8 +181,10 @@ export const Editor = forwardRef<EditorHandle, {
   pages: PageSummaryDTO[];
   members: TeamMemberDTO[];
   registerFileDropHandler: (handler: (files: FileList) => void) => void;
+  presenceUsers: PresenceUser[];
+  onCursorReport: (blockId: string | null, offset: number) => void;
 }>(function Editor(
-  { pageId, content, attachments, editable, onChange, onOpenPage, onPagesChanged, onAttachmentUploaded, pages, members, registerFileDropHandler },
+  { pageId, content, attachments, editable, onChange, onOpenPage, onPagesChanged, onAttachmentUploaded, pages, members, registerFileDropHandler, presenceUsers, onCursorReport },
   ref,
 ) {
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -218,6 +221,14 @@ export const Editor = forwardRef<EditorHandle, {
       return level && "text" in b ? { id: b.id, text: b.text, level } : null;
     })
     .filter((h): h is HeadingRef => h !== null);
+
+  const remoteCursorsByBlock = new Map<string, PresenceUser[]>();
+  for (const u of presenceUsers) {
+    if (!u.blockId) continue;
+    const list = remoteCursorsByBlock.get(u.blockId) ?? [];
+    list.push(u);
+    remoteCursorsByBlock.set(u.blockId, list);
+  }
 
   const setBlocks = useCallback(
     (blocks: PageBlock[]) => onChange({ blocks }),
@@ -633,6 +644,7 @@ export const Editor = forwardRef<EditorHandle, {
 
   const handleChangeText = (block: PageBlock, text: string, caret: number) => {
     updateBlock(block.id, { text } as Partial<PageBlock>);
+    onCursorReport(block.id, caret);
 
     if (text.startsWith("/")) {
       setSlashMenu({ blockId: block.id, query: text.slice(1), highlighted: 0 });
@@ -817,7 +829,10 @@ export const Editor = forwardRef<EditorHandle, {
                 attachmentsById={attachmentsById}
                 headings={headings}
                 editable={editable}
-                onFocus={() => setActiveId(block.id)}
+                onFocus={() => {
+                  setActiveId(block.id);
+                  onCursorReport(block.id, refs.current.get(block.id)?.selectionStart ?? 0);
+                }}
                 onChangeText={(text, caret) => handleChangeText(block, text, caret)}
                 onToggleChecked={() => block.type === "checklist_item" && updateBlock(block.id, { checked: !block.checked })}
                 onKeyDownBlock={(e) => handleKeyDown(block, e)}
@@ -831,6 +846,7 @@ export const Editor = forwardRef<EditorHandle, {
                 onPagesChanged={onPagesChanged}
                 onInsertTemplateAfter={insertTemplateAfter}
                 onReplaceImage={openImageReplacePicker}
+                remoteCursors={remoteCursorsByBlock.get(block.id) ?? []}
                 registerRef={(el) => {
                   if (el) refs.current.set(block.id, el);
                   else refs.current.delete(block.id);

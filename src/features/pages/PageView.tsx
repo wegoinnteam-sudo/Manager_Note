@@ -6,6 +6,7 @@ import { Editor, type EditorHandle } from "./Editor";
 import { Comments } from "@/features/comments/Comments";
 import { History } from "@/features/history/History";
 import { HandoffTools } from "./HandoffTools";
+import type { PresenceUser } from "@/hooks/usePresence";
 
 type SaveState = "idle" | "saving" | "saved" | "error" | "conflict";
 
@@ -21,6 +22,8 @@ export function PageView({
   onPagesChanged,
   onOpenPage,
   pages,
+  presenceUsers,
+  onCursorReport,
 }: {
   pageId: string;
   canEdit: boolean;
@@ -33,6 +36,8 @@ export function PageView({
   onPagesChanged: () => void;
   onOpenPage: (pageId: string) => void;
   pages: PageSummaryDTO[];
+  presenceUsers: PresenceUser[];
+  onCursorReport: (blockId: string | null, offset: number) => void;
 }) {
   const [page, setPage] = useState<PageDetailDTO | null>(null);
   const [attachments, setAttachments] = useState<AttachmentDTO[]>([]);
@@ -182,6 +187,8 @@ export function PageView({
           pages={pages}
           members={members}
           registerFileDropHandler={registerFileDropHandler}
+          presenceUsers={presenceUsers.filter((u) => u.pageId === page.id)}
+          onCursorReport={onCursorReport}
         />
 
         <Comments pageId={page.id} canComment={canEdit} />

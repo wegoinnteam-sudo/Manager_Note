@@ -1,9 +1,11 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { UserDTO } from "@shared/types";
 import { useAuth } from "@/hooks/useAuth";
 import { usePages } from "@/hooks/usePages";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { useRoute } from "@/hooks/useRoute";
+import { useGuestIdentity } from "@/hooks/useGuestIdentity";
+import { usePresence } from "@/hooks/usePresence";
 import { api } from "@/lib/api";
 import { Sidebar } from "@/features/sidebar/Sidebar";
 import { PageView } from "@/features/pages/PageView";
@@ -11,11 +13,14 @@ import { Trash } from "@/features/trash/Trash";
 import { AdminSettings } from "@/features/admin/AdminSettings";
 import { SearchResults } from "@/features/search/SearchResults";
 import { GlobalDropzone } from "@/features/files/GlobalDropzone";
+import { NameGate } from "@/features/identity/NameGate";
 
 function AppShell({ user }: { user: UserDTO }) {
   const { pages, setPages, refresh: refreshPages } = usePages();
   const members = useTeamMembers();
   const { path, navigate } = useRoute();
+  const { identity, setName } = useGuestIdentity();
+  const { users: presenceUsers, report: reportCursor } = usePresence(identity);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [justCreatedPageId, setJustCreatedPageId] = useState<string | null>(null);
   const dropHandlerRef = useRef<(files: FileList) => void>(() => {});
@@ -62,6 +67,13 @@ function AppShell({ user }: { user: UserDTO }) {
   const canEdit = user.role === "editor" || user.role === "admin";
   const canDeleteAll = canEdit;
 
+  // Announce which page (if any) is now open the moment navigation happens,
+  // ahead of any in-block cursor reports, so others' sidebar viewer badges
+  // update even before the cursor lands in a specific block.
+  useEffect(() => {
+    reportCursor(activePageId, null, 0);
+  }, [activePageId, reportCursor]);
+
   let content: React.ReactNode;
   if (path === "/trash") {
     content = <Trash canRestore={canEdit} onOpenPage={openPage} onRestored={refreshPages} />;
@@ -84,6 +96,8 @@ function AppShell({ user }: { user: UserDTO }) {
         onPagesChanged={refreshPages}
         onOpenPage={openPage}
         pages={pages}
+        presenceUsers={presenceUsers}
+        onCursorReport={(blockId, offset) => reportCursor(activePageId, blockId, offset)}
       />
     );
   } else {
@@ -96,34 +110,38 @@ function AppShell({ user }: { user: UserDTO }) {
   }
 
   return (
-    <GlobalDropzone active={!!activePageId && canEdit} onFiles={(files) => dropHandlerRef.current(files)}>
-      <div className="app-shell">
-        <Sidebar
-          className={sidebarOpen ? "sidebar--open" : ""}
-          teamName="팀 인수인계 노트"
-          user={user}
-          pages={pages}
-          activePageId={activePageId}
-          onOpenPage={openPage}
-          onCreatePage={createPage}
-          canReorder={canEdit}
-          onReorderPage={reorderPage}
-          onNavigate={(p) => {
-            navigate(p);
-            setSidebarOpen(false);
-          }}
-          onSearch={(q) => navigate(`/search/${encodeURIComponent(q)}`)}
-        />
-        <div className="main">
-          <div className="topbar">
-            <button type="button" className="sidebar-toggle" onClick={() => setSidebarOpen((v) => !v)} aria-label="메뉴">
-              ☰
-            </button>
+    <>
+      {!identity && <NameGate onSubmit={setName} />}
+      <GlobalDropzone active={!!activePageId && canEdit} onFiles={(files) => dropHandlerRef.current(files)}>
+        <div className="app-shell">
+          <Sidebar
+            className={sidebarOpen ? "sidebar--open" : ""}
+            teamName="팀 인수인계 노트"
+            user={user}
+            pages={pages}
+            activePageId={activePageId}
+            onOpenPage={openPage}
+            onCreatePage={createPage}
+            canReorder={canEdit}
+            onReorderPage={reorderPage}
+            onNavigate={(p) => {
+              navigate(p);
+              setSidebarOpen(false);
+            }}
+            onSearch={(q) => navigate(`/search/${encodeURIComponent(q)}`)}
+            presenceUsers={presenceUsers}
+          />
+          <div className="main">
+            <div className="topbar">
+              <button type="button" className="sidebar-toggle" onClick={() => setSidebarOpen((v) => !v)} aria-label="메뉴">
+                ☰
+              </button>
+            </div>
+            {content}
           </div>
-          {content}
         </div>
-      </div>
-    </GlobalDropzone>
+      </GlobalDropzone>
+    </>
   );
 }
 

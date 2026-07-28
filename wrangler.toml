@@ -31,6 +31,19 @@ migrations_dir = "migrations"
 # bucket_name = "team-handoff-backup"
 
 # ---------------------------------------------------------------------------
+# Durable Object — single in-memory room broadcasting who is viewing which
+# page and where their text cursor is, over WebSocket. No persistence: state
+# only needs to live as long as people are connected.
+# ---------------------------------------------------------------------------
+[[durable_objects.bindings]]
+name = "PRESENCE"
+class_name = "PresenceRoom"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["PresenceRoom"]
+
+# ---------------------------------------------------------------------------
 # Cron trigger for incremental Google Drive sync (default: every 15 minutes).
 # ---------------------------------------------------------------------------
 [triggers]

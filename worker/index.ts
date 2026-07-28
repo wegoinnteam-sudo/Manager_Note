@@ -14,8 +14,11 @@ import { driveRoute } from "./routes/drive";
 import { authRoute } from "./routes/auth";
 import { adminRoute } from "./routes/admin";
 import { teamRoute } from "./routes/team";
+import { presenceRoute } from "./routes/presence";
 import { runDriveSync } from "./drive/sync";
 import { ensureDefaultTeam } from "./db/teams";
+
+export { PresenceRoom } from "./presence/PresenceRoom";
 
 const app = new Hono<AppBindings>();
 
@@ -32,6 +35,7 @@ app.route("/api/search", searchRoute);
 app.route("/api/drive", driveRoute);
 app.route("/api/admin", adminRoute);
 app.route("/api/team", teamRoute);
+app.route("/api/presence", presenceRoute);
 
 app.onError((err, c) => {
   if (err instanceof AppError) {
