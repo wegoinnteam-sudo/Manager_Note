@@ -40,15 +40,17 @@ function AppShell({ user }: { user: UserDTO }) {
   }, [refreshPages, openPage]);
 
   const reorderPage = useCallback(
-    async (pageId: string, orderKey: number) => {
+    async (pageId: string, orderKey: number, parentId?: string | null) => {
       const page = pages.find((candidate) => candidate.id === pageId);
       if (!page) return;
 
       setPages((current) =>
-        current.map((candidate) => (candidate.id === pageId ? { ...candidate, orderKey } : candidate)),
+        current.map((candidate) =>
+          candidate.id === pageId ? { ...candidate, orderKey, ...(parentId !== undefined ? { parentId } : {}) } : candidate,
+        ),
       );
       try {
-        await api.updatePageMeta(pageId, { expectedVersion: page.version, orderKey });
+        await api.updatePageMeta(pageId, { expectedVersion: page.version, orderKey, ...(parentId !== undefined ? { parentId } : {}) });
       } finally {
         await refreshPages();
       }

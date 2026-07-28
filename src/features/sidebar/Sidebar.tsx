@@ -21,7 +21,7 @@ function PageTreeRow({
   onOpen: (id: string) => void;
   canReorder: boolean;
   draggedPageId: string | null;
-  dropTarget: { pageId: string; position: "before" | "after" } | null;
+  dropTarget: { pageId: string; position: "before" | "after" | "inside" } | null;
   onDragStart: (event: DragEvent, page: PageSummaryDTO) => void;
   onDragOver: (event: DragEvent, page: PageSummaryDTO) => void;
   onDrop: (event: DragEvent, page: PageSummaryDTO) => void;
@@ -120,14 +120,14 @@ export function Sidebar({
   onOpenPage: (id: string) => void;
   onCreatePage: () => void;
   canReorder: boolean;
-  onReorderPage: (pageId: string, orderKey: number) => void;
+  onReorderPage: (pageId: string, orderKey: number, parentId?: string | null) => void;
   onNavigate: (path: string) => void;
   onSearch: (q: string) => void;
   className?: string;
 }) {
   const [query, setQuery] = useState("");
   const [draggedPageId, setDraggedPageId] = useState<string | null>(null);
-  const [dropTarget, setDropTarget] = useState<{ pageId: string; position: "before" | "after" } | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ pageId: string; position: "before" | "after" | "inside" } | null>(null);
   const tree = useMemo(() => buildPageTree(pages), [pages]);
   const recent = useMemo(
     () => [...pages].sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1)).slice(0, 5),
@@ -140,35 +140,57 @@ export function Sidebar({
     event.dataTransfer.setData("text/plain", page.id);
   };
 
+  // Would placing `draggedId` under `newParentId` make a page its own ancestor?
+  const wouldCreateCycle = (draggedId: string, newParentId: string | null): boolean => {
+    if (newParentId === null) return false;
+    if (newParentId === draggedId) return true;
+    let current = pages.find((p) => p.id === newParentId);
+    while (current) {
+      if (current.id === draggedId) return true;
+      if (!current.parentId) return false;
+      current = pages.find((p) => p.id === current!.parentId);
+    }
+    return false;
+  };
+
   const handleDragOver = (event: DragEvent, page: PageSummaryDTO) => {
     const dragged = pages.find((candidate) => candidate.id === draggedPageId);
-    if (!dragged || dragged.id === page.id || dragged.parentId !== page.parentId) return;
+    if (!dragged || dragged.id === page.id) return;
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const ratio = (event.clientY - rect.top) / rect.height;
+    const position: "before" | "after" | "inside" = ratio < 0.25 ? "before" : ratio > 0.75 ? "after" : "inside";
+    const resultingParentId = position === "inside" ? page.id : page.parentId;
+    if (wouldCreateCycle(dragged.id, resultingParentId)) return;
+
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
-    const rect = event.currentTarget.getBoundingClientRect();
-    setDropTarget({ pageId: page.id, position: event.clientY < rect.top + rect.height / 2 ? "before" : "after" });
+    setDropTarget({ pageId: page.id, position });
   };
 
   const handleDrop = (event: DragEvent, target: PageSummaryDTO) => {
     event.preventDefault();
     const dragged = pages.find((candidate) => candidate.id === draggedPageId);
-    if (!dragged || dragged.id === target.id || dragged.parentId !== target.parentId || !dropTarget) {
+    if (!dragged || !dropTarget || dropTarget.pageId !== target.id) {
       setDraggedPageId(null);
       setDropTarget(null);
       return;
     }
 
+    const newParentId = dropTarget.position === "inside" ? target.id : target.parentId;
     const siblings = pages
-      .filter((page) => page.parentId === dragged.parentId && page.id !== dragged.id)
+      .filter((page) => page.parentId === newParentId && page.id !== dragged.id)
       .sort((a, b) => a.orderKey - b.orderKey);
-    const targetIndex = siblings.findIndex((page) => page.id === target.id);
-    const insertIndex = targetIndex + (dropTarget.position === "after" ? 1 : 0);
+    const insertIndex =
+      dropTarget.position === "inside"
+        ? siblings.length
+        : siblings.findIndex((page) => page.id === target.id) + (dropTarget.position === "after" ? 1 : 0);
     const previous = siblings[insertIndex - 1];
     const next = siblings[insertIndex];
     const orderKey =
       previous && next ? (previous.orderKey + next.orderKey) / 2 : previous ? previous.orderKey + 1 : next ? next.orderKey - 1 : 0;
 
-    onReorderPage(dragged.id, orderKey);
+    onReorderPage(dragged.id, orderKey, newParentId === dragged.parentId ? undefined : newParentId);
     setDraggedPageId(null);
     setDropTarget(null);
   };

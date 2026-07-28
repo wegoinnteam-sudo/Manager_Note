@@ -137,6 +137,12 @@ code {
   bottom: -1px;
 }
 
+.page-tree__row--drop-inside {
+  background: var(--color-accent-bg);
+  outline: 2px dashed var(--color-accent);
+  outline-offset: -2px;
+}
+
 .page-tree__row--active {
   background: var(--color-accent-bg);
   color: var(--color-accent);
