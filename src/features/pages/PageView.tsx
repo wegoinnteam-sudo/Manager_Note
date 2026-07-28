@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { AttachmentDTO, PageDetailDTO, TeamMemberDTO } from "@shared/types";
+import type { AttachmentDTO, PageDetailDTO, PageSummaryDTO, TeamMemberDTO } from "@shared/types";
 import { api, ApiClientError } from "@/lib/api";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
 import { Editor } from "./Editor";
@@ -20,6 +20,7 @@ export function PageView({
   onDeleted,
   onPagesChanged,
   onOpenPage,
+  pages,
 }: {
   pageId: string;
   canEdit: boolean;
@@ -31,6 +32,7 @@ export function PageView({
   onDeleted: () => void;
   onPagesChanged: () => void;
   onOpenPage: (pageId: string) => void;
+  pages: PageSummaryDTO[];
 }) {
   const [page, setPage] = useState<PageDetailDTO | null>(null);
   const [attachments, setAttachments] = useState<AttachmentDTO[]>([]);
@@ -153,6 +155,8 @@ export function PageView({
         }}
         onOpenPage={onOpenPage}
         onPagesChanged={onPagesChanged}
+        pages={pages}
+        members={members}
       />
 
       <AttachmentsPanel

@@ -552,6 +552,242 @@ code {
   color: var(--color-text-muted);
 }
 
+.db-view {
+  width: 100%;
+}
+
+.db-view--empty {
+  padding: 16px;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.db-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.db-table th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.db-table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.db-table__title {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-weight: 600;
+  text-align: left;
+  padding: 0;
+  color: inherit;
+}
+
+.db-table__title:hover {
+  color: var(--color-accent);
+}
+
+.db-table select,
+.db-table input[type="date"] {
+  font-size: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 3px 4px;
+  background: #fff;
+}
+
+.db-board {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.db-board__col {
+  flex: 1;
+  min-width: 180px;
+  background: var(--color-bg-sidebar);
+  border-radius: var(--radius);
+  padding: 10px;
+}
+
+.db-board__col-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  margin-bottom: 8px;
+}
+
+.db-board__card {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}
+
+.db-board__card-title {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0 0 6px;
+  color: inherit;
+}
+
+.db-board__card-title:hover {
+  color: var(--color-accent);
+}
+
+.db-board__card-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.db-board__card-assignee {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.db-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.db-gallery__card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: #fff;
+  padding: 14px 10px;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 70px;
+}
+
+.db-gallery__card:hover {
+  background: var(--color-accent-bg);
+}
+
+.db-gallery__title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.db-list__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--color-border);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.db-list__row:hover {
+  background: var(--color-accent-bg);
+}
+
+.db-list__title {
+  font-weight: 600;
+  flex: 1;
+}
+
+.db-list__assignee,
+.db-list__due {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.db-calendar__nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.db-calendar__nav button {
+  border: 1px solid var(--color-border);
+  background: #fff;
+  border-radius: var(--radius);
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+}
+
+.db-calendar__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.db-calendar__weekday {
+  text-align: center;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  padding-bottom: 4px;
+}
+
+.db-calendar__cell {
+  min-height: 64px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 4px;
+  font-size: 11px;
+}
+
+.db-calendar__cell--empty {
+  border: none;
+  background: none;
+}
+
+.db-calendar__day {
+  color: var(--color-text-muted);
+  margin-bottom: 2px;
+}
+
+.db-calendar__item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: var(--color-accent-bg);
+  color: var(--color-accent);
+  border-radius: 3px;
+  padding: 2px 4px;
+  margin-bottom: 2px;
+  font-size: 11px;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .section {
   margin-top: 36px;
   border-top: 1px solid var(--color-border);

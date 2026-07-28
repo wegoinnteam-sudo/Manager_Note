@@ -64,6 +64,7 @@ function AppShell({ user }: { user: UserDTO }) {
         onDeleted={() => navigate("/")}
         onPagesChanged={refreshPages}
         onOpenPage={openPage}
+        pages={pages}
       />
     );
   } else {

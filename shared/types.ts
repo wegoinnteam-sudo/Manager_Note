@@ -54,7 +54,8 @@ export type PageBlock =
   | { id: string; type: "bookmark"; url: string }
   | { id: string; type: "toc" }
   | { id: string; type: "page_link"; pageId: string }
-  | { id: string; type: "columns"; columns: string[] };
+  | { id: string; type: "columns"; columns: string[] }
+  | { id: string; type: "database_view"; view: "table" | "board" | "gallery" | "calendar" | "list" };
 
 export interface PageContent {
   blocks: PageBlock[];

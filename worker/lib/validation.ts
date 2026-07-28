@@ -16,6 +16,7 @@ export const pageBlockSchema = z.discriminatedUnion("type", [
   z.object({ id: z.string(), type: z.literal("toc") }),
   z.object({ id: z.string(), type: z.literal("page_link"), pageId: z.string() }),
   z.object({ id: z.string(), type: z.literal("columns"), columns: z.array(z.string().max(20000)).min(2).max(5) }),
+  z.object({ id: z.string(), type: z.literal("database_view"), view: z.enum(["table", "board", "gallery", "calendar", "list"]) }),
 ]);
 
 export const pageContentSchema = z.object({

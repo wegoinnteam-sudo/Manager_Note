@@ -1,8 +1,9 @@
 import { useCallback, useRef, useState } from "react";
-import type { AttachmentDTO, PageBlock, PageContent } from "@shared/types";
+import type { AttachmentDTO, PageBlock, PageContent, PageSummaryDTO, TeamMemberDTO } from "@shared/types";
 import { Block, type HeadingRef } from "./Block";
 import { AttachmentPicker } from "./AttachmentPicker";
 import { TEMPLATES, buildTemplateBlocks, type TemplateKey } from "./templates";
+import type { DatabaseViewType } from "./DatabaseView";
 import { api } from "@/lib/api";
 
 function newBlockId(): string {
@@ -30,6 +31,8 @@ function emptyBlockOfType(type: PageBlock["type"]): PageBlock {
       return { id, type, pageId: "" };
     case "columns":
       return { id, type, columns: ["", ""] };
+    case "database_view":
+      return { id, type, view: "table" };
     default:
       return { id, type: type as any, text: "" };
   }
@@ -54,7 +57,20 @@ type SlashCommandType =
   | "file"
   | "page_link"
   | "columns"
-  | "template";
+  | "template"
+  | "db_table"
+  | "db_board"
+  | "db_gallery"
+  | "db_calendar"
+  | "db_list";
+
+const DB_VIEW_BY_COMMAND: Partial<Record<SlashCommandType, DatabaseViewType>> = {
+  db_table: "table",
+  db_board: "board",
+  db_gallery: "gallery",
+  db_calendar: "calendar",
+  db_list: "list",
+};
 
 const SLASH_COMMANDS: { label: string; type: SlashCommandType; aliases: string[] }[] = [
   { label: "텍스트", type: "paragraph", aliases: ["text"] },
@@ -76,6 +92,11 @@ const SLASH_COMMANDS: { label: string; type: SlashCommandType; aliases: string[]
   { label: "페이지", type: "page_link", aliases: ["page", "새 페이지"] },
   { label: "컬럼 (2~5단)", type: "columns", aliases: ["columns", "column", "단 나누기"] },
   { label: "템플릿", type: "template", aliases: ["template"] },
+  { label: "데이터베이스 - 테이블", type: "db_table", aliases: ["database", "table view"] },
+  { label: "데이터베이스 - 보드", type: "db_board", aliases: ["board", "kanban"] },
+  { label: "데이터베이스 - 갤러리", type: "db_gallery", aliases: ["gallery"] },
+  { label: "데이터베이스 - 캘린더", type: "db_calendar", aliases: ["calendar"] },
+  { label: "데이터베이스 - 리스트", type: "db_list", aliases: ["list"] },
 ];
 
 function filterCommands(query: string) {
@@ -99,6 +120,8 @@ export function Editor({
   onChange,
   onOpenPage,
   onPagesChanged,
+  pages,
+  members,
 }: {
   pageId: string;
   content: PageContent;
@@ -107,6 +130,8 @@ export function Editor({
   onChange: (next: PageContent) => void;
   onOpenPage: (pageId: string) => void;
   onPagesChanged: () => void;
+  pages: PageSummaryDTO[];
+  members: TeamMemberDTO[];
 }) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [picker, setPicker] = useState<"image" | "file" | "template" | null>(null);
@@ -238,6 +263,12 @@ export function Editor({
 
     if (cmd.type === "columns") {
       updateBlock(block.id, { type: "columns", columns: ["", ""] } as Partial<PageBlock>);
+      return;
+    }
+
+    const dbView = DB_VIEW_BY_COMMAND[cmd.type];
+    if (dbView) {
+      updateBlock(block.id, { type: "database_view", view: dbView } as Partial<PageBlock>);
       return;
     }
 
@@ -392,6 +423,10 @@ export function Editor({
             onRemoveBlock={() => removeBlock(block.id)}
             onPatch={(patch) => updateBlock(block.id, patch)}
             onOpenPage={onOpenPage}
+            currentPageId={pageId}
+            pages={pages}
+            members={members}
+            onPagesChanged={onPagesChanged}
             registerRef={(el) => {
               if (el) refs.current.set(block.id, el);
               else refs.current.delete(block.id);

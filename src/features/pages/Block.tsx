@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import type { AttachmentDTO, PageBlock } from "@shared/types";
+import type { AttachmentDTO, PageBlock, PageSummaryDTO, TeamMemberDTO } from "@shared/types";
 import { renderInline } from "./inlineMarkdown";
 import { api } from "@/lib/api";
+import { DatabaseView } from "./DatabaseView";
 
 const TEXTAREA_TYPES = new Set(["heading1", "heading2", "heading3", "paragraph", "bulleted_list_item", "numbered_list_item"]);
 
@@ -52,6 +53,10 @@ export function Block({
   onRemoveBlock,
   onPatch,
   onOpenPage,
+  currentPageId,
+  pages,
+  members,
+  onPagesChanged,
   registerRef,
 }: {
   block: PageBlock;
@@ -67,6 +72,10 @@ export function Block({
   onRemoveBlock: () => void;
   onPatch: (patch: Partial<PageBlock>) => void;
   onOpenPage: (pageId: string) => void;
+  currentPageId: string;
+  pages: PageSummaryDTO[];
+  members: TeamMemberDTO[];
+  onPagesChanged: () => void;
   registerRef: (el: HTMLTextAreaElement | null) => void;
 }) {
   const localRef = useRef<HTMLTextAreaElement | null>(null);
@@ -182,6 +191,27 @@ export function Block({
     return (
       <div id={domId} className="block-row">
         <PageLinkRow pageId={block.pageId} onOpenPage={onOpenPage} />
+        {editable && (
+          <button type="button" className="block-row__handle" onClick={onRemoveBlock} title="블록 제거">
+            ✕
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (block.type === "database_view") {
+    return (
+      <div id={domId} className="block-row">
+        <DatabaseView
+          parentId={currentPageId}
+          view={block.view}
+          pages={pages}
+          members={members}
+          editable={editable}
+          onOpenPage={onOpenPage}
+          onPagesChanged={onPagesChanged}
+        />
         {editable && (
           <button type="button" className="block-row__handle" onClick={onRemoveBlock} title="블록 제거">
             ✕
