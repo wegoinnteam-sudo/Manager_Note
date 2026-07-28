@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { AttachmentDTO, PageDetailDTO, PageSummaryDTO, TeamMemberDTO } from "@shared/types";
 import { api, ApiClientError } from "@/lib/api";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
-import { Editor } from "./Editor";
+import { Editor, type EditorHandle } from "./Editor";
 import { AttachmentsPanel } from "@/features/files/AttachmentsPanel";
 import { Comments } from "@/features/comments/Comments";
 import { History } from "@/features/history/History";
@@ -38,6 +38,7 @@ export function PageView({
   const [attachments, setAttachments] = useState<AttachmentDTO[]>([]);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const titleRef = useRef<HTMLInputElement>(null);
+  const editorRef = useRef<EditorHandle>(null);
   const loadedPageId = useRef<string | null>(null);
 
   const load = useCallback(async () => {
@@ -135,6 +136,12 @@ export function PageView({
           setPage({ ...page, title: e.target.value });
           debouncedSaveTitle(e.target.value);
         }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            editorRef.current?.focusFirstBlock();
+          }
+        }}
         placeholder="제목 없음"
       />
 
@@ -145,6 +152,7 @@ export function PageView({
       )}
 
       <Editor
+        ref={editorRef}
         pageId={page.id}
         content={page.contentJson}
         attachments={attachments}
@@ -155,6 +163,7 @@ export function PageView({
         }}
         onOpenPage={onOpenPage}
         onPagesChanged={onPagesChanged}
+        onAttachmentUploaded={(a) => setAttachments((prev) => [...prev, a])}
         pages={pages}
         members={members}
       />

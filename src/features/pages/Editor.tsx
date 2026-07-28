@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from "react";
 import type { AttachmentDTO, PageBlock, PageContent, PageSummaryDTO, TeamMemberDTO } from "@shared/types";
 import { Block, type HeadingRef } from "./Block";
 import { AttachmentPicker } from "./AttachmentPicker";
@@ -155,17 +155,11 @@ function filterMentions(query: string, members: TeamMemberDTO[]): MentionEntry[]
   return [...memberEntries, ...dateEntries];
 }
 
-export function Editor({
-  pageId,
-  content,
-  attachments,
-  editable,
-  onChange,
-  onOpenPage,
-  onPagesChanged,
-  pages,
-  members,
-}: {
+export interface EditorHandle {
+  focusFirstBlock: () => void;
+}
+
+export const Editor = forwardRef<EditorHandle, {
   pageId: string;
   content: PageContent;
   attachments: AttachmentDTO[];
@@ -173,9 +167,13 @@ export function Editor({
   onChange: (next: PageContent) => void;
   onOpenPage: (pageId: string) => void;
   onPagesChanged: () => void;
+  onAttachmentUploaded: (attachment: AttachmentDTO) => void;
   pages: PageSummaryDTO[];
   members: TeamMemberDTO[];
-}) {
+}>(function Editor(
+  { pageId, content, attachments, editable, onChange, onOpenPage, onPagesChanged, onAttachmentUploaded, pages, members },
+  ref,
+) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [picker, setPicker] = useState<"image" | "file" | "template" | "button_template" | "form" | "page_picker" | null>(null);
   const [templateTargetId, setTemplateTargetId] = useState<string | null>(null);
@@ -184,6 +182,15 @@ export function Editor({
   const [mentionMenu, setMentionMenu] = useState<{ blockId: string; query: string; highlighted: number; triggerStart: number } | null>(null);
   const refs = useRef(new Map<string, HTMLTextAreaElement>());
   const attachmentsById = new Map(attachments.map((a) => [a.id, a]));
+
+  useImperativeHandle(ref, () => ({
+    focusFirstBlock: () => {
+      const first = content.blocks[0];
+      if (!first) return;
+      setActiveId(first.id);
+      requestAnimationFrame(() => refs.current.get(first.id)?.focus());
+    },
+  }));
 
   const headings: HeadingRef[] = content.blocks
     .map((b) => {
@@ -216,6 +223,7 @@ export function Editor({
   };
 
   const insertReferenceBlock = (type: "image" | "file", attachment: AttachmentDTO) => {
+    onAttachmentUploaded(attachment);
     const block: PageBlock = type === "image" ? { id: newBlockId(), type: "image", attachmentId: attachment.id } : { id: newBlockId(), type: "file", attachmentId: attachment.id };
     const blocks = [...content.blocks];
     if (activeId) {
@@ -757,4 +765,4 @@ export function Editor({
       )}
     </div>
   );
-}
+});

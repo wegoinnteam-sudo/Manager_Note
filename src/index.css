@@ -1197,6 +1197,25 @@ button.breadcrumb-block__item:hover {
   align-items: center;
 }
 
+.attachment-picker__dropzone {
+  width: 100%;
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius);
+  padding: 20px 12px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  margin-bottom: 12px;
+}
+
+.attachment-picker__dropzone:hover,
+.attachment-picker__dropzone--active {
+  border-color: var(--color-accent);
+  background: var(--color-accent-bg);
+  color: var(--color-accent);
+}
+
 .demo-badge {
   display: inline-block;
   background: #fde68a;
