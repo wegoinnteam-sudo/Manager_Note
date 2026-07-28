@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { DatabaseView } from "./DatabaseView";
 import { ChartView } from "./ChartView";
 import { FormBlockView } from "./FormBlockView";
+import { ImageBlockView } from "./ImageBlockView";
 
 const TEXTAREA_TYPES = new Set(["heading1", "heading2", "heading3", "paragraph", "bulleted_list_item", "numbered_list_item"]);
 
@@ -52,6 +53,7 @@ export function Block({
   onChangeText,
   onToggleChecked,
   onKeyDownBlock,
+  onPasteBlock,
   onRemoveBlock,
   onPatch,
   onOpenPage,
@@ -60,6 +62,7 @@ export function Block({
   members,
   onPagesChanged,
   onInsertTemplateAfter,
+  onReplaceImage,
   registerRef,
 }: {
   block: PageBlock;
@@ -72,6 +75,7 @@ export function Block({
   onChangeText: (text: string, caret: number) => void;
   onToggleChecked: () => void;
   onKeyDownBlock: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  onPasteBlock: (e: React.ClipboardEvent<HTMLTextAreaElement>) => void;
   onRemoveBlock: () => void;
   onPatch: (patch: Partial<PageBlock>) => void;
   onOpenPage: (pageId: string) => void;
@@ -80,6 +84,7 @@ export function Block({
   members: TeamMemberDTO[];
   onPagesChanged: () => void;
   onInsertTemplateAfter: (afterId: string, templateKey: "meeting_notes" | "handoff_note") => void;
+  onReplaceImage: (blockId: string) => void;
   registerRef: (el: HTMLTextAreaElement | null) => void;
 }) {
   const localRef = useRef<HTMLTextAreaElement | null>(null);
@@ -90,19 +95,16 @@ export function Block({
   }
 
   if (block.type === "image") {
-    const att = attachmentsById.get(block.attachmentId);
     return (
-      <div id={domId} className="block-row">
-        {att ? (
-          <img src={`/api/attachments/${att.id}/preview`} alt={att.fileName} style={{ maxWidth: "100%", borderRadius: 6 }} />
-        ) : (
-          <div style={{ fontSize: 12, color: "var(--color-text-muted)" }}>(삭제된 이미지)</div>
-        )}
-        {editable && (
-          <button type="button" className="block-row__handle" onClick={onRemoveBlock} title="블록 제거">
-            ✕
-          </button>
-        )}
+      <div id={domId}>
+        <ImageBlockView
+          block={block}
+          attachmentsById={attachmentsById}
+          editable={editable}
+          onPatch={onPatch}
+          onRemoveBlock={onRemoveBlock}
+          onReplace={() => onReplaceImage(block.id)}
+        />
       </div>
     );
   }
@@ -125,6 +127,23 @@ export function Block({
       return (
         <div id={domId} className="block-row">
           <audio controls preload="metadata" style={{ width: "100%" }} src={`/api/attachments/${att.id}/download`} />
+          {editable && (
+            <button type="button" className="block-row__handle" onClick={onRemoveBlock} title="블록 제거">
+              ✕
+            </button>
+          )}
+        </div>
+      );
+    }
+    if (att?.mimeType === "application/pdf") {
+      return (
+        <div id={domId} className="block-row">
+          <div className="pdf-block">
+            <iframe src={`/api/attachments/${att.id}/download`} title={att.fileName} />
+            <a className="pdf-block__filename" href={`/api/attachments/${att.id}/download`}>
+              📄 {att.fileName}
+            </a>
+          </div>
           {editable && (
             <button type="button" className="block-row__handle" onClick={onRemoveBlock} title="블록 제거">
               ✕
@@ -423,6 +442,7 @@ export function Block({
               onFocus={onFocus}
               onChange={(e) => onChangeText(e.target.value, e.target.selectionStart ?? e.target.value.length)}
               onKeyDown={onKeyDownBlock}
+              onPaste={onPasteBlock}
               autoFocus={active}
             />
           ) : (
@@ -473,6 +493,7 @@ export function Block({
               onFocus={onFocus}
               onChange={(e) => onChangeText(e.target.value, e.target.selectionStart ?? e.target.value.length)}
               onKeyDown={onKeyDownBlock}
+              onPaste={onPasteBlock}
               autoFocus={active}
             />
           ) : (
@@ -502,6 +523,7 @@ export function Block({
               onFocus={onFocus}
               onChange={(e) => onChangeText(e.target.value, e.target.selectionStart ?? e.target.value.length)}
               onKeyDown={onKeyDownBlock}
+              onPaste={onPasteBlock}
               autoFocus={active}
             />
           ) : (
@@ -569,6 +591,7 @@ export function Block({
             onFocus={onFocus}
             onChange={(e) => onChangeText(e.target.value, e.target.selectionStart ?? e.target.value.length)}
             onKeyDown={onKeyDownBlock}
+            onPaste={onPasteBlock}
             autoFocus={active}
           />
         ) : (
@@ -601,6 +624,7 @@ export function Block({
             onFocus={onFocus}
             onChange={(e) => onChangeText(e.target.value, e.target.selectionStart ?? e.target.value.length)}
             onKeyDown={onKeyDownBlock}
+            onPaste={onPasteBlock}
             autoFocus={active}
             onInput={(e) => {
               const el = e.currentTarget;

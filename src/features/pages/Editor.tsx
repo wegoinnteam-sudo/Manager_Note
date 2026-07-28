@@ -5,7 +5,7 @@ import { AttachmentPicker } from "./AttachmentPicker";
 import { TEMPLATES, buildTemplateBlocks, type TemplateKey } from "./templates";
 import { FORM_LIST, type FormKey } from "./forms";
 import type { DatabaseViewType } from "./DatabaseView";
-import { api } from "@/lib/api";
+import { api, uploadAttachment } from "@/lib/api";
 
 function newBlockId(): string {
   return crypto.randomUUID();
@@ -175,9 +175,11 @@ export const Editor = forwardRef<EditorHandle, {
   ref,
 ) {
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [picker, setPicker] = useState<"image" | "file" | "template" | "button_template" | "form" | "page_picker" | null>(null);
+  const [picker, setPicker] = useState<"image" | "file" | "template" | "button_template" | "form" | "page_picker" | "replace_image" | null>(null);
   const [templateTargetId, setTemplateTargetId] = useState<string | null>(null);
+  const [imageReplaceTargetId, setImageReplaceTargetId] = useState<string | null>(null);
   const [pagePickerQuery, setPagePickerQuery] = useState("");
+  const [draggedId, setDraggedId] = useState<string | null>(null);
   const [slashMenu, setSlashMenu] = useState<{ blockId: string; query: string; highlighted: number } | null>(null);
   const [mentionMenu, setMentionMenu] = useState<{ blockId: string; query: string; highlighted: number; triggerStart: number } | null>(null);
   const refs = useRef(new Map<string, HTMLTextAreaElement>());
@@ -222,18 +224,76 @@ export const Editor = forwardRef<EditorHandle, {
     requestAnimationFrame(() => refs.current.get(block.id)?.focus());
   };
 
-  const insertReferenceBlock = (type: "image" | "file", attachment: AttachmentDTO) => {
-    onAttachmentUploaded(attachment);
-    const block: PageBlock = type === "image" ? { id: newBlockId(), type: "image", attachmentId: attachment.id } : { id: newBlockId(), type: "file", attachmentId: attachment.id };
+  const insertReferenceBlocks = (type: "image" | "file", newAttachments: AttachmentDTO[]) => {
+    newAttachments.forEach((a) => onAttachmentUploaded(a));
+    const newBlocks: PageBlock[] = newAttachments.map((a) =>
+      type === "image" ? { id: newBlockId(), type: "image", attachmentId: a.id } : { id: newBlockId(), type: "file", attachmentId: a.id },
+    );
     const blocks = [...content.blocks];
     if (activeId) {
       const idx = blocks.findIndex((b) => b.id === activeId);
-      blocks.splice(idx + 1, 0, block);
+      blocks.splice(idx + 1, 0, ...newBlocks);
     } else {
-      blocks.push(block);
+      blocks.push(...newBlocks);
     }
     setBlocks(blocks);
     setPicker(null);
+  };
+
+  const insertImageUrlBlock = (url: string) => {
+    const newBlock: PageBlock = { id: newBlockId(), type: "image", url };
+    const blocks = [...content.blocks];
+    if (activeId) {
+      const idx = blocks.findIndex((b) => b.id === activeId);
+      blocks.splice(idx + 1, 0, newBlock);
+    } else {
+      blocks.push(newBlock);
+    }
+    setBlocks(blocks);
+    setPicker(null);
+  };
+
+  const openImageReplacePicker = (blockId: string) => {
+    setImageReplaceTargetId(blockId);
+    setPicker("replace_image");
+  };
+
+  const applyImageReplace = (newAttachments: AttachmentDTO[]) => {
+    setPicker(null);
+    const targetId = imageReplaceTargetId;
+    setImageReplaceTargetId(null);
+    const attachment = newAttachments[0];
+    if (!targetId || !attachment) return;
+    onAttachmentUploaded(attachment);
+    updateBlock(targetId, { attachmentId: attachment.id, url: undefined } as Partial<PageBlock>);
+  };
+
+  const handlePasteImage = async (block: PageBlock, e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const file = Array.from(e.clipboardData?.files ?? []).find((f) => f.type.startsWith("image/"));
+    if (!file) return;
+    e.preventDefault();
+    try {
+      const attachment = await uploadAttachment(pageId, file, { idempotencyKey: crypto.randomUUID() });
+      onAttachmentUploaded(attachment);
+      const idx = content.blocks.findIndex((b) => b.id === block.id);
+      const newBlock: PageBlock = { id: newBlockId(), type: "image", attachmentId: attachment.id };
+      const blocks = [...content.blocks];
+      blocks.splice(idx === -1 ? blocks.length : idx + 1, 0, newBlock);
+      setBlocks(blocks);
+    } catch {
+      /* silently ignore — user can still use /image */
+    }
+  };
+
+  const moveBlock = (draggedBlockId: string, targetBlockId: string) => {
+    if (draggedBlockId === targetBlockId) return;
+    const blocks = [...content.blocks];
+    const fromIdx = blocks.findIndex((b) => b.id === draggedBlockId);
+    const toIdx = blocks.findIndex((b) => b.id === targetBlockId);
+    if (fromIdx === -1 || toIdx === -1) return;
+    const [moved] = blocks.splice(fromIdx, 1);
+    blocks.splice(toIdx, 0, moved);
+    setBlocks(blocks);
   };
 
   const removeBlock = (id: string) => {
@@ -587,30 +647,61 @@ export const Editor = forwardRef<EditorHandle, {
     <div className="editor">
       {content.blocks.map((block, i) => (
         <div key={block.id}>
-          <Block
-            block={block}
-            index={i}
-            active={activeId === block.id}
-            attachmentsById={attachmentsById}
-            headings={headings}
-            editable={editable}
-            onFocus={() => setActiveId(block.id)}
-            onChangeText={(text, caret) => handleChangeText(block, text, caret)}
-            onToggleChecked={() => block.type === "checklist_item" && updateBlock(block.id, { checked: !block.checked })}
-            onKeyDownBlock={(e) => handleKeyDown(block, e)}
-            onRemoveBlock={() => removeBlock(block.id)}
-            onPatch={(patch) => updateBlock(block.id, patch)}
-            onOpenPage={onOpenPage}
-            currentPageId={pageId}
-            pages={pages}
-            members={members}
-            onPagesChanged={onPagesChanged}
-            onInsertTemplateAfter={insertTemplateAfter}
-            registerRef={(el) => {
-              if (el) refs.current.set(block.id, el);
-              else refs.current.delete(block.id);
+          <div
+            className="block-wrapper"
+            onDragOver={(e) => {
+              if (editable && draggedId) e.preventDefault();
             }}
-          />
+            onDrop={(e) => {
+              if (!editable || !draggedId) return;
+              e.preventDefault();
+              moveBlock(draggedId, block.id);
+              setDraggedId(null);
+            }}
+          >
+            {editable && (
+              <span
+                className="block-drag-handle"
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.effectAllowed = "move";
+                  setDraggedId(block.id);
+                }}
+                onDragEnd={() => setDraggedId(null)}
+                title="드래그해서 순서 변경"
+              >
+                ⋮⋮
+              </span>
+            )}
+            <div className="block-wrapper__content">
+              <Block
+                block={block}
+                index={i}
+                active={activeId === block.id}
+                attachmentsById={attachmentsById}
+                headings={headings}
+                editable={editable}
+                onFocus={() => setActiveId(block.id)}
+                onChangeText={(text, caret) => handleChangeText(block, text, caret)}
+                onToggleChecked={() => block.type === "checklist_item" && updateBlock(block.id, { checked: !block.checked })}
+                onKeyDownBlock={(e) => handleKeyDown(block, e)}
+                onPasteBlock={(e) => handlePasteImage(block, e)}
+                onRemoveBlock={() => removeBlock(block.id)}
+                onPatch={(patch) => updateBlock(block.id, patch)}
+                onOpenPage={onOpenPage}
+                currentPageId={pageId}
+                pages={pages}
+                members={members}
+                onPagesChanged={onPagesChanged}
+                onInsertTemplateAfter={insertTemplateAfter}
+                onReplaceImage={openImageReplacePicker}
+                registerRef={(el) => {
+                  if (el) refs.current.set(block.id, el);
+                  else refs.current.delete(block.id);
+                }}
+              />
+            </div>
+          </div>
 
           {slashMenu?.blockId === block.id && (
             <div className="slash-menu">
@@ -658,9 +749,14 @@ export const Editor = forwardRef<EditorHandle, {
         <AttachmentPicker
           pageId={pageId}
           filterImagesOnly={picker === "image"}
-          onPick={(a) => insertReferenceBlock(picker, a)}
+          onPick={(atts) => insertReferenceBlocks(picker, atts)}
+          onPickUrl={picker === "image" ? insertImageUrlBlock : undefined}
           onClose={() => setPicker(null)}
         />
+      )}
+
+      {picker === "replace_image" && (
+        <AttachmentPicker pageId={pageId} filterImagesOnly onPick={applyImageReplace} onClose={() => setPicker(null)} />
       )}
 
       {picker === "template" && (

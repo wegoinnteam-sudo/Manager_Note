@@ -7,15 +7,18 @@ export function AttachmentPicker({
   pageId,
   filterImagesOnly,
   onPick,
+  onPickUrl,
   onClose,
 }: {
   pageId: string;
   filterImagesOnly: boolean;
-  onPick: (attachment: AttachmentDTO) => void;
+  onPick: (attachments: AttachmentDTO[]) => void;
+  onPickUrl?: (url: string) => void;
   onClose: () => void;
 }) {
   const [attachments, setAttachments] = useState<AttachmentDTO[]>([]);
   const [dragging, setDragging] = useState(false);
+  const [urlValue, setUrlValue] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pickedRef = useRef(false);
 
@@ -30,15 +33,19 @@ export function AttachmentPicker({
   const { items, addFiles } = useUploadQueue(pageId, refresh);
 
   useEffect(() => {
-    if (pickedRef.current) return;
-    const done = items.find((it) => it.status === "success" && it.attachment && (!filterImagesOnly || it.attachment.isImage));
-    if (done?.attachment) {
+    if (pickedRef.current || items.length === 0) return;
+    const stillUploading = items.some((it) => it.status === "uploading");
+    if (stillUploading) return;
+    const succeeded = items
+      .filter((it) => it.status === "success" && it.attachment && (!filterImagesOnly || it.attachment.isImage))
+      .map((it) => it.attachment as AttachmentDTO);
+    if (succeeded.length > 0) {
       pickedRef.current = true;
-      onPick(done.attachment);
+      onPick(succeeded);
     }
   }, [items, filterImagesOnly, onPick]);
 
-  const rejected = items.find((it) => it.status === "success" && it.attachment && filterImagesOnly && !it.attachment.isImage);
+  const rejected = items.some((it) => it.status === "success" && it.attachment && filterImagesOnly && !it.attachment.isImage);
 
   const visible = filterImagesOnly ? attachments.filter((a) => a.isImage) : attachments;
   const uploading = items.filter((it) => it.status === "uploading");
@@ -79,8 +86,28 @@ export function AttachmentPicker({
                 e.target.value = "";
               }}
             />
-            {uploading.length > 0 ? `업로드 중… (${uploading.length})` : `여기로 파일을 드래그하거나 클릭해서 ${filterImagesOnly ? "이미지" : "파일"}을 올리세요`}
+            {uploading.length > 0 ? `업로드 중… (${uploading.length})` : `여기로 파일을 드래그하거나 클릭해서 ${filterImagesOnly ? "이미지" : "파일"}을 올리세요 (여러 개 가능)`}
           </div>
+
+          {onPickUrl && (
+            <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+              <input
+                type="text"
+                placeholder="이미지 URL 붙여넣기 (https://...)"
+                value={urlValue}
+                onChange={(e) => setUrlValue(e.target.value)}
+                style={{ flex: 1, padding: "6px 10px", border: "1px solid var(--color-border)", borderRadius: 6, fontSize: 13 }}
+              />
+              <button
+                type="button"
+                disabled={!urlValue.trim()}
+                onClick={() => onPickUrl(urlValue.trim())}
+                style={{ padding: "6px 12px", border: "1px solid var(--color-border)", borderRadius: 6, background: "#fff", cursor: "pointer", fontSize: 13 }}
+              >
+                삽입
+              </button>
+            </div>
+          )}
 
           {rejected && <p style={{ fontSize: 12, color: "var(--color-danger)" }}>이미지 파일만 여기서 바로 삽입할 수 있어요. 업로드는 됐지만 첨부파일 목록에서 확인하세요.</p>}
           {failed.map((it) => (
@@ -100,7 +127,7 @@ export function AttachmentPicker({
                 <button
                   key={a.id}
                   type="button"
-                  onClick={() => onPick(a)}
+                  onClick={() => onPick([a])}
                   style={{ display: "flex", alignItems: "center", gap: 8, padding: 8, border: "1px solid var(--color-border)", borderRadius: 6, marginBottom: 6, background: "#fff", cursor: "pointer", textAlign: "left" }}
                 >
                   <span>{a.isImage ? "🖼" : "📎"}</span>
