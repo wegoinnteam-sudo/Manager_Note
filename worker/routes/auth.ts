@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import type { AppBindings } from "../types";
 import { Errors } from "../lib/errors";
-import { hmacSign } from "../lib/crypto";
+import { encryptSecret, hmacSign } from "../lib/crypto";
 import { createSession, deleteSession } from "../db/sessions";
 import { upsertUserFromGoogleProfile, getUserByEmail } from "../db/users";
 import { SESSION_COOKIE_NAME } from "../middleware/session";
@@ -10,6 +10,7 @@ import { CSRF_COOKIE_NAME } from "../middleware/csrf";
 import { requireAuth } from "../middleware/rbac";
 import { logActivity } from "../db/activityLog";
 import { ensureDefaultTeam, ensureTeamMembership } from "../db/teams";
+import { setEncryptedSetting } from "../db/appSettings";
 
 export const authRoute = new Hono<AppBindings>();
 
@@ -17,6 +18,8 @@ const OAUTH_STATE_COOKIE = "th_oauth_state";
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo";
+const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive";
+const DRIVE_REFRESH_TOKEN_SETTING = "google_drive_refresh_token";
 
 function redirectUri(env: AppBindings["Bindings"]): string {
   if (!env.OAUTH_REDIRECT_BASE_URL) {
@@ -51,9 +54,9 @@ authRoute.get("/google/login", async (c) => {
     client_id: c.env.GOOGLE_OAUTH_CLIENT_ID,
     redirect_uri: redirectUri(c.env),
     response_type: "code",
-    scope: "openid email profile",
-    access_type: "online",
-    prompt: "select_account",
+    scope: `openid email profile ${DRIVE_SCOPE}`,
+    access_type: "offline",
+    prompt: "consent select_account",
     state,
   });
   return c.redirect(`${GOOGLE_AUTH_URL}?${params.toString()}`, 302);
@@ -88,7 +91,7 @@ authRoute.get("/google/callback", async (c) => {
     }),
   });
   if (!tokenRes.ok) throw Errors.upstream("Google 로그인 토큰 교환에 실패했습니다.");
-  const tokenJson = (await tokenRes.json()) as { access_token: string };
+  const tokenJson = (await tokenRes.json()) as { access_token: string; refresh_token?: string };
 
   const userinfoRes = await fetch(GOOGLE_USERINFO_URL, {
     headers: { Authorization: `Bearer ${tokenJson.access_token}` },
@@ -130,6 +133,11 @@ authRoute.get("/google/callback", async (c) => {
     { email, name: profile.name, avatarUrl: profile.picture ?? null },
     defaultRole,
   );
+
+  if (tokenJson.refresh_token) {
+    const encryptedRefreshToken = await encryptSecret(c.env.SESSION_SECRET, tokenJson.refresh_token);
+    await setEncryptedSetting(c.env.DB, DRIVE_REFRESH_TOKEN_SETTING, encryptedRefreshToken);
+  }
 
   const team = await ensureDefaultTeam(c.env.DB, c.env);
   await ensureTeamMembership(c.env.DB, team.id, user.id, user.role);

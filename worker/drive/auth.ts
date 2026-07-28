@@ -1,9 +1,12 @@
 import type { Env } from "../types";
 import { importRsaPrivateKey, rsaSignRs256, utf8ToBase64Url } from "../lib/crypto";
+import { decryptSecret } from "../lib/crypto";
 import { Errors } from "../lib/errors";
+import { getEncryptedSetting } from "../db/appSettings";
 
 const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
+const DRIVE_REFRESH_TOKEN_SETTING = "google_drive_refresh_token";
 
 // Per-isolate token cache. Workers isolates are reused across requests, so
 // caching here meaningfully cuts down on token endpoint calls without any
@@ -15,11 +18,12 @@ export async function getDriveAccessToken(env: Env): Promise<string> {
     return cachedToken.accessToken;
   }
 
+  const storedRefreshToken = await getStoredRefreshToken(env);
   const token =
-    env.GOOGLE_SERVICE_ACCOUNT_EMAIL && env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY
-      ? await fetchTokenViaServiceAccount(env)
-      : env.GOOGLE_OAUTH_CLIENT_ID && env.GOOGLE_OAUTH_CLIENT_SECRET && env.GOOGLE_OAUTH_REFRESH_TOKEN
-        ? await fetchTokenViaRefreshToken(env)
+    env.GOOGLE_OAUTH_CLIENT_ID && env.GOOGLE_OAUTH_CLIENT_SECRET && storedRefreshToken
+      ? await fetchTokenViaRefreshToken(env, storedRefreshToken)
+      : env.GOOGLE_SERVICE_ACCOUNT_EMAIL && env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY
+        ? await fetchTokenViaServiceAccount(env)
         : null;
 
   if (!token) {
@@ -30,6 +34,14 @@ export async function getDriveAccessToken(env: Env): Promise<string> {
 
   cachedToken = token;
   return token.accessToken;
+}
+
+async function getStoredRefreshToken(env: Env): Promise<string | null> {
+  if (env.GOOGLE_OAUTH_REFRESH_TOKEN) return env.GOOGLE_OAUTH_REFRESH_TOKEN;
+  if (!env.SESSION_SECRET) return null;
+  const encrypted = await getEncryptedSetting(env.DB, DRIVE_REFRESH_TOKEN_SETTING);
+  if (!encrypted) return null;
+  return decryptSecret(env.SESSION_SECRET, encrypted);
 }
 
 async function fetchTokenViaServiceAccount(env: Env): Promise<{ accessToken: string; expiresAt: number }> {
@@ -62,7 +74,7 @@ async function fetchTokenViaServiceAccount(env: Env): Promise<{ accessToken: str
   return { accessToken: json.access_token, expiresAt: Date.now() + json.expires_in * 1000 };
 }
 
-async function fetchTokenViaRefreshToken(env: Env): Promise<{ accessToken: string; expiresAt: number }> {
+async function fetchTokenViaRefreshToken(env: Env, refreshToken: string): Promise<{ accessToken: string; expiresAt: number }> {
   const res = await fetch(TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -70,7 +82,7 @@ async function fetchTokenViaRefreshToken(env: Env): Promise<{ accessToken: strin
       grant_type: "refresh_token",
       client_id: env.GOOGLE_OAUTH_CLIENT_ID,
       client_secret: env.GOOGLE_OAUTH_CLIENT_SECRET!,
-      refresh_token: env.GOOGLE_OAUTH_REFRESH_TOKEN!,
+      refresh_token: refreshToken,
     }),
   });
   if (!res.ok) {

@@ -73,3 +73,27 @@ export async function rsaSignRs256(privateKey: CryptoKey, data: string): Promise
   const sig = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", privateKey, new TextEncoder().encode(data));
   return bytesToBase64Url(sig);
 }
+
+async function importAesKey(secret: string): Promise<CryptoKey> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(secret));
+  return crypto.subtle.importKey("raw", digest, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+}
+
+export async function encryptSecret(secret: string, plaintext: string): Promise<string> {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await importAesKey(secret);
+  const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(plaintext));
+  return `${bytesToBase64Url(iv)}.${bytesToBase64Url(ciphertext)}`;
+}
+
+export async function decryptSecret(secret: string, encrypted: string): Promise<string> {
+  const [ivPart, ciphertextPart] = encrypted.split(".");
+  if (!ivPart || !ciphertextPart) throw new Error("Invalid encrypted secret");
+  const key = await importAesKey(secret);
+  const plaintext = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: base64UrlToBytes(ivPart) },
+    key,
+    base64UrlToBytes(ciphertextPart),
+  );
+  return new TextDecoder().decode(plaintext);
+}
