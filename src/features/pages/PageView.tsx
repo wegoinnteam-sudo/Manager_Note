@@ -41,9 +41,8 @@ export function PageView({
   const loadedPageId = useRef<string | null>(null);
 
   const load = useCallback(async () => {
-    const detail = await api.getPage(pageId);
+    const [detail, { attachments: rows }] = await Promise.all([api.getPage(pageId), api.listAttachments(pageId)]);
     setPage(detail);
-    const { attachments: rows } = await api.listAttachments(pageId);
     setAttachments(rows);
   }, [pageId]);
 

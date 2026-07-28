@@ -191,8 +191,11 @@ export const Editor = forwardRef<EditorHandle, {
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [slashMenu, setSlashMenu] = useState<{ blockId: string; query: string; highlighted: number } | null>(null);
   const [mentionMenu, setMentionMenu] = useState<{ blockId: string; query: string; highlighted: number; triggerStart: number } | null>(null);
+  const [pendingUploads, setPendingUploads] = useState<{ id: string; previewUrl: string; afterId: string | null }[]>([]);
   const refs = useRef(new Map<string, HTMLTextAreaElement>());
   const attachmentsById = new Map(attachments.map((a) => [a.id, a]));
+  const contentRef = useRef(content);
+  contentRef.current = content;
 
   useImperativeHandle(ref, () => ({
     focusFirstBlock: () => {
@@ -233,17 +236,24 @@ export const Editor = forwardRef<EditorHandle, {
     }
     if (valid.length === 0) return;
 
-    Promise.allSettled(valid.map((file) => uploadAttachment(pageId, file, { idempotencyKey: crypto.randomUUID() }))).then((results) => {
+    const afterId = activeId;
+    const pending = valid.map((file) => ({ id: crypto.randomUUID(), file, previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : "" }));
+    setPendingUploads((prev) => [...prev, ...pending.filter((p) => p.previewUrl).map(({ id, previewUrl }) => ({ id, previewUrl, afterId }))]);
+
+    Promise.allSettled(pending.map((p) => uploadAttachment(pageId, p.file, { idempotencyKey: p.id }))).then((results) => {
+      setPendingUploads((prev) => prev.filter((p) => !pending.some((done) => done.id === p.id)));
+      pending.forEach((p) => p.previewUrl && URL.revokeObjectURL(p.previewUrl));
+
       const uploaded = results.filter((r): r is PromiseFulfilledResult<AttachmentDTO> => r.status === "fulfilled").map((r) => r.value);
       if (uploaded.length === 0) return;
       uploaded.forEach((a) => onAttachmentUploaded(a));
       const newBlocks: PageBlock[] = uploaded.map((a) =>
         a.isImage ? { id: newBlockId(), type: "image", attachmentId: a.id } : { id: newBlockId(), type: "file", attachmentId: a.id },
       );
-      const blocks = [...content.blocks];
-      if (activeId) {
-        const idx = blocks.findIndex((b) => b.id === activeId);
-        blocks.splice(idx + 1, 0, ...newBlocks);
+      const blocks = [...contentRef.current.blocks];
+      if (afterId) {
+        const idx = blocks.findIndex((b) => b.id === afterId);
+        blocks.splice(idx === -1 ? blocks.length : idx + 1, 0, ...newBlocks);
       } else {
         blocks.push(...newBlocks);
       }
@@ -323,16 +333,24 @@ export const Editor = forwardRef<EditorHandle, {
     const file = Array.from(e.clipboardData?.files ?? []).find((f) => f.type.startsWith("image/"));
     if (!file) return;
     e.preventDefault();
+
+    const pendingId = crypto.randomUUID();
+    const previewUrl = URL.createObjectURL(file);
+    setPendingUploads((prev) => [...prev, { id: pendingId, previewUrl, afterId: block.id }]);
+
     try {
-      const attachment = await uploadAttachment(pageId, file, { idempotencyKey: crypto.randomUUID() });
+      const attachment = await uploadAttachment(pageId, file, { idempotencyKey: pendingId });
       onAttachmentUploaded(attachment);
-      const idx = content.blocks.findIndex((b) => b.id === block.id);
+      const idx = contentRef.current.blocks.findIndex((b) => b.id === block.id);
       const newBlock: PageBlock = { id: newBlockId(), type: "image", attachmentId: attachment.id };
-      const blocks = [...content.blocks];
+      const blocks = [...contentRef.current.blocks];
       blocks.splice(idx === -1 ? blocks.length : idx + 1, 0, newBlock);
       setBlocks(blocks);
     } catch {
       /* silently ignore — user can still use /image */
+    } finally {
+      setPendingUploads((prev) => prev.filter((p) => p.id !== pendingId));
+      URL.revokeObjectURL(previewUrl);
     }
   };
 
@@ -793,8 +811,30 @@ export const Editor = forwardRef<EditorHandle, {
               ))}
             </div>
           )}
+
+          {pendingUploads
+            .filter((p) => p.afterId === block.id)
+            .map((p) => (
+              <div key={p.id} className="block-row">
+                <div className="pending-upload">
+                  <img src={p.previewUrl} alt="" />
+                  <span className="pending-upload__badge">업로드 중…</span>
+                </div>
+              </div>
+            ))}
         </div>
       ))}
+
+      {pendingUploads
+        .filter((p) => p.afterId === null)
+        .map((p) => (
+          <div key={p.id} className="block-row">
+            <div className="pending-upload">
+              <img src={p.previewUrl} alt="" />
+              <span className="pending-upload__badge">업로드 중…</span>
+            </div>
+          </div>
+        ))}
 
       {(picker === "image" || picker === "file") && (
         <AttachmentPicker

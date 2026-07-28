@@ -1098,6 +1098,30 @@ button.breadcrumb-block__item:hover {
   cursor: default;
 }
 
+.pending-upload {
+  position: relative;
+  width: 100%;
+}
+
+.pending-upload img {
+  width: 100%;
+  display: block;
+  border-radius: 6px;
+  opacity: 0.55;
+  filter: grayscale(20%);
+}
+
+.pending-upload__badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
 .pdf-block {
   width: 100%;
 }

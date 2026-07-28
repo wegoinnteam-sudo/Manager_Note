@@ -130,7 +130,11 @@ export function AttachmentPicker({
                   onClick={() => onPick([a])}
                   style={{ display: "flex", alignItems: "center", gap: 8, padding: 8, border: "1px solid var(--color-border)", borderRadius: 6, marginBottom: 6, background: "#fff", cursor: "pointer", textAlign: "left" }}
                 >
-                  <span>{a.isImage ? "🖼" : "📎"}</span>
+                  {a.isImage ? (
+                    <img src={`/api/attachments/${a.id}/preview`} alt="" style={{ width: 32, height: 32, objectFit: "cover", borderRadius: 4, flexShrink: 0 }} />
+                  ) : (
+                    <span>📎</span>
+                  )}
                   <span style={{ fontSize: 13 }}>{a.fileName}</span>
                 </button>
               ))}
