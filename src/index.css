@@ -788,6 +788,144 @@ code {
   white-space: nowrap;
 }
 
+.db-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.db-chart__total {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-bottom: 2px;
+}
+
+.db-chart__row {
+  display: grid;
+  grid-template-columns: 96px 1fr 28px;
+  align-items: center;
+  gap: 8px;
+}
+
+.db-chart__label {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.db-chart__track {
+  display: block;
+  height: 10px;
+  background: var(--color-bg-sidebar);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.db-chart__bar {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.2s ease;
+}
+
+.db-chart__bar--in_progress { background: #0ea5e9; }
+.db-chart__bar--handoff_pending { background: #f59e0b; }
+.db-chart__bar--done { background: #10b981; }
+.db-chart__bar--on_hold { background: #64748b; }
+
+.db-chart__count {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--color-text-muted);
+}
+
+.form-block {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 14px;
+}
+
+.form-block__title {
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.form-block__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-block__field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.form-block__field input,
+.form-block__field select {
+  font-size: 13px;
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-family: inherit;
+}
+
+.form-block__submit {
+  margin-top: 12px;
+  border: none;
+  background: var(--color-accent);
+  color: #fff;
+  border-radius: var(--radius);
+  padding: 7px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.form-block__submit:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.form-block__success {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.form-block__success button {
+  border: none;
+  background: none;
+  color: var(--color-accent);
+  cursor: pointer;
+  font-size: 12px;
+  text-decoration: underline;
+  padding: 0;
+}
+
+.button-block {
+  border: 1px solid var(--color-border);
+  background: #fff;
+  border-radius: var(--radius);
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.button-block:hover {
+  background: var(--color-accent-bg);
+}
+
 .section {
   margin-top: 36px;
   border-top: 1px solid var(--color-border);

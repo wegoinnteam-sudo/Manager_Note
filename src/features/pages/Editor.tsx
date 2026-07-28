@@ -3,6 +3,7 @@ import type { AttachmentDTO, PageBlock, PageContent, PageSummaryDTO, TeamMemberD
 import { Block, type HeadingRef } from "./Block";
 import { AttachmentPicker } from "./AttachmentPicker";
 import { TEMPLATES, buildTemplateBlocks, type TemplateKey } from "./templates";
+import { FORM_LIST, type FormKey } from "./forms";
 import type { DatabaseViewType } from "./DatabaseView";
 import { api } from "@/lib/api";
 
@@ -33,6 +34,12 @@ function emptyBlockOfType(type: PageBlock["type"]): PageBlock {
       return { id, type, columns: ["", ""] };
     case "database_view":
       return { id, type, view: "table" };
+    case "chart":
+      return { id, type };
+    case "button":
+      return { id, type, label: "➕ 추가", templateKey: "meeting_notes" };
+    case "form":
+      return { id, type, formKey: "leave_request" };
     default:
       return { id, type: type as any, text: "" };
   }
@@ -62,7 +69,10 @@ type SlashCommandType =
   | "db_board"
   | "db_gallery"
   | "db_calendar"
-  | "db_list";
+  | "db_list"
+  | "chart"
+  | "button"
+  | "form";
 
 const DB_VIEW_BY_COMMAND: Partial<Record<SlashCommandType, DatabaseViewType>> = {
   db_table: "table",
@@ -97,6 +107,9 @@ const SLASH_COMMANDS: { label: string; type: SlashCommandType; aliases: string[]
   { label: "데이터베이스 - 갤러리", type: "db_gallery", aliases: ["gallery"] },
   { label: "데이터베이스 - 캘린더", type: "db_calendar", aliases: ["calendar"] },
   { label: "데이터베이스 - 리스트", type: "db_list", aliases: ["list"] },
+  { label: "차트", type: "chart", aliases: ["chart", "graph"] },
+  { label: "버튼", type: "button", aliases: ["button"] },
+  { label: "폼", type: "form", aliases: ["form"] },
 ];
 
 function filterCommands(query: string) {
@@ -134,7 +147,7 @@ export function Editor({
   members: TeamMemberDTO[];
 }) {
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [picker, setPicker] = useState<"image" | "file" | "template" | null>(null);
+  const [picker, setPicker] = useState<"image" | "file" | "template" | "button_template" | "form" | null>(null);
   const [templateTargetId, setTemplateTargetId] = useState<string | null>(null);
   const [slashMenu, setSlashMenu] = useState<{ blockId: string; query: string; highlighted: number } | null>(null);
   const refs = useRef(new Map<string, HTMLTextAreaElement>());
@@ -235,6 +248,32 @@ export function Editor({
     requestAnimationFrame(() => refs.current.get(newBlocks[0].id)?.focus());
   };
 
+  const applyButtonTemplate = (key: TemplateKey) => {
+    setPicker(null);
+    const targetId = templateTargetId;
+    setTemplateTargetId(null);
+    if (!targetId) return;
+    const label = `➕ ${TEMPLATES.find((t) => t.key === key)?.label ?? "추가"}`;
+    updateBlock(targetId, { type: "button", label, templateKey: key } as Partial<PageBlock>);
+  };
+
+  const applyForm = (key: FormKey) => {
+    setPicker(null);
+    const targetId = templateTargetId;
+    setTemplateTargetId(null);
+    if (!targetId) return;
+    updateBlock(targetId, { type: "form", formKey: key } as Partial<PageBlock>);
+  };
+
+  const insertTemplateAfter = (afterId: string, key: TemplateKey) => {
+    const idx = content.blocks.findIndex((b) => b.id === afterId);
+    if (idx === -1) return;
+    const newBlocks = buildTemplateBlocks(key);
+    const blocks = [...content.blocks];
+    blocks.splice(idx + 1, 0, ...newBlocks);
+    setBlocks(blocks);
+  };
+
   const runSlashCommand = (block: PageBlock, cmd: { label: string; type: SlashCommandType }) => {
     setSlashMenu(null);
 
@@ -249,6 +288,25 @@ export function Editor({
       updateBlock(block.id, { text: "" } as Partial<PageBlock>);
       setTemplateTargetId(block.id);
       setPicker("template");
+      return;
+    }
+
+    if (cmd.type === "button") {
+      updateBlock(block.id, { text: "" } as Partial<PageBlock>);
+      setTemplateTargetId(block.id);
+      setPicker("button_template");
+      return;
+    }
+
+    if (cmd.type === "form") {
+      updateBlock(block.id, { text: "" } as Partial<PageBlock>);
+      setTemplateTargetId(block.id);
+      setPicker("form");
+      return;
+    }
+
+    if (cmd.type === "chart") {
+      updateBlock(block.id, { type: "chart" } as Partial<PageBlock>);
       return;
     }
 
@@ -427,6 +485,7 @@ export function Editor({
             pages={pages}
             members={members}
             onPagesChanged={onPagesChanged}
+            onInsertTemplateAfter={insertTemplateAfter}
             registerRef={(el) => {
               if (el) refs.current.set(block.id, el);
               else refs.current.delete(block.id);
@@ -483,6 +542,48 @@ export function Editor({
                 >
                   <div className="template-picker__label">{t.label}</div>
                   <div className="template-picker__desc">{t.description}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {picker === "button_template" && (
+        <div className="modal-backdrop" onClick={() => setPicker(null)}>
+          <div className="modal" style={{ width: 420 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal__header">
+              <strong>버튼을 누르면 삽입할 템플릿</strong>
+              <button type="button" onClick={() => setPicker(null)} style={{ border: "none", background: "none", cursor: "pointer", fontSize: 16 }}>
+                ✕
+              </button>
+            </div>
+            <div className="modal__body" style={{ alignItems: "stretch", gap: 8 }}>
+              {TEMPLATES.map((t) => (
+                <button key={t.key} type="button" className="template-picker__item" onClick={() => applyButtonTemplate(t.key)}>
+                  <div className="template-picker__label">{t.label}</div>
+                  <div className="template-picker__desc">{t.description}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {picker === "form" && (
+        <div className="modal-backdrop" onClick={() => setPicker(null)}>
+          <div className="modal" style={{ width: 420 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal__header">
+              <strong>폼 선택</strong>
+              <button type="button" onClick={() => setPicker(null)} style={{ border: "none", background: "none", cursor: "pointer", fontSize: 16 }}>
+                ✕
+              </button>
+            </div>
+            <div className="modal__body" style={{ alignItems: "stretch", gap: 8 }}>
+              {FORM_LIST.map((f) => (
+                <button key={f.key} type="button" className="template-picker__item" onClick={() => applyForm(f.key)}>
+                  <div className="template-picker__label">{f.label}</div>
+                  <div className="template-picker__desc">{f.description}</div>
                 </button>
               ))}
             </div>

@@ -3,6 +3,8 @@ import type { AttachmentDTO, PageBlock, PageSummaryDTO, TeamMemberDTO } from "@s
 import { renderInline } from "./inlineMarkdown";
 import { api } from "@/lib/api";
 import { DatabaseView } from "./DatabaseView";
+import { ChartView } from "./ChartView";
+import { FormBlockView } from "./FormBlockView";
 
 const TEXTAREA_TYPES = new Set(["heading1", "heading2", "heading3", "paragraph", "bulleted_list_item", "numbered_list_item"]);
 
@@ -57,6 +59,7 @@ export function Block({
   pages,
   members,
   onPagesChanged,
+  onInsertTemplateAfter,
   registerRef,
 }: {
   block: PageBlock;
@@ -76,6 +79,7 @@ export function Block({
   pages: PageSummaryDTO[];
   members: TeamMemberDTO[];
   onPagesChanged: () => void;
+  onInsertTemplateAfter: (afterId: string, templateKey: "meeting_notes" | "handoff_note") => void;
   registerRef: (el: HTMLTextAreaElement | null) => void;
 }) {
   const localRef = useRef<HTMLTextAreaElement | null>(null);
@@ -212,6 +216,47 @@ export function Block({
           onOpenPage={onOpenPage}
           onPagesChanged={onPagesChanged}
         />
+        {editable && (
+          <button type="button" className="block-row__handle" onClick={onRemoveBlock} title="블록 제거">
+            ✕
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (block.type === "chart") {
+    return (
+      <div id={domId} className="block-row">
+        <ChartView parentId={currentPageId} pages={pages} />
+        {editable && (
+          <button type="button" className="block-row__handle" onClick={onRemoveBlock} title="블록 제거">
+            ✕
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (block.type === "form") {
+    return (
+      <div id={domId} className="block-row">
+        <FormBlockView formKey={block.formKey} parentId={currentPageId} editable={editable} onPagesChanged={onPagesChanged} onOpenPage={onOpenPage} />
+        {editable && (
+          <button type="button" className="block-row__handle" onClick={onRemoveBlock} title="블록 제거">
+            ✕
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (block.type === "button") {
+    return (
+      <div id={domId} className="block-row">
+        <button type="button" className="button-block" disabled={!editable} onClick={() => onInsertTemplateAfter(block.id, block.templateKey)}>
+          {block.label}
+        </button>
         {editable && (
           <button type="button" className="block-row__handle" onClick={onRemoveBlock} title="블록 제거">
             ✕

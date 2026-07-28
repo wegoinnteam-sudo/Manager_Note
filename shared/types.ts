@@ -55,7 +55,10 @@ export type PageBlock =
   | { id: string; type: "toc" }
   | { id: string; type: "page_link"; pageId: string }
   | { id: string; type: "columns"; columns: string[] }
-  | { id: string; type: "database_view"; view: "table" | "board" | "gallery" | "calendar" | "list" };
+  | { id: string; type: "database_view"; view: "table" | "board" | "gallery" | "calendar" | "list" }
+  | { id: string; type: "chart" }
+  | { id: string; type: "button"; label: string; templateKey: "meeting_notes" | "handoff_note" }
+  | { id: string; type: "form"; formKey: "leave_request" | "repair_request" | "purchase_request" };
 
 export interface PageContent {
   blocks: PageBlock[];
