@@ -41,7 +41,10 @@ export const sessionMiddleware = createMiddleware<AppBindings>(async (c, next) =
     }
   }
 
-  if (!c.var.user && c.env.DEMO_MODE === "true") {
+  // This app intentionally runs as a shared note workspace without login.
+  // Keep honoring an existing session for backwards compatibility, but
+  // otherwise give every visitor the shared editor identity.
+  if (!c.var.user) {
     const publicEditor = await ensurePublicEditor(c.env.DB);
     c.set("user", {
       id: publicEditor.id,

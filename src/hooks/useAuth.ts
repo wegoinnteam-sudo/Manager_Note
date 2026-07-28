@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { UserDTO } from "@shared/types";
-import { api, ApiClientError } from "@/lib/api";
+import { api } from "@/lib/api";
 
 export function useAuth() {
   const [user, setUser] = useState<UserDTO | null>(null);
@@ -11,12 +11,8 @@ export function useAuth() {
     try {
       const me = await api.me();
       setUser(me);
-    } catch (err) {
-      if (err instanceof ApiClientError && err.status === 401) {
-        setUser(null);
-      } else {
-        setUser(null);
-      }
+    } catch {
+      setUser(null);
     } finally {
       setLoading(false);
     }
@@ -26,14 +22,5 @@ export function useAuth() {
     refresh();
   }, [refresh]);
 
-  const login = useCallback(() => {
-    window.location.href = "/api/auth/google/login";
-  }, []);
-
-  const logout = useCallback(async () => {
-    await api.logout();
-    setUser(null);
-  }, []);
-
-  return { user, loading, login, logout, refresh };
+  return { user, loading, refresh };
 }

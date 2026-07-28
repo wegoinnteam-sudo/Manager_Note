@@ -55,7 +55,6 @@ export function Sidebar({
   onCreatePage,
   onNavigate,
   onSearch,
-  onLogout,
   className,
 }: {
   teamName: string;
@@ -66,7 +65,6 @@ export function Sidebar({
   onCreatePage: () => void;
   onNavigate: (path: string) => void;
   onSearch: (q: string) => void;
-  onLogout: () => void;
   className?: string;
 }) {
   const [query, setQuery] = useState("");
@@ -120,9 +118,6 @@ export function Sidebar({
             ⚙ 설정
           </button>
         )}
-        <button type="button" className="sidebar__link" onClick={onLogout}>
-          {user.name} ({user.role}) · 로그아웃
-        </button>
       </div>
     </aside>
   );

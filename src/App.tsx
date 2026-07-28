@@ -12,19 +12,7 @@ import { AdminSettings } from "@/features/admin/AdminSettings";
 import { SearchResults } from "@/features/search/SearchResults";
 import { GlobalDropzone } from "@/features/files/GlobalDropzone";
 
-function LoginScreen({ onLogin }: { onLogin: () => void }) {
-  return (
-    <div className="login-screen">
-      <h1>팀 인수인계 노트</h1>
-      <p>Google 계정으로 로그인하세요. 초대된 팀원만 접속할 수 있습니다.</p>
-      <button type="button" onClick={onLogin}>
-        Google로 로그인
-      </button>
-    </div>
-  );
-}
-
-function AppShell({ user, logout }: { user: UserDTO; logout: () => void }) {
+function AppShell({ user }: { user: UserDTO }) {
   const { pages, refresh: refreshPages } = usePages();
   const members = useTeamMembers();
   const { path, navigate } = useRoute();
@@ -102,7 +90,6 @@ function AppShell({ user, logout }: { user: UserDTO; logout: () => void }) {
             setSidebarOpen(false);
           }}
           onSearch={(q) => navigate(`/search/${encodeURIComponent(q)}`)}
-          onLogout={logout}
         />
         <div className="main">
           <div className="topbar">
@@ -118,13 +105,13 @@ function AppShell({ user, logout }: { user: UserDTO; logout: () => void }) {
 }
 
 export default function App() {
-  const { user, loading, login, logout } = useAuth();
+  const { user, loading } = useAuth();
 
   if (loading) {
     return <div className="login-screen">불러오는 중…</div>;
   }
   if (!user) {
-    return <LoginScreen onLogin={login} />;
+    return <div className="login-screen">노트를 불러오지 못했습니다. 잠시 후 새로고침해주세요.</div>;
   }
-  return <AppShell user={user} logout={logout} />;
+  return <AppShell user={user} />;
 }
