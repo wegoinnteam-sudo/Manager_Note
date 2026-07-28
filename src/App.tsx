@@ -13,7 +13,7 @@ import { SearchResults } from "@/features/search/SearchResults";
 import { GlobalDropzone } from "@/features/files/GlobalDropzone";
 
 function AppShell({ user }: { user: UserDTO }) {
-  const { pages, refresh: refreshPages } = usePages();
+  const { pages, setPages, refresh: refreshPages } = usePages();
   const members = useTeamMembers();
   const { path, navigate } = useRoute();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -38,6 +38,23 @@ function AppShell({ user }: { user: UserDTO }) {
     setJustCreatedPageId(page.id);
     openPage(page.id);
   }, [refreshPages, openPage]);
+
+  const reorderPage = useCallback(
+    async (pageId: string, orderKey: number) => {
+      const page = pages.find((candidate) => candidate.id === pageId);
+      if (!page) return;
+
+      setPages((current) =>
+        current.map((candidate) => (candidate.id === pageId ? { ...candidate, orderKey } : candidate)),
+      );
+      try {
+        await api.updatePageMeta(pageId, { expectedVersion: page.version, orderKey });
+      } finally {
+        await refreshPages();
+      }
+    },
+    [pages, refreshPages, setPages],
+  );
 
   const activePageId = path.startsWith("/page/") ? path.slice("/page/".length) : null;
   const canEdit = user.role === "editor" || user.role === "admin";
@@ -87,6 +104,8 @@ function AppShell({ user }: { user: UserDTO }) {
           activePageId={activePageId}
           onOpenPage={openPage}
           onCreatePage={createPage}
+          canReorder={canEdit}
+          onReorderPage={reorderPage}
           onNavigate={(p) => {
             navigate(p);
             setSidebarOpen(false);

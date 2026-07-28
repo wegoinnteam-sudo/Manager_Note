@@ -67,6 +67,8 @@ export const api = {
       assigneeId?: string | null;
       dueDate?: string | null;
       tags?: string[];
+      parentId?: string | null;
+      orderKey?: number;
     },
   ) => request<PageDetailDTO>(`/api/pages/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
   updatePageContent: (id: string, expectedVersion: number, content: PageContent) =>

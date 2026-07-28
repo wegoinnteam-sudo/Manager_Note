@@ -24,6 +24,7 @@ export interface PageSummaryDTO {
   assigneeId: string | null;
   dueDate: string | null;
   orderKey: number;
+  version: number;
   isDeleted: boolean;
   updatedAt: string;
 }
@@ -31,7 +32,6 @@ export interface PageSummaryDTO {
 export interface PageDetailDTO extends PageSummaryDTO {
   contentJson: PageContent;
   tags: string[];
-  version: number;
   contentVersion: number;
   createdBy: string;
   updatedBy: string;
