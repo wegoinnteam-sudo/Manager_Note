@@ -13,13 +13,13 @@ import { Trash } from "@/features/trash/Trash";
 import { AdminSettings } from "@/features/admin/AdminSettings";
 import { SearchResults } from "@/features/search/SearchResults";
 import { GlobalDropzone } from "@/features/files/GlobalDropzone";
-import { NameGate } from "@/features/identity/NameGate";
+import { LoginScreen } from "@/features/identity/LoginScreen";
+import type { GuestIdentity } from "@/hooks/useGuestIdentity";
 
-function AppShell({ user }: { user: UserDTO }) {
+function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }) {
   const { pages, setPages, refresh: refreshPages } = usePages();
   const members = useTeamMembers();
   const { path, navigate } = useRoute();
-  const { identity, setName } = useGuestIdentity();
   const { users: presenceUsers, report: reportCursor } = usePresence(identity);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [justCreatedPageId, setJustCreatedPageId] = useState<string | null>(null);
@@ -110,43 +110,41 @@ function AppShell({ user }: { user: UserDTO }) {
   }
 
   return (
-    <>
-      {!identity && <NameGate onSubmit={setName} />}
-      <GlobalDropzone active={!!activePageId && canEdit} onFiles={(files) => dropHandlerRef.current(files)}>
-        <div className="app-shell">
-          <Sidebar
-            className={sidebarOpen ? "sidebar--open" : ""}
-            teamName="팀 인수인계 노트"
-            user={user}
-            pages={pages}
-            activePageId={activePageId}
-            onOpenPage={openPage}
-            onCreatePage={createPage}
-            canReorder={canEdit}
-            onReorderPage={reorderPage}
-            onNavigate={(p) => {
-              navigate(p);
-              setSidebarOpen(false);
-            }}
-            onSearch={(q) => navigate(`/search/${encodeURIComponent(q)}`)}
-            presenceUsers={presenceUsers}
-          />
-          <div className="main">
-            <div className="topbar">
-              <button type="button" className="sidebar-toggle" onClick={() => setSidebarOpen((v) => !v)} aria-label="메뉴">
-                ☰
-              </button>
-            </div>
-            {content}
+    <GlobalDropzone active={!!activePageId && canEdit} onFiles={(files) => dropHandlerRef.current(files)}>
+      <div className="app-shell">
+        <Sidebar
+          className={sidebarOpen ? "sidebar--open" : ""}
+          teamName="팀 인수인계 노트"
+          user={user}
+          pages={pages}
+          activePageId={activePageId}
+          onOpenPage={openPage}
+          onCreatePage={createPage}
+          canReorder={canEdit}
+          onReorderPage={reorderPage}
+          onNavigate={(p) => {
+            navigate(p);
+            setSidebarOpen(false);
+          }}
+          onSearch={(q) => navigate(`/search/${encodeURIComponent(q)}`)}
+          presenceUsers={presenceUsers}
+        />
+        <div className="main">
+          <div className="topbar">
+            <button type="button" className="sidebar-toggle" onClick={() => setSidebarOpen((v) => !v)} aria-label="메뉴">
+              ☰
+            </button>
           </div>
+          {content}
         </div>
-      </GlobalDropzone>
-    </>
+      </div>
+    </GlobalDropzone>
   );
 }
 
 export default function App() {
   const { user, loading } = useAuth();
+  const { identity, setName } = useGuestIdentity();
 
   if (loading) {
     return <div className="login-screen">불러오는 중…</div>;
@@ -154,5 +152,8 @@ export default function App() {
   if (!user) {
     return <div className="login-screen">노트를 불러오지 못했습니다. 잠시 후 새로고침해주세요.</div>;
   }
-  return <AppShell user={user} />;
+  if (!identity) {
+    return <LoginScreen onSubmit={setName} />;
+  }
+  return <AppShell user={user} identity={identity} />;
 }
