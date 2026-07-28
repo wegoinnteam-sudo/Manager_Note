@@ -58,7 +58,9 @@ export type PageBlock =
   | { id: string; type: "database_view"; view: "table" | "board" | "gallery" | "calendar" | "list" }
   | { id: string; type: "chart" }
   | { id: string; type: "button"; label: string; templateKey: "meeting_notes" | "handoff_note" }
-  | { id: string; type: "form"; formKey: "leave_request" | "repair_request" | "purchase_request" };
+  | { id: string; type: "form"; formKey: "leave_request" | "repair_request" | "purchase_request" }
+  | { id: string; type: "quote"; text: string }
+  | { id: string; type: "breadcrumb" };
 
 export interface PageContent {
   blocks: PageBlock[];
@@ -129,6 +131,13 @@ export const ALLOWED_UPLOAD_EXTENSIONS = [
   "txt",
   "csv",
   "zip",
+  "mp4",
+  "mov",
+  "webm",
+  "mp3",
+  "wav",
+  "m4a",
+  "ogg",
 ] as const;
 
 export type AllowedUploadExtension = (typeof ALLOWED_UPLOAD_EXTENSIONS)[number];

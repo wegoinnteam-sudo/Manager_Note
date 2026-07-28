@@ -69,7 +69,7 @@ export function Block({
   headings: HeadingRef[];
   editable: boolean;
   onFocus: () => void;
-  onChangeText: (text: string) => void;
+  onChangeText: (text: string, caret: number) => void;
   onToggleChecked: () => void;
   onKeyDownBlock: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   onRemoveBlock: () => void;
@@ -109,6 +109,30 @@ export function Block({
 
   if (block.type === "file") {
     const att = attachmentsById.get(block.attachmentId);
+    if (att?.mimeType.startsWith("video/")) {
+      return (
+        <div id={domId} className="block-row">
+          <video controls preload="metadata" style={{ maxWidth: "100%", borderRadius: 6 }} src={`/api/attachments/${att.id}/download`} />
+          {editable && (
+            <button type="button" className="block-row__handle" onClick={onRemoveBlock} title="블록 제거">
+              ✕
+            </button>
+          )}
+        </div>
+      );
+    }
+    if (att?.mimeType.startsWith("audio/")) {
+      return (
+        <div id={domId} className="block-row">
+          <audio controls preload="metadata" style={{ width: "100%" }} src={`/api/attachments/${att.id}/download`} />
+          {editable && (
+            <button type="button" className="block-row__handle" onClick={onRemoveBlock} title="블록 제거">
+              ✕
+            </button>
+          )}
+        </div>
+      );
+    }
     return (
       <div id={domId} className="block-row">
         <a
@@ -397,7 +421,7 @@ export function Block({
               value={block.text}
               placeholder="토글 제목"
               onFocus={onFocus}
-              onChange={(e) => onChangeText(e.target.value)}
+              onChange={(e) => onChangeText(e.target.value, e.target.selectionStart ?? e.target.value.length)}
               onKeyDown={onKeyDownBlock}
               autoFocus={active}
             />
@@ -447,7 +471,7 @@ export function Block({
               value={block.text}
               placeholder="강조할 내용을 입력하세요"
               onFocus={onFocus}
-              onChange={(e) => onChangeText(e.target.value)}
+              onChange={(e) => onChangeText(e.target.value, e.target.selectionStart ?? e.target.value.length)}
               onKeyDown={onKeyDownBlock}
               autoFocus={active}
             />
@@ -457,6 +481,74 @@ export function Block({
             </div>
           )}
         </div>
+      </div>
+    );
+  }
+
+  if (block.type === "quote") {
+    return (
+      <div id={domId} className="block-row">
+        <div className="quote-block">
+          {editable && active ? (
+            <textarea
+              ref={(el) => {
+                localRef.current = el;
+                registerRef(el);
+              }}
+              className="block-input"
+              rows={1}
+              value={block.text}
+              placeholder="인용할 내용을 입력하세요"
+              onFocus={onFocus}
+              onChange={(e) => onChangeText(e.target.value, e.target.selectionStart ?? e.target.value.length)}
+              onKeyDown={onKeyDownBlock}
+              autoFocus={active}
+            />
+          ) : (
+            <div className="block-input" onClick={editable ? onFocus : undefined} style={{ minHeight: 24, cursor: editable ? "text" : "default" }}>
+              {block.text ? renderInline(block.text) : <span style={{ opacity: 0.35 }}>{editable ? "인용할 내용을 입력하세요" : ""}</span>}
+            </div>
+          )}
+        </div>
+        {editable && (
+          <button type="button" className="block-row__handle" onClick={onRemoveBlock} title="블록 제거">
+            ✕
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (block.type === "breadcrumb") {
+    const byId = new Map(pages.map((p) => [p.id, p]));
+    const chain: PageSummaryDTO[] = [];
+    let current = byId.get(currentPageId);
+    while (current) {
+      chain.unshift(current);
+      current = current.parentId ? byId.get(current.parentId) : undefined;
+    }
+    return (
+      <div id={domId} className="block-row">
+        <div className="breadcrumb-block">
+          {chain.length === 0 && <span className="breadcrumb-block__item">(최상위 페이지)</span>}
+          {chain.map((p, i) => (
+            <span key={p.id} className="breadcrumb-block__segment">
+              {i === chain.length - 1 ? (
+                <span className="breadcrumb-block__item breadcrumb-block__item--current">{p.title}</span>
+              ) : (
+                <button type="button" className="breadcrumb-block__item" onClick={() => onOpenPage(p.id)}>
+                  {p.title}
+                </button>
+              )}
+              {i < chain.length - 1 && <span className="breadcrumb-block__sep">›</span>}
+            </span>
+          ))}
+        </div>
+        {editable && (
+          <button type="button" className="block-row__handle" onClick={onRemoveBlock} title="블록 제거">
+            ✕
+          </button>
+        )}
       </div>
     );
   }
@@ -475,7 +567,7 @@ export function Block({
             rows={1}
             value={block.text}
             onFocus={onFocus}
-            onChange={(e) => onChangeText(e.target.value)}
+            onChange={(e) => onChangeText(e.target.value, e.target.selectionStart ?? e.target.value.length)}
             onKeyDown={onKeyDownBlock}
             autoFocus={active}
           />
@@ -507,7 +599,7 @@ export function Block({
             value={block.text}
             placeholder={block.type === "paragraph" ? "내용을 입력하세요…" : ""}
             onFocus={onFocus}
-            onChange={(e) => onChangeText(e.target.value)}
+            onChange={(e) => onChangeText(e.target.value, e.target.selectionStart ?? e.target.value.length)}
             onKeyDown={onKeyDownBlock}
             autoFocus={active}
             onInput={(e) => {

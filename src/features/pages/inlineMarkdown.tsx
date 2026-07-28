@@ -2,15 +2,25 @@ import { Fragment, type ReactNode } from "react";
 
 /**
  * Tiny, whitelist-only inline formatter: **bold**, *italic*, __underline__,
- * [text](url). Deliberately not a full markdown parser and never touches
- * dangerouslySetInnerHTML — every token becomes a real React element, so
- * there is no injection surface here regardless of what a user types.
+ * [text](url), @[text](user:id|date:iso). Deliberately not a full markdown
+ * parser and never touches dangerouslySetInnerHTML — every token becomes a
+ * real React element, so there is no injection surface here regardless of
+ * what a user types.
  */
 export function renderInline(text: string): ReactNode {
-  const tokenRe = /(\*\*[^*]+\*\*|__[^_]+__|\*[^*]+\*|\[[^\]]+\]\([^)]+\))/g;
+  const tokenRe = /(@\[[^\]]+\]\((?:user|date):[^)]+\)|\*\*[^*]+\*\*|__[^_]+__|\*[^*]+\*|\[[^\]]+\]\([^)]+\))/g;
   const parts = text.split(tokenRe).filter((p) => p !== undefined && p !== "");
 
   return parts.map((part, i) => {
+    const mentionMatch = part.match(/^@\[([^\]]+)\]\((user|date):[^)]+\)$/);
+    if (mentionMatch) {
+      const [, label, kind] = mentionMatch;
+      return (
+        <span key={i} className={`mention-chip mention-chip--${kind}`}>
+          {kind === "user" ? "👤" : "📅"} {label}
+        </span>
+      );
+    }
     if (/^\*\*[^*]+\*\*$/.test(part)) {
       return <strong key={i}>{part.slice(2, -2)}</strong>;
     }
