@@ -719,8 +719,10 @@ export const Editor = forwardRef<EditorHandle, {
       const text = textarea.value;
       const currentTop = caretPixelPosition(textarea, caret).top;
       const currentLeft = caretPixelPosition(textarea, caret).left;
+      const isCollapsed = textarea.selectionStart === textarea.selectionEnd;
 
-      if (e.key === "ArrowDown" && currentTop === caretPixelPosition(textarea, text.length).top) {
+      const isOnLastLine = caret === text.length || currentTop === caretPixelPosition(textarea, text.length).top;
+      if (e.key === "ArrowDown" && isCollapsed && isOnLastLine) {
         const idx = content.blocks.findIndex((b) => b.id === block.id);
         const next = content.blocks.slice(idx + 1).find((b) => "text" in b);
         if (next && "text" in next) {
@@ -737,7 +739,8 @@ export const Editor = forwardRef<EditorHandle, {
         }
       }
 
-      if (e.key === "ArrowUp" && currentTop === caretPixelPosition(textarea, 0).top) {
+      const isOnFirstLine = caret === 0 || currentTop === caretPixelPosition(textarea, 0).top;
+      if (e.key === "ArrowUp" && isCollapsed && isOnFirstLine) {
         const idx = content.blocks.findIndex((b) => b.id === block.id);
         const prev = [...content.blocks.slice(0, idx)].reverse().find((b) => "text" in b);
         if (prev && "text" in prev) {
