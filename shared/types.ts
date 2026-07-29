@@ -171,6 +171,7 @@ type PageBlockVariant =
   | { id: string; type: "quote"; text: string }
   | { id: string; type: "code"; text: string; language?: string }
   | { id: string; type: "equation"; text: string }
+  | { id: string; type: "secret"; label: string }
   | { id: string; type: "breadcrumb" };
 
 export interface PageContent {

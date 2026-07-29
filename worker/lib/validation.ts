@@ -97,8 +97,13 @@ export const pageBlockSchema = z.discriminatedUnion("type", [
   z.object({ id: z.string(), type: z.literal("quote"), text: z.string().max(20000) }),
   z.object({ id: z.string(), type: z.literal("code"), text: z.string().max(50000), language: z.string().max(50).optional() }),
   z.object({ id: z.string(), type: z.literal("equation"), text: z.string().max(10000) }),
+  // Deliberately no `value` field here — the real value never travels
+  // through the bulk page-content save path. See worker/routes/secrets.ts.
+  z.object({ id: z.string(), type: z.literal("secret"), label: z.string().max(200) }),
   z.object({ id: z.string(), type: z.literal("breadcrumb") }),
 ]);
+
+export const secretValueSchema = z.object({ value: z.string().min(1).max(1000) });
 
 const pageCategorySchema = z.enum(["reception", "cleaning", "marketing", "wegoinn2", "operations"]);
 const descriptionSchema = z.string().max(300);

@@ -8,6 +8,7 @@ import { ChartView } from "./ChartView";
 import { FormBlockView } from "./FormBlockView";
 import { ImageBlockView } from "./ImageBlockView";
 import { FileBlockView } from "./FileBlockView";
+import { SecretBlockView } from "./SecretBlockView";
 import { RemoteCaretMarkers, RemotePresenceBadge } from "./RemoteCursors";
 import type { TemplateKey } from "./templates";
 
@@ -76,6 +77,7 @@ export function Block({
   onReplaceImage,
   remoteCursors,
   registerRef,
+  canViewSensitive,
 }: {
   block: PageBlock;
   index: number;
@@ -100,6 +102,7 @@ export function Block({
   onReplaceImage: (blockId: string) => void;
   remoteCursors: PresenceUser[];
   registerRef: (el: HTMLTextAreaElement | null) => void;
+  canViewSensitive: boolean;
 }) {
   const localRef = useRef<HTMLTextAreaElement | null>(null);
   const [, bumpRender] = useState(0);
@@ -259,6 +262,26 @@ export function Block({
     return (
       <div id={domId} className="block-row">
         <FormBlockView formKey={block.formKey} parentId={currentPageId} editable={editable} onPagesChanged={onPagesChanged} onOpenPage={onOpenPage} />
+        {editable && (
+          <button type="button" className="block-row__handle" onClick={onRemoveBlock} title="블록 제거">
+            ✕
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (block.type === "secret") {
+    return (
+      <div id={domId} className="block-row">
+        <SecretBlockView
+          pageId={currentPageId}
+          blockId={block.id}
+          label={block.label}
+          editable={editable}
+          canView={canViewSensitive}
+          onLabelChange={(label) => onPatch({ label })}
+        />
         {editable && (
           <button type="button" className="block-row__handle" onClick={onRemoveBlock} title="블록 제거">
             ✕

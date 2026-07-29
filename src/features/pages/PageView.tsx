@@ -33,6 +33,7 @@ export function PageView({
   presenceUsers,
   onCursorReport,
   guestName,
+  canViewSensitive,
 }: {
   pageId: string;
   canEdit: boolean;
@@ -48,6 +49,7 @@ export function PageView({
   presenceUsers: PresenceUser[];
   onCursorReport: (blockId: string | null, offset: number) => void;
   guestName?: string;
+  canViewSensitive: boolean;
 }) {
   const [page, setPage] = useState<PageDetailDTO | null>(null);
   const [attachments, setAttachments] = useState<AttachmentDTO[]>([]);
@@ -286,6 +288,7 @@ export function PageView({
           registerFileDropHandler={registerFileDropHandler}
           presenceUsers={presenceUsers.filter((u) => u.pageId === page.id)}
           onCursorReport={onCursorReport}
+          canViewSensitive={canViewSensitive}
         />
 
         <Comments pageId={page.id} canComment={canEdit} guestName={guestName} />

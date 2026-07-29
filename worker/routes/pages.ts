@@ -36,6 +36,8 @@ import {
   setOnboardingProgress,
   setQuestionResolved,
 } from "../db/handoff";
+import { getSecretValue, setSecretValue } from "../db/secrets";
+import { secretValueSchema } from "../lib/validation";
 
 export const pagesRoute = new Hono<AppBindings>();
 
@@ -322,5 +324,44 @@ pagesRoute.post("/:id/restore", requireRole("editor"), async (c) => {
   if (!page) throw Errors.notFound();
   await restorePage(c.env.DB, c.var.teamId, id);
   await logActivity(c.env.DB, { teamId: c.var.teamId, pageId: id, actorId: c.var.user!.id, action: "page.restored" });
+  return c.json({ ok: true });
+});
+
+// 민감정보 블록: the real value never rides along with the normal page
+// content fetch/save — it only ever leaves the server through this pair of
+// endpoints, gated at editor-and-above, with every reveal audit-logged.
+pagesRoute.get("/:id/secrets/:blockId", requireRole("editor"), async (c) => {
+  const page = await getPageById(c.env.DB, c.var.teamId, c.req.param("id"));
+  if (!page) throw Errors.notFound();
+  const row = await getSecretValue(c.env.DB, c.var.teamId, page.id, c.req.param("blockId"));
+  if (!row) throw Errors.notFound("아직 값이 설정되지 않았습니다.");
+  await logActivity(c.env.DB, {
+    teamId: c.var.teamId,
+    pageId: page.id,
+    actorId: c.var.user!.id,
+    action: "sensitive_block.revealed",
+    metadata: { blockId: c.req.param("blockId") },
+  });
+  return c.json({ value: row.value });
+});
+
+pagesRoute.put("/:id/secrets/:blockId", requireRole("editor"), async (c) => {
+  const page = await getPageById(c.env.DB, c.var.teamId, c.req.param("id"));
+  if (!page) throw Errors.notFound();
+  const body = secretValueSchema.parse(await c.req.json());
+  await setSecretValue(c.env.DB, {
+    teamId: c.var.teamId,
+    pageId: page.id,
+    blockId: c.req.param("blockId"),
+    value: body.value,
+    userId: c.var.user!.id,
+  });
+  await logActivity(c.env.DB, {
+    teamId: c.var.teamId,
+    pageId: page.id,
+    actorId: c.var.user!.id,
+    action: "sensitive_block.updated",
+    metadata: { blockId: c.req.param("blockId") },
+  });
   return c.json({ ok: true });
 });

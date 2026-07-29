@@ -57,6 +57,8 @@ function emptyBlockOfType(type: PageBlock["type"]): PageBlock {
       return { id, type, text: "", language: "plain" };
     case "equation":
       return { id, type, text: "" };
+    case "secret":
+      return { id, type, label: "" };
     case "breadcrumb":
       return { id, type };
     default:
@@ -97,6 +99,7 @@ type SlashCommandType =
   | "quote"
   | "code"
   | "equation"
+  | "secret"
   | "insert_date"
   | "insert_reminder"
   | "duplicate"
@@ -128,6 +131,7 @@ const SLASH_COMMANDS: { label: string; type: SlashCommandType; aliases: string[]
   { label: "구분선", type: "divider", aliases: ["divider", "div"] },
   { label: "코드", type: "code", aliases: ["code"] },
   { label: "수식", type: "equation", aliases: ["equation", "math", "latex"] },
+  { label: "민감정보", type: "secret", aliases: ["secret", "sensitive", "password", "비밀번호", "민감정보"] },
   { label: "오늘 날짜", type: "insert_date", aliases: ["date", "today", "날짜"] },
   { label: "알림 메모", type: "insert_reminder", aliases: ["reminder", "알림"] },
   { label: "표", type: "table", aliases: ["table"] },
@@ -246,8 +250,9 @@ export const Editor = forwardRef<EditorHandle, {
   registerFileDropHandler: (handler: (files: FileList) => void) => void;
   presenceUsers: PresenceUser[];
   onCursorReport: (blockId: string | null, offset: number) => void;
+  canViewSensitive: boolean;
 }>(function Editor(
-  { pageId, content, attachments, editable, onChange, onOpenPage, onPagesChanged, onAttachmentUploaded, pages, members, registerFileDropHandler, presenceUsers, onCursorReport },
+  { pageId, content, attachments, editable, onChange, onOpenPage, onPagesChanged, onAttachmentUploaded, pages, members, registerFileDropHandler, presenceUsers, onCursorReport, canViewSensitive },
   ref,
 ) {
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -662,6 +667,11 @@ export const Editor = forwardRef<EditorHandle, {
       updateBlock(block.id, { type: "equation", text: "" } as Partial<PageBlock>);
       setActiveId(block.id);
       requestAnimationFrame(() => refs.current.get(block.id)?.focus());
+      return;
+    }
+
+    if (cmd.type === "secret") {
+      updateBlock(block.id, { type: "secret", label: "" } as Partial<PageBlock>);
       return;
     }
 
@@ -1185,6 +1195,7 @@ export const Editor = forwardRef<EditorHandle, {
                   if (el) refs.current.set(block.id, el);
                   else refs.current.delete(block.id);
                 }}
+                canViewSensitive={canViewSensitive}
               />
             </div>
           </div>

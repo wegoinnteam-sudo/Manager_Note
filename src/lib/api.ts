@@ -91,6 +91,11 @@ export const api = {
   deletePage: (id: string) => request<{ ok: true }>(`/api/pages/${id}`, { method: "DELETE" }),
   restorePage: (id: string) => request<{ ok: true }>(`/api/pages/${id}/restore`, { method: "POST" }),
 
+  getSecretValue: (pageId: string, blockId: string) =>
+    request<{ value: string }>(`/api/pages/${pageId}/secrets/${blockId}`),
+  setSecretValue: (pageId: string, blockId: string, value: string) =>
+    request<{ ok: true }>(`/api/pages/${pageId}/secrets/${blockId}`, { method: "PUT", body: JSON.stringify({ value }) }),
+
   listAttachments: (pageId: string) => request<{ attachments: AttachmentDTO[] }>(`/api/pages/${pageId}/attachments`),
   deleteAttachment: (id: string) => request<{ ok: true }>(`/api/attachments/${id}`, { method: "DELETE" }),
 

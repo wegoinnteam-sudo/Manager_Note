@@ -51,7 +51,7 @@ function file(name: string): PageBlock {
   return { id: id(), type: "paragraph", text: fileNeeded(name) };
 }
 function secure(label: string): PageBlock {
-  return { id: id(), type: "paragraph", text: `${label}: ${SECURE_PLACEHOLDER}` };
+  return { id: id(), type: "secret", label };
 }
 
 export interface ContentSeedNode {
@@ -358,7 +358,7 @@ export const WEGOINN_DB_CONTENT: ContentSeedNode[] = [
           file("관련 캡처 이미지"),
           h3("재발 방지 방안"),
           p(""),
-          callout(`⚠️ 고객 예약번호: ${SECURE_PLACEHOLDER}`),
+          secure("고객 예약번호"),
         ],
       },
     ],
@@ -434,7 +434,7 @@ export const WEGOINN_DB_CONTENT: ContentSeedNode[] = [
           p("정상가 1시간 4,000원 예시 — 포스기 2,200원 / 현금 2,000원"),
           li("결제 후 주차권을 전달한다."),
           li("전달 전 또는 즉시 팀장에게 보고한다."),
-          callout(`📍 주차권 보관 위치: ${SECURE_PLACEHOLDER} (권한이 있는 사용자에게만 표시)`),
+          secure("주차권 보관 위치"),
         ],
       },
       {
