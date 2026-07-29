@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type DragEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import type { PageDetailDTO, PageSummaryDTO, TeamMemberDTO, UserDTO } from "@shared/types";
 import { buildPageTree, type PageTreeNode } from "@/hooks/usePages";
 import type { PresenceUser } from "@/hooks/usePresence";
@@ -31,6 +31,10 @@ function PageTreeRow({
   onDragEnd,
   viewersByPage,
   onContextMenu,
+  editingPageId,
+  onStartRename,
+  onCommitRename,
+  onCancelRename,
 }: {
   node: PageTreeNode;
   depth: number;
@@ -45,10 +49,16 @@ function PageTreeRow({
   onDragEnd: () => void;
   viewersByPage: Map<string, PresenceUser[]>;
   onContextMenu: (event: React.MouseEvent, page: PageSummaryDTO) => void;
+  editingPageId: string | null;
+  onStartRename: (page: PageSummaryDTO) => void;
+  onCommitRename: (page: PageSummaryDTO, title: string) => void;
+  onCancelRename: () => void;
 }) {
   const viewers = viewersByPage.get(node.page.id) ?? [];
   const [expanded, setExpanded] = useState(true);
   const hasChildren = node.children.length > 0;
+  const isEditing = node.page.id === editingPageId;
+  const cancelledRef = useRef(false);
   return (
     <div>
       <div
@@ -61,7 +71,14 @@ function PageTreeRow({
           .filter(Boolean)
           .join(" ")}
         style={{ paddingLeft: 8 + depth * 14 }}
+        tabIndex={0}
         onClick={() => onOpen(node.page.id)}
+        onKeyDown={(event) => {
+          if (event.key === "F2" && !isEditing) {
+            event.preventDefault();
+            onStartRename(node.page);
+          }
+        }}
         onDragOver={(event) => onDragOver(event, node.page)}
         onDrop={(event) => onDrop(event, node.page)}
         onContextMenu={(event) => onContextMenu(event, node.page)}
@@ -77,15 +94,43 @@ function PageTreeRow({
         >
           {hasChildren ? (expanded ? "▾" : "▸") : "·"}
         </button>
-        <span
-          className="page-tree__title"
-          style={{
-            color: node.page.textColor ?? undefined,
-            backgroundColor: node.page.highlightColor ?? undefined,
-          }}
-        >
-          {node.page.title}
-        </span>
+        {isEditing ? (
+          <input
+            className="page-tree__title-input"
+            autoFocus
+            defaultValue={node.page.title}
+            onClick={(event) => event.stopPropagation()}
+            onKeyDown={(event) => {
+              event.stopPropagation();
+              if (event.key === "Enter") {
+                event.preventDefault();
+                event.currentTarget.blur();
+              } else if (event.key === "Escape") {
+                event.preventDefault();
+                cancelledRef.current = true;
+                event.currentTarget.blur();
+              }
+            }}
+            onBlur={(event) => {
+              if (cancelledRef.current) {
+                cancelledRef.current = false;
+                onCancelRename();
+              } else {
+                onCommitRename(node.page, event.currentTarget.value);
+              }
+            }}
+          />
+        ) : (
+          <span
+            className="page-tree__title"
+            style={{
+              color: node.page.textColor ?? undefined,
+              backgroundColor: node.page.highlightColor ?? undefined,
+            }}
+          >
+            {node.page.title}
+          </span>
+        )}
         {viewers.length > 0 && (
           <span className="page-tree__viewers" title={viewers.map((v) => v.name).join(", ")}>
             {viewers.slice(0, 3).map((v) => (
@@ -132,6 +177,10 @@ function PageTreeRow({
               onDragEnd={onDragEnd}
               viewersByPage={viewersByPage}
               onContextMenu={onContextMenu}
+              editingPageId={editingPageId}
+              onStartRename={onStartRename}
+              onCommitRename={onCommitRename}
+              onCancelRename={onCancelRename}
             />
           ))}
         </div>
@@ -180,6 +229,7 @@ export function Sidebar({
   );
   const [wikiIds, setWikiIds] = useState<string[]>(() => readStoredIds(WIKI_KEY));
   const [contextMenu, setContextMenu] = useState<{ page: PageSummaryDTO; x: number; y: number } | null>(null);
+  const [editingPageId, setEditingPageId] = useState<string | null>(null);
   const [moving, setMoving] = useState(false);
   const [sidePreview, setSidePreview] = useState<PageDetailDTO | null>(null);
   const [busy, setBusy] = useState(false);
@@ -245,6 +295,15 @@ export function Sidebar({
     await api.updatePageContent(copy.id, copy.contentVersion, source.contentJson);
     await onPagesChanged();
     onOpenPage(copy.id);
+  };
+
+  const commitRename = async (page: PageSummaryDTO, rawTitle: string) => {
+    setEditingPageId(null);
+    const title = rawTitle.trim();
+    if (!title || title === page.title) return;
+    const detail = await api.getPage(page.id);
+    await api.updatePageMeta(page.id, { expectedVersion: detail.version, title });
+    await onPagesChanged();
   };
 
   const renamePage = async (page: PageSummaryDTO) => {
@@ -426,6 +485,10 @@ export function Sidebar({
               setMoving(false);
               setContextMenu({ page, x: event.clientX, y: event.clientY });
             }}
+            editingPageId={editingPageId}
+            onStartRename={(page) => setEditingPageId(page.id)}
+            onCommitRename={commitRename}
+            onCancelRename={() => setEditingPageId(null)}
           />
         ))}
       </div>

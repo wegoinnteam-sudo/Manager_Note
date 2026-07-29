@@ -342,6 +342,17 @@ code {
   padding: 0 3px;
 }
 
+.page-tree__title-input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--color-accent);
+  border-radius: 4px;
+  padding: 0 3px;
+  font: inherit;
+  color: inherit;
+  background: var(--color-bg);
+}
+
 .page-tree__drag-handle {
   flex-shrink: 0;
   color: var(--color-text-muted);
