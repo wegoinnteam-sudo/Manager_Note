@@ -135,7 +135,7 @@ export function Block({
     if (att?.mimeType.startsWith("video/")) {
       return (
         <div id={domId} className="block-row">
-          <video controls preload="metadata" style={{ maxWidth: "100%", borderRadius: 6 }} src={`/api/attachments/${att.id}/download`} />
+          <video draggable={false} controls preload="metadata" style={{ maxWidth: "100%", borderRadius: 6 }} src={`/api/attachments/${att.id}/download`} />
           {editable && (
             <button type="button" className="block-row__handle" onClick={onRemoveBlock} title="블록 제거">
               ✕
@@ -147,7 +147,7 @@ export function Block({
     if (att?.mimeType.startsWith("audio/")) {
       return (
         <div id={domId} className="block-row">
-          <audio controls preload="metadata" style={{ width: "100%" }} src={`/api/attachments/${att.id}/download`} />
+          <audio draggable={false} controls preload="metadata" style={{ width: "100%" }} src={`/api/attachments/${att.id}/download`} />
           {editable && (
             <button type="button" className="block-row__handle" onClick={onRemoveBlock} title="블록 제거">
               ✕
@@ -160,8 +160,8 @@ export function Block({
       return (
         <div id={domId} className="block-row">
           <div className="pdf-block">
-            <iframe src={`/api/attachments/${att.id}/download`} title={att.fileName} />
-            <a className="pdf-block__filename" href={`/api/attachments/${att.id}/download`}>
+            <iframe draggable={false} src={`/api/attachments/${att.id}/download`} title={att.fileName} />
+            <a draggable={false} className="pdf-block__filename" href={`/api/attachments/${att.id}/download`}>
               📄 {att.fileName}
             </a>
           </div>
@@ -176,6 +176,7 @@ export function Block({
     return (
       <div id={domId} className="block-row">
         <a
+          draggable={false}
           href={att ? `/api/attachments/${att.id}/download` : undefined}
           style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", border: "1px solid var(--color-border)", borderRadius: 6, textDecoration: "none", color: "inherit", flex: 1 }}
         >

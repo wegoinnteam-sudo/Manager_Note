@@ -1889,6 +1889,14 @@ button.breadcrumb-block__item:hover {
   cursor: grabbing;
 }
 
+.block-wrapper--file-movable .block-row {
+  cursor: grab;
+}
+
+.block-wrapper--file-movable .block-row:active {
+  cursor: grabbing;
+}
+
 .block-wrapper--dragging {
   opacity: 0.45;
 }

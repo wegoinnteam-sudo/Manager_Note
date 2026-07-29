@@ -1016,6 +1016,7 @@ export const Editor = forwardRef<EditorHandle, {
             className={[
               "block-wrapper",
               block.type === "image" && editable ? "block-wrapper--image-movable" : "",
+              block.type === "file" && editable ? "block-wrapper--file-movable" : "",
               draggedId === block.id ? "block-wrapper--dragging" : "",
               dragTarget?.id === block.id ? `block-wrapper--drop-${dragTarget.position}` : "",
               dragTarget?.id === block.id ? `block-wrapper--align-${dragTarget.align}` : "",
@@ -1024,14 +1025,21 @@ export const Editor = forwardRef<EditorHandle, {
               .filter(Boolean)
               .join(" ")}
             style={block.indent ? { marginLeft: block.indent * 24 } : undefined}
-            draggable={editable && block.type === "image"}
+            draggable={editable && (block.type === "image" || block.type === "file")}
             onDragStart={(e) => {
-              if (!editable || block.type !== "image") return;
+              if (!editable || (block.type !== "image" && block.type !== "file")) return;
               const target = e.target as HTMLElement;
-              if (target.closest("button, a, input, .image-block__handle")) {
+              if (
+                target.closest("button, input, .image-block__handle") ||
+                (block.type === "image" && target.closest("a"))
+              ) {
                 e.preventDefault();
                 return;
               }
+              // A file name/preview is normally draggable as a browser URL.
+              // Remove that native payload so an uploaded attachment can only
+              // move its existing block inside the editor.
+              e.dataTransfer.clearData();
               e.dataTransfer.effectAllowed = "move";
               e.dataTransfer.setData("text/plain", block.id);
               e.dataTransfer.setData(INTERNAL_BLOCK_DRAG_TYPE, block.id);
@@ -1066,6 +1074,7 @@ export const Editor = forwardRef<EditorHandle, {
                 className="block-drag-handle"
                 draggable
                 onDragStart={(e) => {
+                  e.dataTransfer.clearData();
                   e.dataTransfer.effectAllowed = "move";
                   e.dataTransfer.setData("text/plain", block.id);
                   e.dataTransfer.setData(INTERNAL_BLOCK_DRAG_TYPE, block.id);
