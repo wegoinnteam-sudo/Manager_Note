@@ -9,6 +9,11 @@ import { HandoffTools } from "./HandoffTools";
 import type { PresenceUser } from "@/hooks/usePresence";
 
 type SaveState = "idle" | "saving" | "saved" | "error" | "conflict";
+type ReferencePanelSide = "left" | "right";
+
+const REFERENCE_WIDTH_KEY = "th_reference_panel_width";
+const REFERENCE_SIDE_KEY = "th_reference_panel_side";
+const OFFLINE_KEY_PREFIX = "th_offline_page_";
 
 export function PageView({
   pageId,
@@ -42,14 +47,35 @@ export function PageView({
   const [page, setPage] = useState<PageDetailDTO | null>(null);
   const [attachments, setAttachments] = useState<AttachmentDTO[]>([]);
   const [saveState, setSaveState] = useState<SaveState>("idle");
+  const [referenceWidth, setReferenceWidth] = useState(() => {
+    const saved = Number(localStorage.getItem(REFERENCE_WIDTH_KEY));
+    return Number.isFinite(saved) && saved >= 200 && saved <= 520 ? saved : 260;
+  });
+  const [referenceSide, setReferenceSide] = useState<ReferencePanelSide>(() =>
+    localStorage.getItem(REFERENCE_SIDE_KEY) === "left" ? "left" : "right",
+  );
   const titleRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<EditorHandle>(null);
   const loadedPageId = useRef<string | null>(null);
 
   const load = useCallback(async () => {
-    const [detail, { attachments: rows }] = await Promise.all([api.getPage(pageId), api.listAttachments(pageId)]);
-    setPage(detail);
-    setAttachments(rows);
+    try {
+      const [detail, { attachments: rows }] = await Promise.all([api.getPage(pageId), api.listAttachments(pageId)]);
+      setPage(detail);
+      setAttachments(rows);
+      const offlineKey = `${OFFLINE_KEY_PREFIX}${pageId}`;
+      if (localStorage.getItem(offlineKey)) {
+        localStorage.setItem(offlineKey, JSON.stringify({ savedAt: new Date().toISOString(), page: detail }));
+      }
+    } catch (error) {
+      const cached = localStorage.getItem(`${OFFLINE_KEY_PREFIX}${pageId}`);
+      if (!cached) throw error;
+      const parsed = JSON.parse(cached) as { page?: PageDetailDTO };
+      if (!parsed.page) throw error;
+      setPage(parsed.page);
+      setAttachments([]);
+      setSaveState("error");
+    }
   }, [pageId]);
 
   useEffect(() => {
@@ -123,6 +149,32 @@ export function PageView({
   );
   const debouncedSaveContent = useDebouncedCallback(saveContent, 1000);
 
+  const moveReferencePanel = (side: ReferencePanelSide) => {
+    setReferenceSide(side);
+    localStorage.setItem(REFERENCE_SIDE_KEY, side);
+  };
+
+  const startReferenceResize = (event: React.PointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = referenceWidth;
+    const onMove = (moveEvent: PointerEvent) => {
+      const delta = moveEvent.clientX - startX;
+      const next = referenceSide === "right" ? startWidth - delta : startWidth + delta;
+      setReferenceWidth(Math.max(200, Math.min(520, Math.round(next))));
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      setReferenceWidth((current) => {
+        localStorage.setItem(REFERENCE_WIDTH_KEY, String(current));
+        return current;
+      });
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
   const handleDelete = async () => {
     if (!page) return;
     if (!confirm("이 페이지를 휴지통으로 이동할까요?")) return;
@@ -136,7 +188,7 @@ export function PageView({
   }
 
   return (
-    <div className="page-shell">
+    <div className={`page-shell page-shell--side-${referenceSide}`} style={{ maxWidth: 828 + referenceWidth }}>
       <div className="page-view">
         {saveState === "conflict" && (
           <div style={{ background: "var(--color-warn-bg)", border: "1px solid #f59e0b", borderRadius: 6, padding: "8px 12px", marginBottom: 12, fontSize: 13 }}>
@@ -203,8 +255,25 @@ export function PageView({
         )}
       </div>
 
-      <aside className="page-side">
-        <div className="page-side__label">참고</div>
+      <aside className="page-side" style={{ width: referenceWidth }}>
+        <button
+          type="button"
+          className={`page-side__resize page-side__resize--${referenceSide}`}
+          onPointerDown={startReferenceResize}
+          aria-label="참고 패널 너비 조절"
+          title="드래그해서 너비 조절"
+        />
+        <div className="page-side__header">
+          <div className="page-side__label">참고</div>
+          <div className="page-side__position-controls" aria-label="참고 패널 위치">
+            <button type="button" className={referenceSide === "left" ? "is-active" : ""} onClick={() => moveReferencePanel("left")} title="왼쪽으로 이동">
+              ←
+            </button>
+            <button type="button" className={referenceSide === "right" ? "is-active" : ""} onClick={() => moveReferencePanel("right")} title="오른쪽으로 이동">
+              →
+            </button>
+          </div>
+        </div>
         <HandoffTools pageId={page.id} content={page.contentJson} onQuestionsChanged={onPagesChanged} />
       </aside>
     </div>

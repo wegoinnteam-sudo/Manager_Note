@@ -1,7 +1,21 @@
-import { useMemo, useState, type DragEvent } from "react";
-import type { PageSummaryDTO, UserDTO } from "@shared/types";
+import { useEffect, useMemo, useState, type DragEvent } from "react";
+import type { PageDetailDTO, PageSummaryDTO, TeamMemberDTO, UserDTO } from "@shared/types";
 import { buildPageTree, type PageTreeNode } from "@/hooks/usePages";
 import type { PresenceUser } from "@/hooks/usePresence";
+import { api } from "@/lib/api";
+
+const FAVORITES_KEY = "th_sidebar_favorites";
+const OFFLINE_KEY_PREFIX = "th_offline_page_";
+const WIKI_KEY = "th_wiki_pages";
+
+function readStoredIds(key: string): string[] {
+  try {
+    const value = JSON.parse(localStorage.getItem(key) ?? "[]");
+    return Array.isArray(value) ? value.filter((id): id is string => typeof id === "string") : [];
+  } catch {
+    return [];
+  }
+}
 
 function PageTreeRow({
   node,
@@ -16,6 +30,7 @@ function PageTreeRow({
   onDrop,
   onDragEnd,
   viewersByPage,
+  onContextMenu,
 }: {
   node: PageTreeNode;
   depth: number;
@@ -29,6 +44,7 @@ function PageTreeRow({
   onDrop: (event: DragEvent, page: PageSummaryDTO) => void;
   onDragEnd: () => void;
   viewersByPage: Map<string, PresenceUser[]>;
+  onContextMenu: (event: React.MouseEvent, page: PageSummaryDTO) => void;
 }) {
   const viewers = viewersByPage.get(node.page.id) ?? [];
   const [expanded, setExpanded] = useState(true);
@@ -48,6 +64,7 @@ function PageTreeRow({
         onClick={() => onOpen(node.page.id)}
         onDragOver={(event) => onDragOver(event, node.page)}
         onDrop={(event) => onDrop(event, node.page)}
+        onContextMenu={(event) => onContextMenu(event, node.page)}
       >
         <button
           type="button"
@@ -106,6 +123,7 @@ function PageTreeRow({
               onDrop={onDrop}
               onDragEnd={onDragEnd}
               viewersByPage={viewersByPage}
+              onContextMenu={onContextMenu}
             />
           ))}
         </div>
@@ -127,6 +145,8 @@ export function Sidebar({
   onSearch,
   className,
   presenceUsers,
+  onPagesChanged,
+  members,
 }: {
   teamName: string;
   user: UserDTO;
@@ -140,10 +160,21 @@ export function Sidebar({
   onSearch: (q: string) => void;
   className?: string;
   presenceUsers: PresenceUser[];
+  onPagesChanged: () => void;
+  members: TeamMemberDTO[];
 }) {
   const [query, setQuery] = useState("");
   const [draggedPageId, setDraggedPageId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<{ pageId: string; position: "before" | "after" | "inside" } | null>(null);
+  const [favorites, setFavorites] = useState<string[]>(() => readStoredIds(FAVORITES_KEY));
+  const [offlineIds, setOfflineIds] = useState<string[]>(() =>
+    pages.filter((page) => localStorage.getItem(`${OFFLINE_KEY_PREFIX}${page.id}`)).map((page) => page.id),
+  );
+  const [wikiIds, setWikiIds] = useState<string[]>(() => readStoredIds(WIKI_KEY));
+  const [contextMenu, setContextMenu] = useState<{ page: PageSummaryDTO; x: number; y: number } | null>(null);
+  const [moving, setMoving] = useState(false);
+  const [sidePreview, setSidePreview] = useState<PageDetailDTO | null>(null);
+  const [busy, setBusy] = useState(false);
   const tree = useMemo(() => buildPageTree(pages), [pages]);
   const recent = useMemo(
     () => [...pages].sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1)).slice(0, 5),
@@ -159,6 +190,90 @@ export function Sidebar({
     }
     return map;
   }, [presenceUsers]);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    window.addEventListener("click", close);
+    window.addEventListener("blur", close);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("blur", close);
+    };
+  }, [contextMenu]);
+
+  const saveIds = (key: string, ids: string[], setter: (value: string[]) => void) => {
+    localStorage.setItem(key, JSON.stringify(ids));
+    setter(ids);
+  };
+
+  const toggleFavorite = (pageId: string) => {
+    const next = favorites.includes(pageId) ? favorites.filter((id) => id !== pageId) : [...favorites, pageId];
+    saveIds(FAVORITES_KEY, next, setFavorites);
+  };
+
+  const toggleOffline = async (page: PageSummaryDTO) => {
+    const key = `${OFFLINE_KEY_PREFIX}${page.id}`;
+    if (offlineIds.includes(page.id)) {
+      localStorage.removeItem(key);
+      setOfflineIds((ids) => ids.filter((id) => id !== page.id));
+      return;
+    }
+    const detail = await api.getPage(page.id);
+    localStorage.setItem(key, JSON.stringify({ savedAt: new Date().toISOString(), page: detail }));
+    setOfflineIds((ids) => [...ids, page.id]);
+  };
+
+  const duplicatePage = async (page: PageSummaryDTO) => {
+    const source = await api.getPage(page.id);
+    let copy = await api.createPage({ parentId: page.parentId, title: `${page.title} 복사본` });
+    copy = await api.updatePageMeta(copy.id, {
+      expectedVersion: copy.version,
+      status: source.status,
+      assigneeId: source.assigneeId,
+      dueDate: source.dueDate,
+      tags: source.tags,
+    });
+    await api.updatePageContent(copy.id, copy.contentVersion, source.contentJson);
+    await onPagesChanged();
+    onOpenPage(copy.id);
+  };
+
+  const renamePage = async (page: PageSummaryDTO) => {
+    const title = window.prompt("새 페이지 이름", page.title)?.trim();
+    if (!title || title === page.title) return;
+    const detail = await api.getPage(page.id);
+    await api.updatePageMeta(page.id, { expectedVersion: detail.version, title });
+    await onPagesChanged();
+  };
+
+  const movePage = async (page: PageSummaryDTO, parentId: string | null) => {
+    const detail = await api.getPage(page.id);
+    await api.updatePageMeta(page.id, { expectedVersion: detail.version, parentId });
+    setMoving(false);
+    setContextMenu(null);
+    await onPagesChanged();
+  };
+
+  const trashPage = async (page: PageSummaryDTO) => {
+    if (!window.confirm(`"${page.title}" 페이지를 휴지통으로 이동할까요?`)) return;
+    await api.deletePage(page.id);
+    setContextMenu(null);
+    await onPagesChanged();
+    if (activePageId === page.id) onNavigate("/");
+  };
+
+  const runAction = async (action: () => Promise<void>) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await action();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const favoritePages = favorites.map((id) => pages.find((page) => page.id === id)).filter((page): page is PageSummaryDTO => !!page && !page.isDeleted);
 
   const handleDragStart = (event: DragEvent, page: PageSummaryDTO) => {
     setDraggedPageId(page.id);
@@ -238,6 +353,21 @@ export function Sidebar({
         + 새 페이지
       </button>
 
+      {favoritePages.length > 0 && (
+        <>
+          <div className="sidebar__section-label">즐겨찾기</div>
+          {favoritePages.map((page) => (
+            <button key={page.id} type="button" className="sidebar__link sidebar__favorite" onClick={() => onOpenPage(page.id)} onContextMenu={(event) => {
+              event.preventDefault();
+              setContextMenu({ page, x: event.clientX, y: event.clientY });
+            }}>
+              <span>★</span>
+              <span>{page.title}</span>
+            </button>
+          ))}
+        </>
+      )}
+
       {recent.length > 0 && (
         <>
           <div className="sidebar__section-label">최근 페이지</div>
@@ -269,6 +399,11 @@ export function Sidebar({
               setDropTarget(null);
             }}
             viewersByPage={viewersByPage}
+            onContextMenu={(event, page) => {
+              event.preventDefault();
+              setMoving(false);
+              setContextMenu({ page, x: event.clientX, y: event.clientY });
+            }}
           />
         ))}
       </div>
@@ -283,6 +418,80 @@ export function Sidebar({
           </button>
         )}
       </div>
+
+      {contextMenu && (
+        <div
+          className="sidebar-context-menu"
+          style={{ left: Math.min(contextMenu.x, window.innerWidth - 260), top: Math.min(contextMenu.y, window.innerHeight - 520) }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="sidebar-context-menu__title">
+            <span>{wikiIds.includes(contextMenu.page.id) ? "📚" : "📄"}</span>
+            <span>{contextMenu.page.title}</span>
+          </div>
+          <button type="button" onClick={() => { toggleFavorite(contextMenu.page.id); setContextMenu(null); }}>
+            {favorites.includes(contextMenu.page.id) ? "★ 즐겨찾기에서 제거" : "☆ 즐겨찾기에 추가"}
+          </button>
+          <button type="button" onClick={() => runAction(async () => { await toggleOffline(contextMenu.page); setContextMenu(null); })}>
+            {offlineIds.includes(contextMenu.page.id) ? "✓ 오프라인 저장 해제" : "↓ 오프라인에서 사용 가능"}
+          </button>
+          <button type="button" onClick={() => runAction(async () => {
+            await navigator.clipboard.writeText(`${window.location.origin}/page/${contextMenu.page.id}`);
+            setContextMenu(null);
+          })}>🔗 링크 복사</button>
+          <button type="button" onClick={() => runAction(() => duplicatePage(contextMenu.page))}>⧉ 복제</button>
+          <button type="button" onClick={() => runAction(() => renamePage(contextMenu.page))}>✎ 이름 바꾸기</button>
+          <button type="button" onClick={() => setMoving((value) => !value)}>↪ 옮기기</button>
+          {moving && (
+            <div className="sidebar-context-menu__move">
+              <button type="button" onClick={() => runAction(() => movePage(contextMenu.page, null))}>최상위로 이동</button>
+              {pages.filter((page) => !page.isDeleted && !wouldCreateCycle(contextMenu.page.id, page.id)).map((page) => (
+                <button key={page.id} type="button" onClick={() => runAction(() => movePage(contextMenu.page, page.id))}>{page.title} 아래로</button>
+              ))}
+            </div>
+          )}
+          <button type="button" className="sidebar-context-menu__danger" onClick={() => runAction(() => trashPage(contextMenu.page))}>🗑 휴지통으로 이동</button>
+          <button type="button" onClick={() => {
+            const next = wikiIds.includes(contextMenu.page.id) ? wikiIds.filter((id) => id !== contextMenu.page.id) : [...wikiIds, contextMenu.page.id];
+            saveIds(WIKI_KEY, next, setWikiIds);
+            setContextMenu(null);
+          }}>{wikiIds.includes(contextMenu.page.id) ? "📄 일반 페이지로 전환" : "📚 위키로 전환"}</button>
+          <div className="sidebar-context-menu__separator" />
+          <button type="button" onClick={() => window.open(`/page/${contextMenu.page.id}`, "_blank", "noopener")}>↗ 새 탭에서 열기</button>
+          <button type="button" onClick={() => window.open(`/page/${contextMenu.page.id}`, "_blank", "popup=yes,width=1200,height=850")}>▣ 새 창에서 열기</button>
+          <button type="button" onClick={() => runAction(async () => {
+            setSidePreview(await api.getPage(contextMenu.page.id));
+            setContextMenu(null);
+          })}>▥ 사이드 보기에서 열기</button>
+          <div className="sidebar-context-menu__meta">
+            마지막 편집{" "}
+            {members.find((member) => member.id === contextMenu.page.updatedBy)?.name ?? "알 수 없음"} ·{" "}
+            {new Date(contextMenu.page.updatedAt).toLocaleString("ko-KR")}
+          </div>
+          {busy && <div className="sidebar-context-menu__busy">처리 중…</div>}
+        </div>
+      )}
+
+      {sidePreview && (
+        <aside className="sidebar-page-preview">
+          <div className="sidebar-page-preview__header">
+            <strong>{sidePreview.title}</strong>
+            <div>
+              <button type="button" onClick={() => onOpenPage(sidePreview.id)}>전체 페이지</button>
+              <button type="button" onClick={() => setSidePreview(null)} aria-label="닫기">×</button>
+            </div>
+          </div>
+          <div className="sidebar-page-preview__properties">
+            <span>상태: {sidePreview.status}</span>
+            {sidePreview.dueDate && <span>마감일: {sidePreview.dueDate}</span>}
+          </div>
+          <div className="sidebar-page-preview__content">
+            {sidePreview.contentJson.blocks.map((block) =>
+              "text" in block ? <p key={block.id}>{block.text || " "}</p> : block.type === "image" ? <p key={block.id}>🖼 이미지</p> : null,
+            )}
+          </div>
+        </aside>
+      )}
     </aside>
   );
 }

@@ -32,6 +32,7 @@ export function toPageSummaryDTO(row: PageRow): PageSummaryDTO {
     openQuestionCount: row.open_question_count ?? 0,
     isDeleted: !!row.is_deleted,
     updatedAt: row.updated_at,
+    updatedBy: row.updated_by,
   };
 }
 

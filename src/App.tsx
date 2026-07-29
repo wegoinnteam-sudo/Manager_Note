@@ -128,6 +128,8 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
           }}
           onSearch={(q) => navigate(`/search/${encodeURIComponent(q)}`)}
           presenceUsers={presenceUsers}
+          onPagesChanged={refreshPages}
+          members={members}
         />
         <div className="main">
           <div className="topbar">

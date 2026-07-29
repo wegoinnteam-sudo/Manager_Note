@@ -28,6 +28,7 @@ export interface PageSummaryDTO {
   openQuestionCount: number;
   isDeleted: boolean;
   updatedAt: string;
+  updatedBy?: string;
 }
 
 export interface PageDetailDTO extends PageSummaryDTO {
