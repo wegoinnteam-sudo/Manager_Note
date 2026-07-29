@@ -681,6 +681,9 @@ code {
 
 .block-input {
   flex: 1;
+  display: block;
+  width: 100%;
+  min-width: 0;
   border: none;
   outline: none;
   resize: none;
@@ -772,7 +775,9 @@ code {
 }
 
 .toggle-block__body {
+  display: block;
   width: 100%;
+  min-width: 0;
   border: none;
   outline: none;
   resize: none;

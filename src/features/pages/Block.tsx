@@ -13,6 +13,12 @@ const TEXTAREA_TYPES = new Set(["heading1", "heading2", "heading3", "paragraph",
 
 export type HeadingRef = { id: string; text: string; level: 1 | 2 | 3 };
 
+function fitTextareaToContent(element: HTMLTextAreaElement | null): void {
+  if (!element) return;
+  element.style.height = "auto";
+  element.style.height = `${element.scrollHeight}px`;
+}
+
 function PageLinkRow({ pageId, onOpenPage }: { pageId: string; onOpenPage: (id: string) => void }) {
   const [title, setTitle] = useState<string | null>(null);
   const [missing, setMissing] = useState(false);
@@ -95,9 +101,13 @@ export function Block({
 }) {
   const localRef = useRef<HTMLTextAreaElement | null>(null);
   const [, bumpRender] = useState(0);
+  const editableText = "text" in block ? block.text : "";
   useEffect(() => {
     bumpRender((v) => v + 1);
   }, [active]);
+  useEffect(() => {
+    fitTextareaToContent(localRef.current);
+  }, [active, editableText]);
   const domId = `block-${block.id}`;
   const remoteMarkers = active && editable ? <RemoteCaretMarkers textarea={localRef.current} users={remoteCursors} /> : <RemotePresenceBadge users={remoteCursors} />;
 
@@ -449,6 +459,7 @@ export function Block({
                 ref={(el) => {
                   localRef.current = el;
                   registerRef(el);
+                  fitTextareaToContent(el);
                 }}
                 className="block-input"
                 rows={1}
@@ -469,6 +480,7 @@ export function Block({
           </div>
           {block.expanded && (
             <textarea
+              ref={fitTextareaToContent}
               className="toggle-block__body"
               rows={2}
               value={block.body}
@@ -476,11 +488,7 @@ export function Block({
               disabled={!editable}
               onChange={(e) => onPatch({ body: e.target.value })}
               onPaste={onPasteBlock}
-              onInput={(e) => {
-                const el = e.currentTarget;
-                el.style.height = "auto";
-                el.style.height = `${el.scrollHeight}px`;
-              }}
+              onInput={(e) => fitTextareaToContent(e.currentTarget)}
             />
           )}
         </div>
@@ -536,6 +544,7 @@ export function Block({
               ref={(el) => {
                 localRef.current = el;
                 registerRef(el);
+                fitTextareaToContent(el);
               }}
               className="block-input"
               rows={1}
@@ -652,11 +661,7 @@ export function Block({
               onKeyDown={onKeyDownBlock}
               onPaste={onPasteBlock}
               autoFocus={active}
-              onInput={(e) => {
-                const el = e.currentTarget;
-                el.style.height = "auto";
-                el.style.height = `${el.scrollHeight}px`;
-              }}
+              onInput={(e) => fitTextareaToContent(e.currentTarget)}
             />
           ) : (
             <div className={cls} onClick={editable ? onFocus : undefined} style={{ minHeight: 24, cursor: editable ? "text" : "default" }}>
