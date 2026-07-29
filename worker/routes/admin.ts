@@ -1,13 +1,14 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import type { AppBindings } from "../types";
-import type { PageCategory } from "../../shared/types";
+import type { PageCategory, PageContent } from "../../shared/types";
 import { requireRole } from "../middleware/rbac";
 import { inviteUser, listUsers, setUserActive, updateUserRole } from "../db/users";
 import { toUserDTO } from "../lib/dto";
 import { logActivity } from "../db/activityLog";
 import { Errors } from "../lib/errors";
-import { createPage, listPages } from "../db/pages";
+import { createPage, getPageContent, listPages, updatePageContent, type PageRow } from "../db/pages";
+import { WEGOINN_DB_CONTENT, type ContentSeedNode } from "../data/wegoinnDbContent";
 
 export const adminRoute = new Hono<AppBindings>();
 
@@ -137,4 +138,102 @@ adminRoute.post("/seed-wegoinn-db", async (c) => {
   }
 
   return c.json({ created, skipped });
+});
+
+// A page's content is still "untouched" if it's exactly what createPage's
+// default looks like (empty heading2 + empty paragraph) — only then is it
+// safe to overwrite with seed content without risking clobbering real edits.
+function isDefaultEmptyContent(content: PageContent): boolean {
+  if (content.blocks.length !== 2) return false;
+  const [first, second] = content.blocks;
+  return (
+    first.type === "heading2" &&
+    first.text === "" &&
+    second.type === "paragraph" &&
+    second.text === ""
+  );
+}
+
+const seedMetaByTitle = new Map(SEED_PAGES.map((item) => [item.title, item]));
+
+adminRoute.post("/seed-wegoinn-db-content", async (c) => {
+  const user = c.var.user!;
+  const rows = await listPages(c.env.DB, c.var.teamId);
+  const byParentAndTitle = (parentId: string | null, title: string) =>
+    rows.find((r) => r.parent_id === parentId && r.title === title && !r.is_deleted);
+
+  let pagesCreated = 0;
+  let contentFilled = 0;
+
+  const ensureNode = async (node: ContentSeedNode, parentId: string | null): Promise<void> => {
+    let target: PageRow | undefined = byParentAndTitle(parentId, node.title);
+
+    if (!target) {
+      // Top-level nodes (parentId === null) reuse Stage 1's category/tags so
+      // this endpoint works even if the initial seed hasn't been run yet.
+      const meta = parentId === null ? seedMetaByTitle.get(node.title) : undefined;
+      const { page } = await createPage(c.env.DB, {
+        teamId: c.var.teamId,
+        parentId,
+        title: node.title,
+        createdBy: user.id,
+        category: meta?.category,
+        tags: meta?.tags,
+      });
+      rows.push(page);
+      target = page;
+      pagesCreated += 1;
+      if (node.blocks) {
+        const content = await getPageContent(c.env.DB, page.id);
+        if (content) {
+          await updatePageContent(c.env.DB, {
+            pageId: page.id,
+            expectedVersion: content.version,
+            content: { blocks: node.blocks },
+            updatedBy: user.id,
+          });
+          contentFilled += 1;
+        }
+      }
+    } else if (node.blocks) {
+      const content = await getPageContent(c.env.DB, target.id);
+      if (content) {
+        let parsed: PageContent;
+        try {
+          parsed = JSON.parse(content.content_json);
+        } catch {
+          parsed = { blocks: [] };
+        }
+        if (isDefaultEmptyContent(parsed)) {
+          await updatePageContent(c.env.DB, {
+            pageId: target.id,
+            expectedVersion: content.version,
+            content: { blocks: node.blocks },
+            updatedBy: user.id,
+          });
+          contentFilled += 1;
+        }
+      }
+    }
+
+    if (node.children) {
+      for (const child of node.children) {
+        await ensureNode(child, target.id);
+      }
+    }
+  };
+
+  for (const node of WEGOINN_DB_CONTENT) {
+    await ensureNode(node, null);
+  }
+
+  await logActivity(c.env.DB, {
+    teamId: c.var.teamId,
+    pageId: null,
+    actorId: user.id,
+    action: "wegoinn_db.content_seeded",
+    metadata: { pagesCreated, contentFilled },
+  });
+
+  return c.json({ pagesCreated, contentFilled });
 });

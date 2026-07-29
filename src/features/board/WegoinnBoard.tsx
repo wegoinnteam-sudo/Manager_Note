@@ -98,6 +98,8 @@ export function WegoinnBoard({
   const [sort, setSort] = useState<{ field: SortField; dir: "asc" | "desc" }>({ field: "title", dir: "asc" });
   const [seeding, setSeeding] = useState(false);
   const [seedResult, setSeedResult] = useState<{ created: number; skipped: number } | null>(null);
+  const [contentSeeding, setContentSeeding] = useState(false);
+  const [contentSeedResult, setContentSeedResult] = useState<{ pagesCreated: number; contentFilled: number } | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -229,12 +231,43 @@ export function WegoinnBoard({
     await onPagesChanged();
   };
 
+  const runContentSeed = async () => {
+    setContentSeeding(true);
+    try {
+      const result = await api.adminSeedWegoinnDbContent();
+      setContentSeedResult(result);
+      await onPagesChanged();
+    } finally {
+      setContentSeeding(false);
+    }
+  };
+
   const toggleSort = (field: SortField) => {
     setSort((current) => (current.field === field ? { field, dir: current.dir === "asc" ? "desc" : "asc" } : { field, dir: "asc" }));
   };
 
   return (
     <div className="wdb">
+      {user.role === "admin" && (
+        <div className="wdb__admin-tools">
+          <button type="button" disabled={seeding} onClick={runSeed}>
+            {seeding ? "만드는 중…" : "초기 자료 만들기"}
+          </button>
+          <button type="button" disabled={contentSeeding} onClick={runContentSeed}>
+            {contentSeeding ? "채우는 중…" : "하위 페이지·본문 내용 채우기"}
+          </button>
+          {seedResult && (
+            <span className="wdb__admin-tools-result">
+              자료 {seedResult.created}개 생성, {seedResult.skipped}개 건너뜀
+            </span>
+          )}
+          {contentSeedResult && (
+            <span className="wdb__admin-tools-result">
+              하위 페이지 {contentSeedResult.pagesCreated}개 생성, 본문 {contentSeedResult.contentFilled}개 채움
+            </span>
+          )}
+        </div>
+      )}
       <div className="wdb__header">
         <h2 className="wdb__title">🗂 Wegoinn DB</h2>
         <div className="wdb__tabs" role="tablist" aria-label="보기 전환">
@@ -317,20 +350,7 @@ export function WegoinnBoard({
       {roots.length === 0 ? (
         <div className="wdb__empty">
           <p>아직 등록된 자료가 없습니다.</p>
-          {user.role === "admin" ? (
-            <>
-              <button type="button" disabled={seeding} onClick={runSeed}>
-                {seeding ? "만드는 중…" : "초기 Wegoinn DB 자료 만들기"}
-              </button>
-              {seedResult && (
-                <p className="wdb__seed-result">
-                  {seedResult.created}개 생성, {seedResult.skipped}개는 이미 있어서 건너뜀
-                </p>
-              )}
-            </>
-          ) : (
-            <p>관리자에게 초기 자료 생성을 요청해주세요.</p>
-          )}
+          <p>{user.role === "admin" ? "위쪽 관리자 도구에서 초기 자료를 만들어보세요." : "관리자에게 초기 자료 생성을 요청해주세요."}</p>
         </div>
       ) : filtered.length === 0 ? (
         <div className="wdb__empty">

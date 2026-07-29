@@ -136,6 +136,8 @@ export const api = {
     request<{ ok: true }>(`/api/admin/users/${id}/active`, { method: "PATCH", body: JSON.stringify({ isActive }) }),
   adminSeedWegoinnDb: () =>
     request<{ created: string[]; skipped: string[] }>("/api/admin/seed-wegoinn-db", { method: "POST" }),
+  adminSeedWegoinnDbContent: () =>
+    request<{ pagesCreated: number; contentFilled: number }>("/api/admin/seed-wegoinn-db-content", { method: "POST" }),
 };
 
 /**
