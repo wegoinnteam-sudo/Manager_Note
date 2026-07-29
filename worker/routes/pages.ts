@@ -56,6 +56,10 @@ pagesRoute.post("/", requireRole("editor"), async (c) => {
     parentId: body.parentId ?? null,
     title: body.title ?? null,
     createdBy: user.id,
+    category: body.category,
+    description: body.description,
+    tags: body.tags,
+    orderKey: body.orderKey,
   });
   await logActivity(c.env.DB, { teamId: c.var.teamId, pageId: page.id, actorId: user.id, action: "page.created" });
   return c.json(toPageDetailDTO(page, content), 201);
@@ -92,6 +96,8 @@ pagesRoute.patch("/:id", requireRole("editor"), async (c) => {
       orderKey: body.orderKey,
       textColor: body.textColor,
       highlightColor: body.highlightColor,
+      category: body.category,
+      description: body.description,
     },
   });
 

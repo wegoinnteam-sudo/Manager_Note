@@ -77,9 +77,16 @@ export const pageBlockSchema = z.discriminatedUnion("type", [
   z.object({ id: z.string(), type: z.literal("breadcrumb") }),
 ]);
 
+const pageCategorySchema = z.enum(["reception", "cleaning", "marketing", "wegoinn2", "operations"]);
+const descriptionSchema = z.string().max(300);
+
 export const createPageSchema = z.object({
   parentId: z.string().nullable().optional(),
   title: z.string().max(MAX_TITLE_LENGTH).optional(),
+  category: pageCategorySchema.nullable().optional(),
+  description: descriptionSchema.nullable().optional(),
+  tags: z.array(z.string().max(50)).max(20).optional(),
+  orderKey: z.number().optional(),
 });
 
 const hexColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/);
@@ -95,6 +102,8 @@ export const updatePageMetaSchema = z.object({
   orderKey: z.number().optional(),
   textColor: hexColorSchema.nullable().optional(),
   highlightColor: hexColorSchema.nullable().optional(),
+  category: pageCategorySchema.nullable().optional(),
+  description: descriptionSchema.nullable().optional(),
 });
 
 export const updatePageContentSchema = z.object({

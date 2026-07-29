@@ -1,0 +1,485 @@
+import { useEffect, useMemo, useState, type DragEvent, type ReactNode } from "react";
+import type { PageCategory, PageSummaryDTO, TeamMemberDTO, UserDTO } from "@shared/types";
+import {
+  CATEGORY_COLORS,
+  CATEGORY_LABELS,
+  DEFAULT_TAG_COLOR,
+  PAGE_CATEGORIES,
+  TAG_COLORS,
+  UNCATEGORIZED_COLOR,
+  UNCATEGORIZED_LABEL,
+} from "@shared/types";
+import { api } from "@/lib/api";
+import { memberName } from "@/hooks/useTeamMembers";
+
+type ViewMode = "board" | "list";
+type CategoryFilter = PageCategory | "all" | "none";
+type SortField = "title" | "category" | "date" | "updatedAt";
+
+function readQueryParams() {
+  const params = new URLSearchParams(window.location.search);
+  return {
+    view: (params.get("view") === "list" ? "list" : "board") as ViewMode,
+    q: params.get("q") ?? "",
+    category: (params.get("category") as CategoryFilter | null) ?? "all",
+    tag: params.get("tag") ?? "",
+  };
+}
+
+function formatKoreanDate(date: string | null): string | null {
+  if (!date) return null;
+  const d = new Date(`${date}T00:00:00+09:00`);
+  if (Number.isNaN(d.getTime())) return date;
+  return new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", year: "numeric", month: "long", day: "numeric" }).format(d);
+}
+
+function HighlightedText({ text, query }: { text: string; query: string }) {
+  if (!query.trim()) return <>{text}</>;
+  const idx = text.toLowerCase().indexOf(query.trim().toLowerCase());
+  if (idx === -1) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, idx)}
+      <mark className="wdb-highlight">{text.slice(idx, idx + query.trim().length)}</mark>
+      {text.slice(idx + query.trim().length)}
+    </>
+  );
+}
+
+function TagChips({ tags }: { tags: string[] }) {
+  if (tags.length === 0) return null;
+  return (
+    <div className="wdb-tags">
+      {tags.map((tag) => {
+        const color = TAG_COLORS[tag] ?? DEFAULT_TAG_COLOR;
+        return (
+          <span key={tag} className="wdb-tag" style={{ color, background: `${color}1f`, borderColor: `${color}55` }}>
+            {tag}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function CategoryBadge({ category }: { category: PageCategory | null }) {
+  const label = category ? CATEGORY_LABELS[category] : UNCATEGORIZED_LABEL;
+  const color = category ? CATEGORY_COLORS[category] : UNCATEGORIZED_COLOR;
+  return (
+    <span className="wdb-category-badge" style={{ color, background: `${color}1f` }}>
+      {label}
+    </span>
+  );
+}
+
+export function WegoinnBoard({
+  pages,
+  members,
+  user,
+  canEdit,
+  onOpenPage,
+  onPagesChanged,
+}: {
+  pages: PageSummaryDTO[];
+  members: TeamMemberDTO[];
+  user: UserDTO;
+  canEdit: boolean;
+  onOpenPage: (id: string) => void;
+  onPagesChanged: () => Promise<void> | void;
+}) {
+  const initial = useMemo(readQueryParams, []);
+  const [view, setView] = useState<ViewMode>(initial.view);
+  const [query, setQuery] = useState(initial.q);
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>(initial.category);
+  const [tagFilter, setTagFilter] = useState(initial.tag);
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dropBeforeId, setDropBeforeId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [sort, setSort] = useState<{ field: SortField; dir: "asc" | "desc" }>({ field: "title", dir: "asc" });
+  const [seeding, setSeeding] = useState(false);
+  const [seedResult, setSeedResult] = useState<{ created: number; skipped: number } | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (view !== "board") params.set("view", view);
+    if (query) params.set("q", query);
+    if (categoryFilter !== "all") params.set("category", categoryFilter);
+    if (tagFilter) params.set("tag", tagFilter);
+    const qs = params.toString();
+    window.history.replaceState({}, "", qs ? `/db?${qs}` : "/db");
+  }, [view, query, categoryFilter, tagFilter]);
+
+  const roots = useMemo(() => pages.filter((p) => !p.isDeleted && !p.parentId), [pages]);
+
+  const allTags = useMemo(() => {
+    const set = new Set<string>();
+    roots.forEach((p) => p.tags.forEach((t) => set.add(t)));
+    return [...set].sort();
+  }, [roots]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return roots.filter((p) => {
+      if (categoryFilter === "none" && p.category) return false;
+      if (categoryFilter !== "all" && categoryFilter !== "none" && p.category !== categoryFilter) return false;
+      if (tagFilter && !p.tags.includes(tagFilter)) return false;
+      if (q && !p.title.toLowerCase().includes(q) && !(p.description ?? "").toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [roots, categoryFilter, tagFilter, query]);
+
+  const columns = useMemo(() => {
+    const cols: { key: PageCategory | null; label: string; color: string; items: PageSummaryDTO[] }[] = PAGE_CATEGORIES.map((cat) => ({
+      key: cat,
+      label: CATEGORY_LABELS[cat],
+      color: CATEGORY_COLORS[cat],
+      items: filtered.filter((p) => p.category === cat).sort((a, b) => a.orderKey - b.orderKey),
+    }));
+    cols.push({
+      key: null,
+      label: UNCATEGORIZED_LABEL,
+      color: UNCATEGORIZED_COLOR,
+      items: filtered.filter((p) => !p.category).sort((a, b) => a.orderKey - b.orderKey),
+    });
+    return cols;
+  }, [filtered]);
+
+  const sortedList = useMemo(() => {
+    const dir = sort.dir === "asc" ? 1 : -1;
+    const value = (p: PageSummaryDTO): string => {
+      switch (sort.field) {
+        case "title":
+          return p.title;
+        case "category":
+          return p.category ? CATEGORY_LABELS[p.category] : UNCATEGORIZED_LABEL;
+        case "date":
+          return p.dueDate ?? "";
+        case "updatedAt":
+          return p.updatedAt;
+        default:
+          return "";
+      }
+    };
+    return [...filtered].sort((a, b) => {
+      const va = value(a);
+      const vb = value(b);
+      return va < vb ? -dir : va > vb ? dir : 0;
+    });
+  }, [filtered, sort]);
+
+  const createInCategory = async (category: PageCategory | null) => {
+    const page = await api.createPage({ parentId: null, category });
+    await onPagesChanged();
+    onOpenPage(page.id);
+  };
+
+  const moveCard = async (page: PageSummaryDTO, category: PageCategory | null, beforeId: string | null) => {
+    if (page.category === category && beforeId === page.id) return;
+    const column = columns.find((c) => c.key === category);
+    const siblings = (column?.items ?? []).filter((p) => p.id !== page.id);
+    const idx = beforeId ? siblings.findIndex((p) => p.id === beforeId) : siblings.length;
+    const prev = siblings[idx - 1];
+    const next = siblings[idx];
+    const orderKey = prev && next ? (prev.orderKey + next.orderKey) / 2 : prev ? prev.orderKey + 1 : next ? next.orderKey - 1 : 0;
+
+    const detail = await api.getPage(page.id);
+    await api.updatePageMeta(page.id, { expectedVersion: detail.version, category, orderKey });
+    await onPagesChanged();
+  };
+
+  const runSeed = async () => {
+    setSeeding(true);
+    try {
+      const result = await api.adminSeedWegoinnDb();
+      setSeedResult({ created: result.created.length, skipped: result.skipped.length });
+      await onPagesChanged();
+    } finally {
+      setSeeding(false);
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const bulkSetCategory = async (category: PageCategory | null) => {
+    const ids = [...selected];
+    setSelected(new Set());
+    for (const id of ids) {
+      const page = pages.find((p) => p.id === id);
+      if (!page) continue;
+      const detail = await api.getPage(id);
+      await api.updatePageMeta(id, { expectedVersion: detail.version, category });
+    }
+    await onPagesChanged();
+  };
+
+  const bulkArchive = async () => {
+    if (!window.confirm(`선택한 ${selected.size}개 자료를 휴지통으로 이동할까요?`)) return;
+    const ids = [...selected];
+    setSelected(new Set());
+    for (const id of ids) {
+      await api.deletePage(id);
+    }
+    await onPagesChanged();
+  };
+
+  const toggleSort = (field: SortField) => {
+    setSort((current) => (current.field === field ? { field, dir: current.dir === "asc" ? "desc" : "asc" } : { field, dir: "asc" }));
+  };
+
+  return (
+    <div className="wdb">
+      <div className="wdb__header">
+        <h2 className="wdb__title">🗂 Wegoinn DB</h2>
+        <div className="wdb__tabs" role="tablist" aria-label="보기 전환">
+          <button type="button" className={view === "board" ? "wdb__tab wdb__tab--active" : "wdb__tab"} onClick={() => setView("board")}>
+            전체 보드
+          </button>
+          <button type="button" className={view === "list" ? "wdb__tab wdb__tab--active" : "wdb__tab"} onClick={() => setView("list")}>
+            전체 목록
+          </button>
+        </div>
+        <input
+          className="wdb__search"
+          type="search"
+          placeholder="자료명, 설명 검색"
+          aria-label="Wegoinn DB 검색"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <select className="wdb__filter" aria-label="카테고리 필터" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value as CategoryFilter)}>
+          <option value="all">전체 카테고리</option>
+          {PAGE_CATEGORIES.map((cat) => (
+            <option key={cat} value={cat}>
+              {CATEGORY_LABELS[cat]}
+            </option>
+          ))}
+          <option value="none">{UNCATEGORIZED_LABEL}</option>
+        </select>
+        {allTags.length > 0 && (
+          <select className="wdb__filter" aria-label="태그 필터" value={tagFilter} onChange={(e) => setTagFilter(e.target.value)}>
+            <option value="">전체 태그</option>
+            {allTags.map((tag) => (
+              <option key={tag} value={tag}>
+                {tag}
+              </option>
+            ))}
+          </select>
+        )}
+        {canEdit && (
+          <button
+            type="button"
+            className="wdb__new-btn"
+            onClick={() => createInCategory(categoryFilter !== "all" && categoryFilter !== "none" ? categoryFilter : null)}
+          >
+            + 새 자료
+          </button>
+        )}
+      </div>
+
+      {selected.size > 0 && (
+        <div className="wdb__bulkbar">
+          <span>{selected.size}개 선택됨</span>
+          <select
+            aria-label="카테고리 일괄 변경"
+            defaultValue=""
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v) bulkSetCategory(v === "none" ? null : (v as PageCategory));
+              e.target.value = "";
+            }}
+          >
+            <option value="" disabled>
+              카테고리로 이동…
+            </option>
+            {PAGE_CATEGORIES.map((cat) => (
+              <option key={cat} value={cat}>
+                {CATEGORY_LABELS[cat]}
+              </option>
+            ))}
+            <option value="none">{UNCATEGORIZED_LABEL}</option>
+          </select>
+          <button type="button" onClick={bulkArchive}>
+            보관(휴지통으로)
+          </button>
+          <button type="button" onClick={() => setSelected(new Set())}>
+            선택 해제
+          </button>
+        </div>
+      )}
+
+      {roots.length === 0 ? (
+        <div className="wdb__empty">
+          <p>아직 등록된 자료가 없습니다.</p>
+          {user.role === "admin" ? (
+            <>
+              <button type="button" disabled={seeding} onClick={runSeed}>
+                {seeding ? "만드는 중…" : "초기 Wegoinn DB 자료 만들기"}
+              </button>
+              {seedResult && (
+                <p className="wdb__seed-result">
+                  {seedResult.created}개 생성, {seedResult.skipped}개는 이미 있어서 건너뜀
+                </p>
+              )}
+            </>
+          ) : (
+            <p>관리자에게 초기 자료 생성을 요청해주세요.</p>
+          )}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="wdb__empty">
+          <p>조건에 맞는 자료가 없습니다.</p>
+        </div>
+      ) : view === "board" ? (
+        <div className="wdb-board">
+          {columns.map((col) => (
+            <div
+              key={col.key ?? "none"}
+              className="wdb-board__col"
+              onDragOver={(event: DragEvent) => {
+                if (draggedId) event.preventDefault();
+              }}
+              onDrop={(event: DragEvent) => {
+                event.preventDefault();
+                const page = filtered.find((p) => p.id === draggedId);
+                if (page) moveCard(page, col.key, dropBeforeId);
+                setDraggedId(null);
+                setDropBeforeId(null);
+              }}
+            >
+              <div className="wdb-board__col-title">
+                <span className="wdb-board__col-dot" style={{ background: col.color }} />
+                {col.label}
+                <span className="wdb-board__col-count">{col.items.length}</span>
+              </div>
+              {col.items.map((page) => (
+                <div
+                  key={page.id}
+                  className={page.id === draggedId ? "wdb-card wdb-card--dragging" : "wdb-card"}
+                  draggable={canEdit}
+                  onDragStart={() => setDraggedId(page.id)}
+                  onDragOver={(event: DragEvent) => {
+                    if (draggedId && draggedId !== page.id) {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setDropBeforeId(page.id);
+                    }
+                  }}
+                  onDragEnd={() => {
+                    setDraggedId(null);
+                    setDropBeforeId(null);
+                  }}
+                  onClick={() => onOpenPage(page.id)}
+                >
+                  <div className="wdb-card__title">
+                    <HighlightedText text={page.title || "제목 없음"} query={query} />
+                  </div>
+                  {page.description && (
+                    <div className="wdb-card__desc">
+                      <HighlightedText text={page.description} query={query} />
+                    </div>
+                  )}
+                  {(page.tags.length > 0 || page.dueDate) && (
+                    <div className="wdb-card__meta">
+                      <TagChips tags={page.tags} />
+                      {page.dueDate && <span className="wdb-card__date">{formatKoreanDate(page.dueDate)}</span>}
+                    </div>
+                  )}
+                </div>
+              ))}
+              {canEdit && (
+                <button type="button" className="wdb-board__add" onClick={() => createInCategory(col.key)}>
+                  + 신규 item
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="wdb-table-wrap">
+          <table className="wdb-table">
+            <thead>
+              <tr>
+                <th className="wdb-table__checkcol">
+                  <input
+                    type="checkbox"
+                    aria-label="전체 선택"
+                    checked={selected.size > 0 && selected.size === sortedList.length}
+                    onChange={(e) => setSelected(e.target.checked ? new Set(sortedList.map((p) => p.id)) : new Set())}
+                  />
+                </th>
+                <SortableHeader field="title" sort={sort} onToggle={toggleSort}>
+                  자료명
+                </SortableHeader>
+                <SortableHeader field="category" sort={sort} onToggle={toggleSort}>
+                  카테고리
+                </SortableHeader>
+                <th>설명</th>
+                <th>태그</th>
+                <SortableHeader field="date" sort={sort} onToggle={toggleSort}>
+                  날짜
+                </SortableHeader>
+                <SortableHeader field="updatedAt" sort={sort} onToggle={toggleSort}>
+                  마지막 수정일
+                </SortableHeader>
+                <th>수정자</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedList.map((page) => (
+                <tr key={page.id} className={selected.has(page.id) ? "wdb-table__row wdb-table__row--selected" : "wdb-table__row"}>
+                  <td onClick={(e) => e.stopPropagation()}>
+                    <input type="checkbox" aria-label={`${page.title} 선택`} checked={selected.has(page.id)} onChange={() => toggleSelect(page.id)} />
+                  </td>
+                  <td>
+                    <button type="button" className="wdb-table__title" onClick={() => onOpenPage(page.id)}>
+                      <HighlightedText text={page.title || "제목 없음"} query={query} />
+                    </button>
+                  </td>
+                  <td>
+                    <CategoryBadge category={page.category} />
+                  </td>
+                  <td className="wdb-table__desc">{page.description ?? ""}</td>
+                  <td>
+                    <TagChips tags={page.tags} />
+                  </td>
+                  <td>{formatKoreanDate(page.dueDate) ?? ""}</td>
+                  <td>{formatKoreanDate(page.updatedAt.slice(0, 10))}</td>
+                  <td>{page.updatedBy ? memberName(members, page.updatedBy) : ""}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SortableHeader({
+  field,
+  sort,
+  onToggle,
+  children,
+}: {
+  field: SortField;
+  sort: { field: SortField; dir: "asc" | "desc" };
+  onToggle: (field: SortField) => void;
+  children: ReactNode;
+}) {
+  const active = sort.field === field;
+  return (
+    <th>
+      <button type="button" className="wdb-table__sort" onClick={() => onToggle(field)}>
+        {children}
+        {active && <span className="wdb-table__sort-arrow">{sort.dir === "asc" ? "▲" : "▼"}</span>}
+      </button>
+    </th>
+  );
+}

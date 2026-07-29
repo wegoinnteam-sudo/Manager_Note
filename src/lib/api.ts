@@ -10,6 +10,7 @@ import type {
   Role,
   TeamMemberDTO,
   InlineQuestionDTO,
+  PageCategory,
 } from "@shared/types";
 
 export class ApiClientError extends Error {
@@ -56,8 +57,14 @@ export const api = {
 
   listPages: (opts: { trash?: boolean } = {}) =>
     request<{ pages: PageSummaryDTO[] }>(`/api/pages${opts.trash ? "?trash=1" : ""}`),
-  createPage: (input: { parentId?: string | null; title?: string }) =>
-    request<PageDetailDTO>("/api/pages", { method: "POST", body: JSON.stringify(input) }),
+  createPage: (input: {
+    parentId?: string | null;
+    title?: string;
+    category?: PageCategory | null;
+    description?: string | null;
+    tags?: string[];
+    orderKey?: number;
+  }) => request<PageDetailDTO>("/api/pages", { method: "POST", body: JSON.stringify(input) }),
   getPage: (id: string) => request<PageDetailDTO>(`/api/pages/${id}`),
   updatePageMeta: (
     id: string,
@@ -72,6 +79,8 @@ export const api = {
       orderKey?: number;
       textColor?: string | null;
       highlightColor?: string | null;
+      category?: PageCategory | null;
+      description?: string | null;
     },
   ) => request<PageDetailDTO>(`/api/pages/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
   updatePageContent: (id: string, expectedVersion: number, content: PageContent) =>
@@ -125,6 +134,8 @@ export const api = {
     request<{ ok: true }>(`/api/admin/users/${id}/role`, { method: "PATCH", body: JSON.stringify({ role }) }),
   adminSetActive: (id: string, isActive: boolean) =>
     request<{ ok: true }>(`/api/admin/users/${id}/active`, { method: "PATCH", body: JSON.stringify({ isActive }) }),
+  adminSeedWegoinnDb: () =>
+    request<{ created: string[]; skipped: string[] }>("/api/admin/seed-wegoinn-db", { method: "POST" }),
 };
 
 /**

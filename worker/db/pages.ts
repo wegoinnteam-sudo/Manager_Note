@@ -1,5 +1,5 @@
 import type { Env } from "../types";
-import type { HandoffStatus, PageBlock, PageContent } from "../../shared/types";
+import type { HandoffStatus, PageBlock, PageCategory, PageContent } from "../../shared/types";
 import { newId, nowIso } from "../lib/ids";
 import { Errors } from "../lib/errors";
 import { UNTITLED_PAGE_TITLE } from "../../shared/types";
@@ -16,6 +16,8 @@ export interface PageRow {
   order_key: number;
   text_color: string | null;
   highlight_color: string | null;
+  category: string | null;
+  description: string | null;
   version: number;
   open_question_count?: number;
   is_system: number;
@@ -66,26 +68,51 @@ export async function getPageContent(db: Env["DB"], pageId: string): Promise<Pag
 
 export async function createPage(
   db: Env["DB"],
-  params: { teamId: string; parentId: string | null; title: string | null; createdBy: string; isSystem?: boolean },
+  params: {
+    teamId: string;
+    parentId: string | null;
+    title: string | null;
+    createdBy: string;
+    isSystem?: boolean;
+    category?: PageCategory | null;
+    description?: string | null;
+    tags?: string[];
+    orderKey?: number;
+  },
 ): Promise<{ page: PageRow; content: PageContentRow }> {
   const id = newId("page");
   const now = nowIso();
   const title = params.title?.trim() || UNTITLED_PAGE_TITLE;
 
-  const maxOrder = await db
-    .prepare(
-      "SELECT COALESCE(MAX(order_key), 0) as m FROM pages WHERE team_id = ?1 AND (parent_id IS ?2)",
-    )
-    .bind(params.teamId, params.parentId)
-    .first<{ m: number }>();
-  const orderKey = (maxOrder?.m ?? 0) + 1;
+  let orderKey = params.orderKey;
+  if (orderKey === undefined) {
+    const maxOrder = await db
+      .prepare(
+        "SELECT COALESCE(MAX(order_key), 0) as m FROM pages WHERE team_id = ?1 AND (parent_id IS ?2)",
+      )
+      .bind(params.teamId, params.parentId)
+      .first<{ m: number }>();
+    orderKey = (maxOrder?.m ?? 0) + 1;
+  }
 
   await db
     .prepare(
-      `INSERT INTO pages (id, team_id, parent_id, title, order_key, is_system, created_by, updated_by, created_at, updated_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7, ?8, ?8)`,
+      `INSERT INTO pages (id, team_id, parent_id, title, order_key, is_system, category, description, tags, created_by, updated_by, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?10, ?11, ?11)`,
     )
-    .bind(id, params.teamId, params.parentId, title, orderKey, params.isSystem ? 1 : 0, params.createdBy, now)
+    .bind(
+      id,
+      params.teamId,
+      params.parentId,
+      title,
+      orderKey,
+      params.isSystem ? 1 : 0,
+      params.category ?? null,
+      params.description ?? null,
+      JSON.stringify(params.tags ?? []),
+      params.createdBy,
+      now,
+    )
     .run();
 
   const initialBlocks: PageBlock[] = params.isSystem
@@ -125,6 +152,8 @@ export async function updatePageMeta(
       orderKey: number;
       textColor: string | null;
       highlightColor: string | null;
+      category: PageCategory | null;
+      description: string | null;
     }>;
   },
 ): Promise<PageRow> {
@@ -142,6 +171,8 @@ export async function updatePageMeta(
     order_key: params.patch.orderKey !== undefined ? params.patch.orderKey : current.order_key,
     text_color: params.patch.textColor !== undefined ? params.patch.textColor : current.text_color,
     highlight_color: params.patch.highlightColor !== undefined ? params.patch.highlightColor : current.highlight_color,
+    category: params.patch.category !== undefined ? params.patch.category : current.category,
+    description: params.patch.description !== undefined ? params.patch.description : current.description,
   };
 
   const now = nowIso();
@@ -149,8 +180,9 @@ export async function updatePageMeta(
     .prepare(
       `UPDATE pages SET title = ?1, status = ?2, assignee_id = ?3, due_date = ?4, tags = ?5,
        parent_id = ?6, order_key = ?7, text_color = ?8, highlight_color = ?9,
-       version = version + 1, updated_by = ?10, updated_at = ?11
-       WHERE id = ?12 AND team_id = ?13 AND version = ?14`,
+       category = ?10, description = ?11,
+       version = version + 1, updated_by = ?12, updated_at = ?13
+       WHERE id = ?14 AND team_id = ?15 AND version = ?16`,
     )
     .bind(
       next.title,
@@ -162,6 +194,8 @@ export async function updatePageMeta(
       next.order_key,
       next.text_color,
       next.highlight_color,
+      next.category,
+      next.description,
       params.updatedBy,
       now,
       params.id,

@@ -7,6 +7,46 @@ export type HandoffStatus = "in_progress" | "handoff_pending" | "done" | "on_hol
 
 export type UploadStatus = "pending" | "ready" | "failed";
 
+// "Wegoinn DB" board categories — a fixed single-select property on pages,
+// mirroring the team's existing Notion database structure.
+export type PageCategory = "reception" | "cleaning" | "marketing" | "wegoinn2" | "operations";
+
+// Column order on the "Wegoinn DB" board — matches the team's real Notion
+// board layout (Reception, Cleaning, 운영(기타), Wegoinn 2.0, Marketing).
+export const PAGE_CATEGORIES: PageCategory[] = ["reception", "cleaning", "operations", "wegoinn2", "marketing"];
+
+export const CATEGORY_LABELS: Record<PageCategory, string> = {
+  reception: "Reception",
+  cleaning: "Cleaning",
+  marketing: "Marketing",
+  wegoinn2: "Wegoinn 2.0",
+  operations: "운영(기타)",
+};
+
+export const CATEGORY_COLORS: Record<PageCategory, string> = {
+  reception: "#2563eb",
+  cleaning: "#16a34a",
+  marketing: "#9333ea",
+  wegoinn2: "#ea580c",
+  operations: "#6b7280",
+};
+
+export const UNCATEGORIZED_LABEL = "카테고리 없음";
+export const UNCATEGORIZED_COLOR = "#9ca3af";
+
+// Known tag names get a fixed color; unrecognized tags fall back to a
+// neutral chip so custom/free-form tags still render sensibly.
+export const TAG_COLORS: Record<string, string> = {
+  계약서: "#dc2626",
+  견적서: "#2563eb",
+  회의록: "#9333ea",
+  템플릿: "#92400e",
+  제안서: "#16a34a",
+  정산: "#ca8a04",
+  아이디어: "#6b7280",
+};
+export const DEFAULT_TAG_COLOR = "#6b7280";
+
 export interface UserDTO {
   id: string;
   email: string;
@@ -31,11 +71,13 @@ export interface PageSummaryDTO {
   updatedBy?: string;
   textColor: string | null;
   highlightColor: string | null;
+  category: PageCategory | null;
+  description: string | null;
+  tags: string[];
 }
 
 export interface PageDetailDTO extends PageSummaryDTO {
   contentJson: PageContent;
-  tags: string[];
   contentVersion: number;
   createdBy: string;
   updatedBy: string;

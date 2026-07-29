@@ -18,6 +18,9 @@ function page(overrides: Partial<PageSummaryDTO>): PageSummaryDTO {
     updatedAt: "2026-01-01T00:00:00Z",
     textColor: null,
     highlightColor: null,
+    category: null,
+    description: null,
+    tags: [],
     ...overrides,
   };
 }

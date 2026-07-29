@@ -2333,6 +2333,341 @@ button.breadcrumb-block__item:hover {
   cursor: pointer;
 }
 
+.sidebar__link--wdb {
+  font-weight: 700;
+  color: var(--color-accent);
+}
+
+.wdb__home-link {
+  margin-top: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-accent-bg);
+  color: var(--color-accent);
+  font-weight: 600;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+.wdb {
+  padding: 20px 24px 60px;
+  overflow-y: auto;
+  height: 100%;
+}
+
+.wdb__header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.wdb__title {
+  margin: 0;
+  font-size: 18px;
+  margin-right: 6px;
+}
+
+.wdb__tabs {
+  display: flex;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.wdb__tab {
+  border: none;
+  background: var(--color-bg);
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--color-text-muted);
+}
+
+.wdb__tab--active {
+  background: var(--color-accent-bg);
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.wdb__search {
+  flex: 1;
+  min-width: 160px;
+  max-width: 320px;
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 13px;
+}
+
+.wdb__filter {
+  padding: 6px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.wdb__new-btn {
+  border: none;
+  border-radius: var(--radius);
+  background: var(--color-accent);
+  color: #fff;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.wdb__bulkbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  border-radius: var(--radius);
+  background: var(--color-accent-bg);
+  font-size: 13px;
+}
+
+.wdb__bulkbar select,
+.wdb__bulkbar button {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.wdb__empty {
+  padding: 60px 20px;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.wdb__empty button {
+  margin-top: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-accent);
+  color: #fff;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.wdb__seed-result {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.wdb-highlight {
+  background: #fde68a;
+  color: inherit;
+  border-radius: 2px;
+}
+
+.wdb-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.wdb-tag {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.wdb-category-badge {
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.wdb-board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(230px, 1fr);
+  gap: 12px;
+  overflow-x: auto;
+  align-items: start;
+  padding-bottom: 12px;
+}
+
+.wdb-board__col {
+  background: var(--color-bg-sidebar);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 10px;
+  min-height: 80px;
+}
+
+.wdb-board__col-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.wdb-board__col-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.wdb-board__col-count {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.wdb-card {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+
+.wdb-card:hover {
+  border-color: var(--color-accent);
+}
+
+.wdb-card--dragging {
+  opacity: 0.4;
+}
+
+.wdb-card__title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.wdb-card__desc {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-bottom: 6px;
+}
+
+.wdb-card__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.wdb-card__date {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.wdb-board__add {
+  width: 100%;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius);
+  background: none;
+  padding: 6px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.wdb-board__add:hover {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.wdb-table-wrap {
+  overflow-x: auto;
+}
+
+.wdb-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.wdb-table th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.wdb-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+
+.wdb-table__row:hover {
+  background: var(--color-accent-bg);
+}
+
+.wdb-table__row--selected {
+  background: var(--color-accent-bg);
+}
+
+.wdb-table__title {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-weight: 600;
+  text-align: left;
+  padding: 0;
+  color: inherit;
+  font-size: 13px;
+}
+
+.wdb-table__title:hover {
+  color: var(--color-accent);
+}
+
+.wdb-table__desc {
+  color: var(--color-text-muted);
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wdb-table__sort {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.wdb-table__sort-arrow {
+  font-size: 9px;
+}
+
 @media (max-width: 860px) {
   .sidebar {
     position: fixed;
@@ -2351,5 +2686,16 @@ button.breadcrumb-block__item:hover {
   }
   .page-view {
     padding: 24px 20px 100px;
+  }
+  .wdb {
+    padding: 16px 14px 60px;
+  }
+  .wdb-board {
+    grid-auto-flow: row;
+    grid-auto-columns: unset;
+    overflow-x: visible;
+  }
+  .wdb__new-btn {
+    margin-left: 0;
   }
 }

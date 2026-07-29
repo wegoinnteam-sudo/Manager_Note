@@ -11,6 +11,7 @@ import type {
   StatusHistoryDTO,
   UserDTO,
   PageContent,
+  PageCategory,
 } from "../../shared/types";
 import { IMAGE_EXTENSIONS } from "../../shared/types";
 
@@ -35,6 +36,9 @@ export function toPageSummaryDTO(row: PageRow): PageSummaryDTO {
     updatedBy: row.updated_by,
     textColor: row.text_color,
     highlightColor: row.highlight_color,
+    category: (row.category as PageCategory | null) ?? null,
+    description: row.description,
+    tags: safeParseTags(row.tags),
   };
 }
 
@@ -48,7 +52,6 @@ export function toPageDetailDTO(page: PageRow, content: PageContentRow): PageDet
   return {
     ...toPageSummaryDTO(page),
     contentJson: parsed,
-    tags: safeParseTags(page.tags),
     version: page.version,
     contentVersion: content.version,
     createdBy: page.created_by,

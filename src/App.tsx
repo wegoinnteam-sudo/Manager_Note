@@ -8,6 +8,7 @@ import { useGuestIdentity } from "@/hooks/useGuestIdentity";
 import { usePresence } from "@/hooks/usePresence";
 import { api } from "@/lib/api";
 import { Sidebar } from "@/features/sidebar/Sidebar";
+import { WegoinnBoard } from "@/features/board/WegoinnBoard";
 import { PageView } from "@/features/pages/PageView";
 import { Trash } from "@/features/trash/Trash";
 import { AdminSettings } from "@/features/admin/AdminSettings";
@@ -75,7 +76,18 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
   }, [activePageId, reportCursor]);
 
   let content: React.ReactNode;
-  if (path === "/trash") {
+  if (path === "/db") {
+    content = (
+      <WegoinnBoard
+        pages={pages}
+        members={members}
+        user={user}
+        canEdit={canEdit}
+        onOpenPage={openPage}
+        onPagesChanged={refreshPages}
+      />
+    );
+  } else if (path === "/trash") {
     content = <Trash canRestore={canEdit} onOpenPage={openPage} onRestored={refreshPages} />;
   } else if (path === "/admin") {
     content = user.role === "admin" ? <AdminSettings /> : <div className="page-view">관리자만 접근할 수 있습니다.</div>;
@@ -106,6 +118,9 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
       <div className="page-view">
         <h2>팀 인수인계 노트</h2>
         <p>왼쪽에서 페이지를 선택하거나 새 페이지를 만들어보세요.</p>
+        <button type="button" className="wdb__home-link" onClick={() => navigate("/db")}>
+          🗂 Wegoinn DB 열기
+        </button>
       </div>
     );
   }
