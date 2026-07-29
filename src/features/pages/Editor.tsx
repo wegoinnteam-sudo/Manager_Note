@@ -2,6 +2,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useSta
 import type { AttachmentDTO, PageBlock, PageContent, PageSummaryDTO, TeamMemberDTO } from "@shared/types";
 import { ALLOWED_UPLOAD_EXTENSIONS } from "@shared/types";
 import { Block, type HeadingRef } from "./Block";
+import { caretPixelPosition, offsetAtEdgeLine } from "./caretPosition";
 import { AttachmentPicker } from "./AttachmentPicker";
 import { TEMPLATES, buildTemplateBlocks, type TemplateKey } from "./templates";
 import { FORM_LIST, type FormKey } from "./forms";
@@ -709,6 +710,48 @@ export const Editor = forwardRef<EditorHandle, {
         e.preventDefault();
         setSlashMenu(null);
         return;
+      }
+    }
+
+    if ((e.key === "ArrowDown" || e.key === "ArrowUp") && "text" in block) {
+      const textarea = e.currentTarget;
+      const caret = textarea.selectionStart ?? 0;
+      const text = textarea.value;
+      const currentTop = caretPixelPosition(textarea, caret).top;
+      const currentLeft = caretPixelPosition(textarea, caret).left;
+
+      if (e.key === "ArrowDown" && currentTop === caretPixelPosition(textarea, text.length).top) {
+        const idx = content.blocks.findIndex((b) => b.id === block.id);
+        const next = content.blocks.slice(idx + 1).find((b) => "text" in b);
+        if (next && "text" in next) {
+          e.preventDefault();
+          setActiveId(next.id);
+          requestAnimationFrame(() => {
+            const el = refs.current.get(next.id);
+            if (!el) return;
+            el.focus();
+            const offset = offsetAtEdgeLine(el, next.text, currentLeft, "first");
+            el.setSelectionRange(offset, offset);
+          });
+          return;
+        }
+      }
+
+      if (e.key === "ArrowUp" && currentTop === caretPixelPosition(textarea, 0).top) {
+        const idx = content.blocks.findIndex((b) => b.id === block.id);
+        const prev = [...content.blocks.slice(0, idx)].reverse().find((b) => "text" in b);
+        if (prev && "text" in prev) {
+          e.preventDefault();
+          setActiveId(prev.id);
+          requestAnimationFrame(() => {
+            const el = refs.current.get(prev.id);
+            if (!el) return;
+            el.focus();
+            const offset = offsetAtEdgeLine(el, prev.text, currentLeft, "last");
+            el.setSelectionRange(offset, offset);
+          });
+          return;
+        }
       }
     }
 
