@@ -5,6 +5,7 @@ export interface PresenceUser {
   clientId: string;
   name: string;
   color: string;
+  animal: string;
   pageId: string | null;
   blockId: string | null;
   offset: number;
@@ -31,7 +32,7 @@ export function usePresence(identity: GuestIdentity | null) {
 
     ws.addEventListener("open", () => {
       if (cancelled) return;
-      ws.send(JSON.stringify({ type: "join", clientId: identity.clientId, name: identity.name, color: identity.color }));
+      ws.send(JSON.stringify({ type: "join", clientId: identity.clientId, name: identity.name, color: identity.color, animal: identity.animal }));
       const last = lastRef.current;
       if (last.pageId) ws.send(JSON.stringify({ type: "update", ...last }));
     });

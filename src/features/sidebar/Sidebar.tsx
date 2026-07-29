@@ -64,7 +64,9 @@ function PageTreeRow({
         {viewers.length > 0 && (
           <span className="page-tree__viewers" title={viewers.map((v) => v.name).join(", ")}>
             {viewers.slice(0, 3).map((v) => (
-              <span key={v.clientId} className="page-tree__viewer-dot" style={{ background: v.color }} />
+              <span key={v.clientId} className="page-tree__viewer-animal" style={{ borderColor: v.color }}>
+                {v.animal}
+              </span>
             ))}
           </span>
         )}

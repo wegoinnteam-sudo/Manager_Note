@@ -191,11 +191,17 @@ code {
   flex-shrink: 0;
 }
 
-.page-tree__viewer-dot {
-  width: 6px;
-  height: 6px;
+.page-tree__viewer-animal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 19px;
+  height: 19px;
+  border: 2px solid;
   border-radius: 50%;
-  display: inline-block;
+  background: #fff;
+  font-size: 11px;
+  line-height: 1;
 }
 
 .page-tree__row:hover .page-tree__drag-handle,
@@ -851,6 +857,293 @@ code {
   width: 100%;
 }
 
+.db-view__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.db-view__name {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.db-view__tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  overflow-x: auto;
+}
+
+.db-view__tab {
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--color-text-muted);
+  padding: 4px 7px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.db-view__tab:hover:not(:disabled),
+.db-view__tab--active {
+  background: var(--color-accent-bg);
+  color: var(--color-accent);
+}
+
+.db-view__tab:disabled {
+  cursor: default;
+}
+
+.db-view__new-btn {
+  border: none;
+  border-radius: 5px;
+  background: var(--color-accent);
+  color: #fff;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.db-view__new-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.db-view__template-select {
+  width: 30px;
+  height: 27px;
+  border: 1px solid var(--color-accent);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--color-accent);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.db-template-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 8px 0 12px;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: #fafafa;
+}
+
+.db-template-editor__title {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.db-template-editor label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.db-template-editor input,
+.db-template-editor select,
+.db-template-editor textarea {
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  background: #fff;
+  padding: 6px 8px;
+  color: var(--color-text);
+  font: inherit;
+}
+
+.db-template-editor__row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.db-template-editor__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.db-template-editor__actions button,
+.db-template-list__item button {
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: #fff;
+  padding: 4px 9px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.db-template-editor__actions .db-template-editor__save {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: #fff;
+}
+
+.db-template-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 8px;
+}
+
+.db-template-list__item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  padding: 4px 6px;
+  font-size: 12px;
+}
+
+.db-template-list__item span {
+  margin-right: 4px;
+  font-weight: 600;
+}
+
+.db-formula {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.db-formula--overdue {
+  color: #c0392b;
+  font-weight: 700;
+}
+
+@media (max-width: 720px) {
+  .db-template-editor__row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.db-view__name-input {
+  font-size: 13px;
+  font-weight: 700;
+  flex: 1;
+  border: 1px solid var(--color-accent);
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+
+.db-view__menu-wrap {
+  position: relative;
+}
+
+.db-view__menu-btn {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--color-text-muted);
+}
+
+.db-view__menu-btn:hover {
+  background: var(--color-accent-bg);
+  color: var(--color-accent);
+}
+
+.db-view-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  padding: 4px;
+  gap: 2px;
+}
+
+.db-view-menu--edit {
+  min-width: 240px;
+  padding: 10px 12px 12px;
+  gap: 6px;
+}
+
+.db-view-menu--edit > select {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 5px;
+  font-size: 12px;
+}
+
+.db-view-menu__item {
+  text-align: left;
+  border: none;
+  background: none;
+  padding: 8px 10px;
+  font-size: 13px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.db-view-menu__item:hover {
+  background: var(--color-accent-bg);
+}
+
+.db-view-menu__item--danger {
+  color: #c0392b;
+}
+
+.db-view-menu__section-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  margin-top: 6px;
+}
+
+.db-view-menu__row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.db-view-menu__row select,
+.db-view-menu__row input {
+  font-size: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 3px 4px;
+}
+
+.db-view-menu__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.db-view-menu__close {
+  align-self: flex-end;
+  margin-top: 8px;
+  border: 1px solid var(--color-border);
+  background: #fff;
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
 .db-view--empty {
   padding: 16px;
   border: 1px dashed var(--color-border);
@@ -858,6 +1151,16 @@ code {
   font-size: 13px;
   color: var(--color-text-muted);
   text-align: center;
+}
+
+.db-view--empty button {
+  margin-left: 8px;
+  border: none;
+  border-radius: 5px;
+  background: var(--color-accent);
+  color: #fff;
+  padding: 5px 10px;
+  cursor: pointer;
 }
 
 .db-table {
@@ -1316,11 +1619,17 @@ button.breadcrumb-block__item:hover {
   margin-left: 6px;
 }
 
-.remote-presence-badge__dot {
-  width: 7px;
-  height: 7px;
+.remote-presence-badge__animal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 2px solid;
   border-radius: 50%;
-  display: inline-block;
+  background: #fff;
+  font-size: 12px;
+  line-height: 1;
 }
 
 .block-wrapper {

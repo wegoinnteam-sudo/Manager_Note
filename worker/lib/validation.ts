@@ -1,5 +1,12 @@
 import { z } from "zod";
 import { ALLOWED_UPLOAD_EXTENSIONS, MAX_TITLE_LENGTH } from "../../shared/types";
+import type { PageContent } from "../../shared/types";
+
+export const pageContentSchema: z.ZodType<PageContent> = z.lazy(() =>
+  z.object({
+    blocks: z.array(pageBlockSchema).max(2000),
+  }),
+);
 
 export const pageBlockSchema = z.discriminatedUnion("type", [
   z.object({ id: z.string(), type: z.enum(["heading1", "heading2", "heading3", "paragraph"]), text: z.string().max(20000) }),
@@ -23,17 +30,52 @@ export const pageBlockSchema = z.discriminatedUnion("type", [
   z.object({ id: z.string(), type: z.literal("toc") }),
   z.object({ id: z.string(), type: z.literal("page_link"), pageId: z.string() }),
   z.object({ id: z.string(), type: z.literal("columns"), columns: z.array(z.string().max(20000)).min(2).max(5) }),
-  z.object({ id: z.string(), type: z.literal("database_view"), view: z.enum(["table", "board", "gallery", "calendar", "list"]) }),
+  z.object({
+    id: z.string(),
+    type: z.literal("database_view"),
+    view: z.enum(["table", "board", "gallery", "calendar", "list"]),
+    name: z.string().max(200).optional(),
+    properties: z.array(z.enum(["status", "assigneeId", "dueDate", "overdue", "daysRemaining", "subItems"])).optional(),
+    filter: z
+      .object({
+        field: z.enum(["status", "assigneeId", "dueDate"]),
+        op: z.enum(["eq", "neq", "isEmpty", "isNotEmpty"]),
+        value: z.string().max(200).optional(),
+      })
+      .nullable()
+      .optional(),
+    sort: z
+      .object({
+        field: z.enum(["title", "status", "assigneeId", "dueDate", "updatedAt"]),
+        direction: z.enum(["asc", "desc"]),
+      })
+      .nullable()
+      .optional(),
+    groupBy: z.enum(["status", "assigneeId", "none"]).optional(),
+    sourcePageId: z.string().optional(),
+    locked: z.boolean().optional(),
+    templates: z
+      .array(
+        z.object({
+          id: z.string(),
+          name: z.string().min(1).max(100),
+          title: z.string().max(300),
+          status: z.enum(["in_progress", "handoff_pending", "done", "on_hold"]).optional(),
+          assigneeId: z.string().nullable().optional(),
+          dueDate: z.string().nullable().optional(),
+          content: pageContentSchema,
+        }),
+      )
+      .max(30)
+      .optional(),
+    showSubItems: z.boolean().optional(),
+  }),
   z.object({ id: z.string(), type: z.literal("chart") }),
   z.object({ id: z.string(), type: z.literal("button"), label: z.string().max(60), templateKey: z.enum(["meeting_notes", "handoff_note"]) }),
   z.object({ id: z.string(), type: z.literal("form"), formKey: z.enum(["leave_request", "repair_request", "purchase_request"]) }),
   z.object({ id: z.string(), type: z.literal("quote"), text: z.string().max(20000) }),
   z.object({ id: z.string(), type: z.literal("breadcrumb") }),
 ]);
-
-export const pageContentSchema = z.object({
-  blocks: z.array(pageBlockSchema).max(2000),
-});
 
 export const createPageSchema = z.object({
   parentId: z.string().nullable().optional(),

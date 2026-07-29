@@ -44,7 +44,7 @@ function emptyBlockOfType(type: PageBlock["type"]): PageBlock {
     case "columns":
       return { id, type, columns: ["", ""] };
     case "database_view":
-      return { id, type, view: "table" };
+      return { id, type, view: "table", groupBy: "status" };
     case "chart":
       return { id, type };
     case "button":
@@ -408,6 +408,15 @@ export const Editor = forwardRef<EditorHandle, {
     setBlocks(content.blocks.filter((b) => b.id !== id));
   };
 
+  const duplicateBlock = (id: string) => {
+    const idx = content.blocks.findIndex((b) => b.id === id);
+    if (idx === -1) return;
+    const clone: PageBlock = { ...content.blocks[idx], id: newBlockId() };
+    const blocks = [...content.blocks];
+    blocks.splice(idx + 1, 0, clone);
+    setBlocks(blocks);
+  };
+
   const applyInlineWrap = (marker: string) => {
     const id = activeId;
     if (!id) return;
@@ -580,7 +589,7 @@ export const Editor = forwardRef<EditorHandle, {
 
     const dbView = DB_VIEW_BY_COMMAND[cmd.type];
     if (dbView) {
-      updateBlock(block.id, { type: "database_view", view: dbView } as Partial<PageBlock>);
+      updateBlock(block.id, { type: "database_view", view: dbView, groupBy: "status" } as Partial<PageBlock>);
       return;
     }
 
@@ -840,7 +849,15 @@ export const Editor = forwardRef<EditorHandle, {
   return (
     <div className="editor">
       {content.blocks.map((block, i) => (
-        <div key={block.id}>
+        <div
+          key={block.id}
+          onSelectCapture={(event) => {
+            const target = event.target;
+            if (target instanceof HTMLTextAreaElement) {
+              onCursorReport(block.id, target.selectionStart ?? 0);
+            }
+          }}
+        >
           <div
             className={[
               "block-wrapper",
@@ -924,6 +941,7 @@ export const Editor = forwardRef<EditorHandle, {
                 onKeyDownBlock={(e) => handleKeyDown(block, e)}
                 onPasteBlock={(e) => handlePasteImage(block, e)}
                 onRemoveBlock={() => removeBlock(block.id)}
+                onDuplicateBlock={() => duplicateBlock(block.id)}
                 onPatch={(patch) => updateBlock(block.id, patch)}
                 onOpenPage={onOpenPage}
                 currentPageId={pageId}

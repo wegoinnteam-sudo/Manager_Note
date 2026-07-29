@@ -17,7 +17,7 @@ export function RemoteCaretMarkers({ textarea, users }: { textarea: HTMLTextArea
             style={{ top: pos.top, left: pos.left, height: pos.height, background: u.color }}
           >
             <span className="remote-caret__label" style={{ background: u.color }}>
-              {u.name}
+              {u.animal} {u.name}
             </span>
           </span>
         );
@@ -33,7 +33,9 @@ export function RemotePresenceBadge({ users }: { users: PresenceUser[] }) {
   return (
     <span className="remote-presence-badge" title={users.map((u) => u.name).join(", ")}>
       {users.slice(0, 3).map((u) => (
-        <span key={u.clientId} className="remote-presence-badge__dot" style={{ background: u.color }} />
+        <span key={u.clientId} className="remote-presence-badge__animal" style={{ borderColor: u.color }}>
+          {u.animal}
+        </span>
       ))}
       {users.length === 1 ? `${users[0].name} 편집 중` : `${users.length}명 편집 중`}
     </span>

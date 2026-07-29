@@ -57,6 +57,7 @@ export function Block({
   onKeyDownBlock,
   onPasteBlock,
   onRemoveBlock,
+  onDuplicateBlock,
   onPatch,
   onOpenPage,
   currentPageId,
@@ -80,6 +81,7 @@ export function Block({
   onKeyDownBlock: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   onPasteBlock: (e: React.ClipboardEvent<HTMLTextAreaElement>) => void;
   onRemoveBlock: () => void;
+  onDuplicateBlock: () => void;
   onPatch: (patch: Partial<PageBlock>) => void;
   onOpenPage: (pageId: string) => void;
   currentPageId: string;
@@ -260,13 +262,16 @@ export function Block({
     return (
       <div id={domId} className="block-row">
         <DatabaseView
+          block={block}
           parentId={currentPageId}
-          view={block.view}
           pages={pages}
           members={members}
           editable={editable}
           onOpenPage={onOpenPage}
           onPagesChanged={onPagesChanged}
+          onPatch={onPatch}
+          onDuplicate={onDuplicateBlock}
+          onRemove={onRemoveBlock}
         />
         {editable && (
           <button type="button" className="block-row__handle" onClick={onRemoveBlock} title="블록 제거">

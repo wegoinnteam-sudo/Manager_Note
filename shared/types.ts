@@ -39,6 +39,31 @@ export interface PageDetailDTO extends PageSummaryDTO {
   createdAt: string;
 }
 
+export type DatabaseViewProperty = "status" | "assigneeId" | "dueDate" | "overdue" | "daysRemaining" | "subItems";
+
+export interface DatabaseTemplate {
+  id: string;
+  name: string;
+  title: string;
+  status?: HandoffStatus;
+  assigneeId?: string | null;
+  dueDate?: string | null;
+  content: PageContent;
+}
+
+export interface DatabaseViewFilter {
+  field: DatabaseViewProperty;
+  op: "eq" | "neq" | "isEmpty" | "isNotEmpty";
+  value?: string;
+}
+
+export interface DatabaseViewSort {
+  field: "title" | DatabaseViewProperty | "updatedAt";
+  direction: "asc" | "desc";
+}
+
+export type DatabaseViewGroupBy = "status" | "assigneeId" | "none";
+
 // MVP block-based content model. Deliberately simple; extend with new
 // block "type" values rather than redesigning the shape.
 export type PageBlock =
@@ -64,7 +89,20 @@ export type PageBlock =
   | { id: string; type: "toc" }
   | { id: string; type: "page_link"; pageId: string }
   | { id: string; type: "columns"; columns: string[] }
-  | { id: string; type: "database_view"; view: "table" | "board" | "gallery" | "calendar" | "list" }
+  | {
+      id: string;
+      type: "database_view";
+      view: "table" | "board" | "gallery" | "calendar" | "list";
+      name?: string;
+      properties?: DatabaseViewProperty[];
+      filter?: DatabaseViewFilter | null;
+      sort?: DatabaseViewSort | null;
+      groupBy?: DatabaseViewGroupBy;
+      sourcePageId?: string;
+      locked?: boolean;
+      templates?: DatabaseTemplate[];
+      showSubItems?: boolean;
+    }
   | { id: string; type: "chart" }
   | { id: string; type: "button"; label: string; templateKey: "meeting_notes" | "handoff_note" }
   | { id: string; type: "form"; formKey: "leave_request" | "repair_request" | "purchase_request" }

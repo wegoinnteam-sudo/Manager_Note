@@ -8,16 +8,25 @@ interface PresenceInfo {
   clientId: string;
   name: string;
   color: string;
+  animal: string;
   pageId: string | null;
   blockId: string | null;
   offset: number;
 }
 
 type ClientMessage =
-  | { type: "join"; clientId: string; name: string; color: string }
+  | { type: "join"; clientId: string; name: string; color: string; animal?: string }
   | { type: "update"; pageId: string | null; blockId: string | null; offset: number };
 
 const MAX_NAME_LENGTH = 40;
+const COLORS = ["#e11d48", "#2563eb", "#059669", "#d97706", "#7c3aed", "#0891b2", "#db2777", "#65a30d", "#ea580c", "#4f46e5", "#0d9488", "#9333ea"];
+const ANIMALS = ["🦊", "🐼", "🐯", "🐸", "🐨", "🐙", "🦁", "🐧", "🦄", "🐰", "🦉", "🐬"];
+
+function identityIndex(clientId: string): number {
+  let hash = 0;
+  for (const ch of clientId) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  return hash % ANIMALS.length;
+}
 
 export class PresenceRoom {
   private sessions = new Map<WebSocket, PresenceInfo>();
@@ -45,10 +54,17 @@ export class PresenceRoom {
       }
 
       if (msg.type === "join") {
+        const clientId = String(msg.clientId).slice(0, 64);
+        const usedAnimals = new Set(Array.from(this.sessions.values()).map((session) => session.animal));
+        let index = identityIndex(clientId);
+        for (let i = 0; i < ANIMALS.length && usedAnimals.has(ANIMALS[index]); i += 1) {
+          index = (index + 1) % ANIMALS.length;
+        }
         this.sessions.set(ws, {
-          clientId: String(msg.clientId).slice(0, 64),
+          clientId,
           name: String(msg.name).slice(0, MAX_NAME_LENGTH) || "익명",
-          color: /^#[0-9a-fA-F]{6}$/.test(msg.color) ? msg.color : "#2563eb",
+          color: COLORS[index],
+          animal: ANIMALS[index],
           pageId: null,
           blockId: null,
           offset: 0,
