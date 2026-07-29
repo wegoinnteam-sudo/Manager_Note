@@ -756,6 +756,46 @@ export const Editor = forwardRef<EditorHandle, {
           return;
         }
       }
+
+      // Let the browser perform its normal in-textarea line movement first.
+      // If the caret did not move, it was already at the visual edge even
+      // when mirror-based pixel measurement disagreed (which can happen with
+      // browser font metrics and wrapping). Continue into the adjacent block.
+      if (isCollapsed) {
+        const direction = e.key === "ArrowDown" ? 1 : -1;
+        requestAnimationFrame(() => {
+          if (
+            document.activeElement !== textarea ||
+            textarea.selectionStart !== caret ||
+            textarea.selectionEnd !== caret
+          ) {
+            return;
+          }
+
+          const idx = content.blocks.findIndex((b) => b.id === block.id);
+          const candidates =
+            direction === 1
+              ? content.blocks.slice(idx + 1)
+              : [...content.blocks.slice(0, idx)].reverse();
+          const adjacent = candidates.find((b) => "text" in b);
+          if (!adjacent || !("text" in adjacent)) return;
+
+          setActiveId(adjacent.id);
+          requestAnimationFrame(() => {
+            const el = refs.current.get(adjacent.id);
+            if (!el) return;
+            el.focus();
+            const offset = offsetAtEdgeLine(
+              el,
+              adjacent.text,
+              currentLeft,
+              direction === 1 ? "first" : "last",
+            );
+            el.setSelectionRange(offset, offset);
+            onCursorReport(adjacent.id, offset);
+          });
+        });
+      }
     }
 
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
