@@ -7,6 +7,7 @@ import { DatabaseView } from "./DatabaseView";
 import { ChartView } from "./ChartView";
 import { FormBlockView } from "./FormBlockView";
 import { ImageBlockView } from "./ImageBlockView";
+import { FileBlockView } from "./FileBlockView";
 import { RemoteCaretMarkers, RemotePresenceBadge } from "./RemoteCursors";
 
 const TEXTAREA_TYPES = new Set(["heading1", "heading2", "heading3", "paragraph", "bulleted_list_item", "numbered_list_item"]);
@@ -131,62 +132,9 @@ export function Block({
   }
 
   if (block.type === "file") {
-    const att = attachmentsById.get(block.attachmentId);
-    if (att?.mimeType.startsWith("video/")) {
-      return (
-        <div id={domId} className="block-row">
-          <video draggable={false} controls preload="metadata" style={{ maxWidth: "100%", borderRadius: 6 }} src={`/api/attachments/${att.id}/download`} />
-          {editable && (
-            <button type="button" className="block-row__handle" onClick={onRemoveBlock} title="블록 제거">
-              ✕
-            </button>
-          )}
-        </div>
-      );
-    }
-    if (att?.mimeType.startsWith("audio/")) {
-      return (
-        <div id={domId} className="block-row">
-          <audio draggable={false} controls preload="metadata" style={{ width: "100%" }} src={`/api/attachments/${att.id}/download`} />
-          {editable && (
-            <button type="button" className="block-row__handle" onClick={onRemoveBlock} title="블록 제거">
-              ✕
-            </button>
-          )}
-        </div>
-      );
-    }
-    if (att?.mimeType === "application/pdf") {
-      return (
-        <div id={domId} className="block-row">
-          <div className="pdf-block">
-            <iframe draggable={false} src={`/api/attachments/${att.id}/download`} title={att.fileName} />
-            <a draggable={false} className="pdf-block__filename" href={`/api/attachments/${att.id}/download`}>
-              📄 {att.fileName}
-            </a>
-          </div>
-          {editable && (
-            <button type="button" className="block-row__handle" onClick={onRemoveBlock} title="블록 제거">
-              ✕
-            </button>
-          )}
-        </div>
-      );
-    }
     return (
-      <div id={domId} className="block-row">
-        <a
-          draggable={false}
-          href={att ? `/api/attachments/${att.id}/download` : undefined}
-          style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", border: "1px solid var(--color-border)", borderRadius: 6, textDecoration: "none", color: "inherit", flex: 1 }}
-        >
-          📎 {att ? att.fileName : "(삭제된 파일)"}
-        </a>
-        {editable && (
-          <button type="button" className="block-row__handle" onClick={onRemoveBlock} title="블록 제거">
-            ✕
-          </button>
-        )}
+      <div id={domId}>
+        <FileBlockView attachment={attachmentsById.get(block.attachmentId)} editable={editable} onRemove={onRemoveBlock} />
       </div>
     );
   }

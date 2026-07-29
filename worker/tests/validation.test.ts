@@ -11,6 +11,8 @@ describe("extensionOf / isAllowedExtension", () => {
   it("allows only the whitelisted document/image types", () => {
     expect(isAllowedExtension("pdf")).toBe(true);
     expect(isAllowedExtension("hwpx")).toBe(true);
+    expect(isAllowedExtension("ppt")).toBe(true);
+    expect(isAllowedExtension("PPTX")).toBe(true);
     expect(isAllowedExtension("exe")).toBe(false);
     expect(isAllowedExtension("sh")).toBe(false);
   });

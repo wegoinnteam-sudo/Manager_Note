@@ -229,6 +229,8 @@ export const ALLOWED_UPLOAD_EXTENSIONS = [
   "xlsx",
   "doc",
   "docx",
+  "ppt",
+  "pptx",
   "hwp",
   "hwpx",
   "png",
