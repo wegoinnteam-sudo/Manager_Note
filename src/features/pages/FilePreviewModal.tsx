@@ -126,6 +126,30 @@ function SpreadsheetPreview({ sheets }: { sheets: SheetPreview[] }) {
   );
 }
 
+function PowerPointPreview({ attachment }: { attachment: AttachmentDTO }) {
+  const [failed, setFailed] = useState(false);
+
+  if (failed) {
+    return (
+      <div className="file-preview__empty">
+        <strong>{attachment.fileName}</strong>
+        <span>아직 슬라이드 미리보기 이미지가 준비되지 않았습니다. 잠시 후 다시 열어주세요.</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="file-preview__powerpoint">
+      <img
+        src={`/api/attachments/${attachment.id}/thumbnail`}
+        alt={`${attachment.fileName} 첫 슬라이드`}
+        onError={() => setFailed(true)}
+      />
+      <div className="file-preview__notice">PowerPoint 첫 슬라이드를 이미지로 표시합니다.</div>
+    </div>
+  );
+}
+
 function PdfPreview({ attachment }: { attachment: AttachmentDTO }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [document, setDocument] = useState<PDFDocumentProxy | null>(null);
@@ -215,7 +239,8 @@ export function FilePreviewModal({ attachment, onClose }: { attachment: Attachme
     isImage(attachment) ||
     attachment.mimeType === "application/pdf" ||
     attachment.mimeType.startsWith("video/") ||
-    attachment.mimeType.startsWith("audio/");
+    attachment.mimeType.startsWith("audio/") ||
+    ["ppt", "pptx"].includes(extension);
   const [loaded, setLoaded] = useState<LoadedPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -243,6 +268,8 @@ export function FilePreviewModal({ attachment, onClose }: { attachment: Attachme
     content = <video className="file-preview__media" controls src={previewUrl(attachment)} />;
   } else if (attachment.mimeType.startsWith("audio/")) {
     content = <audio className="file-preview__audio" controls src={previewUrl(attachment)} />;
+  } else if (["ppt", "pptx"].includes(extension)) {
+    content = <PowerPointPreview attachment={attachment} />;
   } else if (error) {
     content = <div className="file-preview__empty">{error}</div>;
   } else if (!loaded) {

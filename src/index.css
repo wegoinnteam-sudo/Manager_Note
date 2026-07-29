@@ -2173,6 +2173,24 @@ button.breadcrumb-block__item:hover {
   margin: auto;
 }
 
+.file-preview__powerpoint {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.file-preview__powerpoint img {
+  display: block;
+  max-width: 100%;
+  max-height: calc(100% - 28px);
+  object-fit: contain;
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.14);
+}
+
 .file-preview__pdf {
   width: 100%;
   min-width: 0;

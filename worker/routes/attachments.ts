@@ -4,7 +4,7 @@ import { requireAuth, requireRole } from "../middleware/rbac";
 import { Errors } from "../lib/errors";
 import { getAttachmentById, softDeleteAttachment } from "../db/attachments";
 import { getPageById } from "../db/pages";
-import { getFileMediaStream, moveFile } from "../drive/client";
+import { getFileMediaStream, getFileThumbnailStream, moveFile } from "../drive/client";
 import { getTeamFolderIds } from "../drive/folders";
 import { logActivity } from "../db/activityLog";
 
@@ -42,6 +42,14 @@ async function streamFromDrive(c: Context<AppBindings>, disposition: "inline" | 
 
 attachmentsRoute.get("/:id/preview", (c) => streamFromDrive(c, "inline"));
 attachmentsRoute.get("/:id/download", (c) => streamFromDrive(c, "attachment"));
+attachmentsRoute.get("/:id/thumbnail", async (c) => {
+  const attachment = await loadAuthorizedAttachment(c);
+  const thumbnailRes = await getFileThumbnailStream(c.env, attachment.drive_file_id!);
+  const headers = new Headers();
+  headers.set("Content-Type", thumbnailRes.headers.get("Content-Type") || "image/jpeg");
+  headers.set("Cache-Control", "private, max-age=300");
+  return new Response(thumbnailRes.body, { status: 200, headers });
+});
 
 attachmentsRoute.delete("/:id", requireRole("editor"), async (c) => {
   const attachment = await loadAuthorizedAttachment(c);

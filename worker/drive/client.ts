@@ -15,6 +15,8 @@ export interface DriveFileMeta {
   webViewLink?: string;
   trashed?: boolean;
   parents?: string[];
+  hasThumbnail?: boolean;
+  thumbnailLink?: string;
 }
 
 function driveQuery(env: Env, extra: Record<string, string> = {}): URLSearchParams {
@@ -89,6 +91,29 @@ export async function getFileMediaStream(env: Env, fileId: string): Promise<Resp
     throw Errors.upstream(`Drive 파일 다운로드 실패 (${res.status})`);
   }
   return res;
+}
+
+/** Fetches Drive's generated thumbnail without exposing its short-lived private URL to the browser. */
+export async function getFileThumbnailStream(env: Env, fileId: string): Promise<Response> {
+  const headers = await authHeader(env);
+  const metadataRes = await fetch(
+    `${DRIVE_FILES_URL}/${encodeURIComponent(fileId)}?${driveQuery(env, { fields: "hasThumbnail,thumbnailLink" }).toString()}`,
+    { headers },
+  );
+  if (!metadataRes.ok) {
+    throw Errors.upstream(`Drive 미리보기 정보 조회 실패 (${metadataRes.status})`);
+  }
+
+  const metadata = (await metadataRes.json()) as Pick<DriveFileMeta, "hasThumbnail" | "thumbnailLink">;
+  if (!metadata.hasThumbnail || !metadata.thumbnailLink) {
+    throw Errors.notFound("아직 PowerPoint 미리보기 이미지가 준비되지 않았습니다.");
+  }
+
+  const thumbnailRes = await fetch(metadata.thumbnailLink, { headers });
+  if (!thumbnailRes.ok) {
+    throw Errors.upstream(`Drive 미리보기 이미지 조회 실패 (${thumbnailRes.status})`);
+  }
+  return thumbnailRes;
 }
 
 export async function getFileMetadata(env: Env, fileId: string, fields = "id,name,mimeType,size,modifiedTime,md5Checksum,webViewLink,trashed,parents"): Promise<DriveFileMeta> {
