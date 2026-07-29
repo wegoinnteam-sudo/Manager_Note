@@ -41,7 +41,7 @@ class_name = "PresenceRoom"
 
 [[migrations]]
 tag = "v1"
-new_classes = ["PresenceRoom"]
+new_sqlite_classes = ["PresenceRoom"]
 
 # ---------------------------------------------------------------------------
 # Cron trigger for incremental Google Drive sync (default: every 15 minutes).
