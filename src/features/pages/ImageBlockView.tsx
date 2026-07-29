@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import type { AttachmentDTO, PageBlock } from "@shared/types";
 
 type ImageBlock = Extract<PageBlock, { type: "image" }>;
@@ -23,26 +23,34 @@ export function ImageBlockView({
   const downloadHref = block.url ? block.url : att ? `/api/attachments/${att.id}/download` : undefined;
 
   const frameRef = useRef<HTMLDivElement>(null);
-  const [dragging, setDragging] = useState<"left" | "right" | null>(null);
+  const resizing = useRef<{ side: "left" | "right"; pointerId: number } | null>(null);
   const dragStart = useRef({ x: 0, width: block.width ?? 100 });
 
-  useEffect(() => {
-    if (!dragging) return;
-    const onMove = (e: MouseEvent) => {
-      const containerWidth = frameRef.current?.parentElement?.getBoundingClientRect().width;
-      if (!containerWidth) return;
-      const deltaPct = ((e.clientX - dragStart.current.x) / containerWidth) * 100;
-      const next = dragging === "right" ? dragStart.current.width + deltaPct : dragStart.current.width - deltaPct;
-      onPatch({ width: Math.min(100, Math.max(15, Math.round(next))) });
-    };
-    const onUp = () => setDragging(null);
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-    return () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    };
-  }, [dragging, onPatch]);
+  const startResize = (e: React.PointerEvent<HTMLSpanElement>, side: "left" | "right") => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragStart.current = { x: e.clientX, width: block.width ?? 100 };
+    resizing.current = { side, pointerId: e.pointerId };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const resize = (e: React.PointerEvent<HTMLSpanElement>) => {
+    const current = resizing.current;
+    if (!current || current.pointerId !== e.pointerId) return;
+    const containerWidth = frameRef.current?.parentElement?.getBoundingClientRect().width;
+    if (!containerWidth) return;
+    const deltaPct = ((e.clientX - dragStart.current.x) / containerWidth) * 100;
+    const next = current.side === "right" ? dragStart.current.width + deltaPct : dragStart.current.width - deltaPct;
+    onPatch({ width: Math.min(100, Math.max(15, Math.round(next))) });
+  };
+
+  const stopResize = (e: React.PointerEvent<HTMLSpanElement>) => {
+    if (resizing.current?.pointerId !== e.pointerId) return;
+    resizing.current = null;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+  };
 
   if (!src) {
     return (
@@ -74,16 +82,22 @@ export function ImageBlockView({
             <>
               <span
                 className="image-block__handle image-block__handle--left"
-                onMouseDown={(e) => {
-                  dragStart.current = { x: e.clientX, width: block.width ?? 100 };
-                  setDragging("left");
+                onPointerDown={(e) => startResize(e, "left")}
+                onPointerMove={resize}
+                onPointerUp={stopResize}
+                onPointerCancel={stopResize}
+                onLostPointerCapture={() => {
+                  resizing.current = null;
                 }}
               />
               <span
                 className="image-block__handle image-block__handle--right"
-                onMouseDown={(e) => {
-                  dragStart.current = { x: e.clientX, width: block.width ?? 100 };
-                  setDragging("right");
+                onPointerDown={(e) => startResize(e, "right")}
+                onPointerMove={resize}
+                onPointerUp={stopResize}
+                onPointerCancel={stopResize}
+                onLostPointerCapture={() => {
+                  resizing.current = null;
                 }}
               />
               <div className="image-block__toolbar">
