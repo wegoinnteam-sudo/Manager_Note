@@ -27,21 +27,12 @@ export function ImageBlockView({
   const dragStart = useRef({ x: 0, width: block.width ?? 100 });
 
   const startResize = (e: React.PointerEvent<HTMLSpanElement>, side: "left" | "right") => {
+    if (e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
     dragStart.current = { x: e.clientX, width: block.width ?? 100 };
     resizing.current = { side, pointerId: e.pointerId };
     e.currentTarget.setPointerCapture(e.pointerId);
-  };
-
-  const resize = (e: React.PointerEvent<HTMLSpanElement>) => {
-    const current = resizing.current;
-    if (!current || current.pointerId !== e.pointerId) return;
-    const containerWidth = frameRef.current?.parentElement?.getBoundingClientRect().width;
-    if (!containerWidth) return;
-    const deltaPct = ((e.clientX - dragStart.current.x) / containerWidth) * 100;
-    const next = current.side === "right" ? dragStart.current.width + deltaPct : dragStart.current.width - deltaPct;
-    onPatch({ width: Math.min(100, Math.max(15, Math.round(next))) });
   };
 
   const stopResize = (e: React.PointerEvent<HTMLSpanElement>) => {
@@ -50,6 +41,22 @@ export function ImageBlockView({
     if (e.currentTarget.hasPointerCapture(e.pointerId)) {
       e.currentTarget.releasePointerCapture(e.pointerId);
     }
+  };
+
+  const resize = (e: React.PointerEvent<HTMLSpanElement>) => {
+    const current = resizing.current;
+    if (!current || current.pointerId !== e.pointerId) return;
+    // Resize only while the primary pointer button is physically held.
+    // This also stops a stale resize if a browser ever misses pointerup.
+    if ((e.buttons & 1) === 0) {
+      stopResize(e);
+      return;
+    }
+    const containerWidth = frameRef.current?.parentElement?.getBoundingClientRect().width;
+    if (!containerWidth) return;
+    const deltaPct = ((e.clientX - dragStart.current.x) / containerWidth) * 100;
+    const next = current.side === "right" ? dragStart.current.width + deltaPct : dragStart.current.width - deltaPct;
+    onPatch({ width: Math.min(100, Math.max(15, Math.round(next))) });
   };
 
   if (!src) {
