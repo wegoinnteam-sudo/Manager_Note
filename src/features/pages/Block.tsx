@@ -475,6 +475,7 @@ export function Block({
               placeholder="내용을 입력하세요…"
               disabled={!editable}
               onChange={(e) => onPatch({ body: e.target.value })}
+              onPaste={onPasteBlock}
               onInput={(e) => {
                 const el = e.currentTarget;
                 el.style.height = "auto";

@@ -2,13 +2,14 @@ import { Fragment, type ReactNode } from "react";
 
 /**
  * Tiny, whitelist-only inline formatter: **bold**, *italic*, __underline__,
- * ~strikethrough~, `code`, [text](url), @[text](user:id|date:iso).
- * Deliberately not a full markdown parser and never touches
- * dangerouslySetInnerHTML — every token becomes a real React element, so
- * there is no injection surface here regardless of what a user types.
+ * ~strikethrough~, `code`, [text](url), @[text](user:id|date:iso), and bare
+ * http(s):// URLs auto-linked. Deliberately not a full markdown parser and
+ * never touches dangerouslySetInnerHTML — every token becomes a real React
+ * element, so there is no injection surface here regardless of what a user
+ * types.
  */
 export function renderInline(text: string): ReactNode {
-  const tokenRe = /(@\[[^\]]+\]\((?:user|date):[^)]+\)|\*\*[^*]+\*\*|__[^_]+__|~[^~]+~|`[^`]+`|\*[^*]+\*|\[[^\]]+\]\([^)]+\))/g;
+  const tokenRe = /(@\[[^\]]+\]\((?:user|date):[^)]+\)|\*\*[^*]+\*\*|__[^_]+__|~[^~]+~|`[^`]+`|\*[^*]+\*|\[[^\]]+\]\([^)]+\)|https?:\/\/[^\s]+)/g;
   const parts = text.split(tokenRe).filter((p) => p !== undefined && p !== "");
 
   return parts.map((part, i) => {
@@ -44,6 +45,20 @@ export function renderInline(text: string): ReactNode {
         <a key={i} href={safeHref} target="_blank" rel="noopener noreferrer">
           {label}
         </a>
+      );
+    }
+    if (/^https?:\/\/[^\s]+$/.test(part)) {
+      // Strip trailing punctuation that's usually sentence formatting, not
+      // part of the URL (e.g. "...주소는 https://example.com 입니다.").
+      const trailing = part.match(/[.,!?:;'")\]]+$/)?.[0] ?? "";
+      const href = trailing ? part.slice(0, -trailing.length) : part;
+      return (
+        <Fragment key={i}>
+          <a href={href} target="_blank" rel="noopener noreferrer">
+            {href}
+          </a>
+          {trailing}
+        </Fragment>
       );
     }
     return <Fragment key={i}>{part}</Fragment>;
