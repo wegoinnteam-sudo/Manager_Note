@@ -146,6 +146,46 @@ function headingLevel(type: PageBlock["type"]): 1 | 2 | 3 | null {
   return null;
 }
 
+// Ctrl/Cmd+Shift+<digit> block-type shortcuts. Keyed by e.code so the
+// mapping stays correct even when Shift changes what e.key reports for the
+// number row (e.g. Shift+1 -> "!" on a US layout).
+const BLOCK_TYPE_SHORTCUT: Record<string, PageBlock["type"]> = {
+  Digit0: "paragraph",
+  Digit1: "heading1",
+  Digit2: "heading2",
+  Digit3: "heading3",
+  Digit4: "checklist_item",
+  Digit5: "bulleted_list_item",
+  Digit6: "numbered_list_item",
+  Digit7: "toggle",
+};
+
+const MAX_BLOCK_INDENT = 8;
+
+// Markdown-style auto-formatting: typing "# ", "- ", "1. ", "[] " or "> " at
+// the start of a plain paragraph converts it to the matching block type,
+// mirroring Notion's "입력만으로 만드는 빠른 블록" shortcuts.
+function detectMarkdownAutoFormat(text: string): { type: PageBlock["type"]; rest: string; extra?: Record<string, unknown> } | null {
+  let m = text.match(/^(#{1,3}) /);
+  if (m) {
+    const type = m[1].length === 1 ? "heading1" : m[1].length === 2 ? "heading2" : "heading3";
+    return { type, rest: text.slice(m[0].length) };
+  }
+  if ((m = text.match(/^[-*] /))) {
+    return { type: "bulleted_list_item", rest: text.slice(m[0].length) };
+  }
+  if ((m = text.match(/^\d+\. /))) {
+    return { type: "numbered_list_item", rest: text.slice(m[0].length) };
+  }
+  if ((m = text.match(/^\[\] /))) {
+    return { type: "checklist_item", rest: text.slice(m[0].length), extra: { checked: false } };
+  }
+  if ((m = text.match(/^> /))) {
+    return { type: "quote", rest: text.slice(m[0].length) };
+  }
+  return null;
+}
+
 function isoDate(offsetDays: number): string {
   const d = new Date();
   d.setDate(d.getDate() + offsetDays);
@@ -189,6 +229,7 @@ export const Editor = forwardRef<EditorHandle, {
   ref,
 ) {
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [picker, setPicker] = useState<"image" | "file" | "template" | "button_template" | "form" | "page_picker" | "replace_image" | null>(null);
   const [templateTargetId, setTemplateTargetId] = useState<string | null>(null);
   const [imageReplaceTargetId, setImageReplaceTargetId] = useState<string | null>(null);
@@ -653,6 +694,31 @@ export const Editor = forwardRef<EditorHandle, {
   };
 
   const handleChangeText = (block: PageBlock, text: string, caret: number) => {
+    if (block.type === "paragraph") {
+      if (text === "---") {
+        const idx = content.blocks.findIndex((b) => b.id === block.id);
+        const dividerBlock: PageBlock = { id: block.id, type: "divider" };
+        const nextParagraph = emptyBlockOfType("paragraph");
+        const blocks = [...content.blocks];
+        blocks[idx] = dividerBlock;
+        blocks.splice(idx + 1, 0, nextParagraph);
+        setBlocks(blocks);
+        setActiveId(nextParagraph.id);
+        requestAnimationFrame(() => refs.current.get(nextParagraph.id)?.focus());
+        return;
+      }
+      const auto = detectMarkdownAutoFormat(text);
+      if (auto) {
+        updateBlock(block.id, { type: auto.type, text: auto.rest, ...(auto.extra ?? {}) } as Partial<PageBlock>);
+        onCursorReport(block.id, auto.rest.length);
+        requestAnimationFrame(() => {
+          const el = refs.current.get(block.id);
+          el?.setSelectionRange(auto.rest.length, auto.rest.length);
+        });
+        return;
+      }
+    }
+
     updateBlock(block.id, { text } as Partial<PageBlock>);
     onCursorReport(block.id, caret);
 
@@ -722,7 +788,68 @@ export const Editor = forwardRef<EditorHandle, {
       }
     }
 
-    if ((e.key === "ArrowDown" || e.key === "ArrowUp") && "text" in block) {
+    if (selectedBlockId === block.id) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setSelectedBlockId(null);
+        return;
+      }
+      if (e.key === "Backspace" || e.key === "Delete") {
+        e.preventDefault();
+        const idx = content.blocks.findIndex((b) => b.id === block.id);
+        removeBlock(block.id);
+        setSelectedBlockId(null);
+        const prev = content.blocks[idx - 1];
+        if (prev) {
+          setActiveId(prev.id);
+          requestAnimationFrame(() => refs.current.get(prev.id)?.focus());
+        }
+        return;
+      }
+      if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+        e.preventDefault();
+        const idx = content.blocks.findIndex((b) => b.id === block.id);
+        const target = content.blocks[idx + (e.key === "ArrowUp" ? -1 : 1)];
+        if (target) setSelectedBlockId(target.id);
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        setSelectedBlockId(null);
+        return;
+      }
+      setSelectedBlockId(null);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setSelectedBlockId(block.id);
+      return;
+    }
+
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+      e.preventDefault();
+      const idx = content.blocks.findIndex((b) => b.id === block.id);
+      const targetIdx = idx + (e.key === "ArrowUp" ? -1 : 1);
+      if (targetIdx >= 0 && targetIdx < content.blocks.length) {
+        const blocks = [...content.blocks];
+        [blocks[idx], blocks[targetIdx]] = [blocks[targetIdx], blocks[idx]];
+        setBlocks(blocks);
+        requestAnimationFrame(() => refs.current.get(block.id)?.focus());
+      }
+      return;
+    }
+
+    if (e.key === "Tab") {
+      e.preventDefault();
+      const current = block.indent ?? 0;
+      if (e.shiftKey) {
+        if (current > 0) updateBlock(block.id, { indent: current - 1 } as Partial<PageBlock>);
+      } else if (current < MAX_BLOCK_INDENT) {
+        updateBlock(block.id, { indent: current + 1 } as Partial<PageBlock>);
+      }
+      return;
+    }
+
+    if ((e.key === "ArrowDown" || e.key === "ArrowUp") && "text" in block && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
       const textarea = e.currentTarget;
       const caret = textarea.selectionStart ?? 0;
       const text = textarea.value;
@@ -827,6 +954,33 @@ export const Editor = forwardRef<EditorHandle, {
       applyLink();
       return;
     }
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "s") {
+      e.preventDefault();
+      applyInlineWrap("~");
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "e") {
+      e.preventDefault();
+      applyInlineWrap("`");
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "d") {
+      e.preventDefault();
+      duplicateBlock(block.id);
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && BLOCK_TYPE_SHORTCUT[e.code] && "text" in block) {
+      e.preventDefault();
+      const type = BLOCK_TYPE_SHORTCUT[e.code];
+      if (type === "checklist_item") {
+        updateBlock(block.id, { type, text: block.text, checked: false } as Partial<PageBlock>);
+      } else if (type === "toggle") {
+        updateBlock(block.id, { type, text: block.text, body: "", expanded: true } as Partial<PageBlock>);
+      } else {
+        updateBlock(block.id, { type, text: block.text } as Partial<PageBlock>);
+      }
+      return;
+    }
 
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -865,9 +1019,11 @@ export const Editor = forwardRef<EditorHandle, {
               draggedId === block.id ? "block-wrapper--dragging" : "",
               dragTarget?.id === block.id ? `block-wrapper--drop-${dragTarget.position}` : "",
               dragTarget?.id === block.id ? `block-wrapper--align-${dragTarget.align}` : "",
+              selectedBlockId === block.id ? "block-wrapper--selected" : "",
             ]
               .filter(Boolean)
               .join(" ")}
+            style={block.indent ? { marginLeft: block.indent * 24 } : undefined}
             draggable={editable && block.type === "image"}
             onDragStart={(e) => {
               if (!editable || block.type !== "image") return;
@@ -934,6 +1090,7 @@ export const Editor = forwardRef<EditorHandle, {
                 editable={editable}
                 onFocus={() => {
                   setActiveId(block.id);
+                  setSelectedBlockId(null);
                   onCursorReport(block.id, refs.current.get(block.id)?.selectionStart ?? 0);
                 }}
                 onChangeText={(text, caret) => handleChangeText(block, text, caret)}

@@ -67,7 +67,9 @@ export type DatabaseViewGroupBy = "status" | "assigneeId" | "none";
 
 // MVP block-based content model. Deliberately simple; extend with new
 // block "type" values rather than redesigning the shape.
-export type PageBlock =
+export type PageBlock = PageBlockVariant & { indent?: number };
+
+type PageBlockVariant =
   | { id: string; type: "heading1" | "heading2" | "heading3" | "paragraph"; text: string }
   | { id: string; type: "bulleted_list_item" | "numbered_list_item"; text: string }
   | { id: string; type: "checklist_item"; text: string; checked: boolean }

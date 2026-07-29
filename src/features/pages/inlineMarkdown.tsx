@@ -2,13 +2,13 @@ import { Fragment, type ReactNode } from "react";
 
 /**
  * Tiny, whitelist-only inline formatter: **bold**, *italic*, __underline__,
- * [text](url), @[text](user:id|date:iso). Deliberately not a full markdown
- * parser and never touches dangerouslySetInnerHTML — every token becomes a
- * real React element, so there is no injection surface here regardless of
- * what a user types.
+ * ~strikethrough~, `code`, [text](url), @[text](user:id|date:iso).
+ * Deliberately not a full markdown parser and never touches
+ * dangerouslySetInnerHTML — every token becomes a real React element, so
+ * there is no injection surface here regardless of what a user types.
  */
 export function renderInline(text: string): ReactNode {
-  const tokenRe = /(@\[[^\]]+\]\((?:user|date):[^)]+\)|\*\*[^*]+\*\*|__[^_]+__|\*[^*]+\*|\[[^\]]+\]\([^)]+\))/g;
+  const tokenRe = /(@\[[^\]]+\]\((?:user|date):[^)]+\)|\*\*[^*]+\*\*|__[^_]+__|~[^~]+~|`[^`]+`|\*[^*]+\*|\[[^\]]+\]\([^)]+\))/g;
   const parts = text.split(tokenRe).filter((p) => p !== undefined && p !== "");
 
   return parts.map((part, i) => {
@@ -26,6 +26,12 @@ export function renderInline(text: string): ReactNode {
     }
     if (/^__[^_]+__$/.test(part)) {
       return <u key={i}>{part.slice(2, -2)}</u>;
+    }
+    if (/^~[^~]+~$/.test(part)) {
+      return <s key={i}>{part.slice(1, -1)}</s>;
+    }
+    if (/^`[^`]+`$/.test(part)) {
+      return <code key={i}>{part.slice(1, -1)}</code>;
     }
     if (/^\*[^*]+\*$/.test(part)) {
       return <em key={i}>{part.slice(1, -1)}</em>;
