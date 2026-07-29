@@ -29,6 +29,8 @@ export interface PageSummaryDTO {
   isDeleted: boolean;
   updatedAt: string;
   updatedBy?: string;
+  textColor: string | null;
+  highlightColor: string | null;
 }
 
 export interface PageDetailDTO extends PageSummaryDTO {

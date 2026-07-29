@@ -16,6 +16,8 @@ function page(overrides: Partial<PageSummaryDTO>): PageSummaryDTO {
     openQuestionCount: 0,
     isDeleted: false,
     updatedAt: "2026-01-01T00:00:00Z",
+    textColor: null,
+    highlightColor: null,
     ...overrides,
   };
 }

@@ -90,6 +90,8 @@ pagesRoute.patch("/:id", requireRole("editor"), async (c) => {
       tags: body.tags,
       parentId: body.parentId,
       orderKey: body.orderKey,
+      textColor: body.textColor,
+      highlightColor: body.highlightColor,
     },
   });
 

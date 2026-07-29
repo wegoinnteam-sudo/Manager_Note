@@ -33,6 +33,8 @@ export function toPageSummaryDTO(row: PageRow): PageSummaryDTO {
     isDeleted: !!row.is_deleted,
     updatedAt: row.updated_at,
     updatedBy: row.updated_by,
+    textColor: row.text_color,
+    highlightColor: row.highlight_color,
   };
 }
 

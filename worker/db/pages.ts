@@ -14,6 +14,8 @@ export interface PageRow {
   due_date: string | null;
   tags: string; // JSON
   order_key: number;
+  text_color: string | null;
+  highlight_color: string | null;
   version: number;
   open_question_count?: number;
   is_system: number;
@@ -121,6 +123,8 @@ export async function updatePageMeta(
       tags: string[];
       parentId: string | null;
       orderKey: number;
+      textColor: string | null;
+      highlightColor: string | null;
     }>;
   },
 ): Promise<PageRow> {
@@ -136,14 +140,17 @@ export async function updatePageMeta(
     tags: params.patch.tags !== undefined ? JSON.stringify(params.patch.tags) : current.tags,
     parent_id: params.patch.parentId !== undefined ? params.patch.parentId : current.parent_id,
     order_key: params.patch.orderKey !== undefined ? params.patch.orderKey : current.order_key,
+    text_color: params.patch.textColor !== undefined ? params.patch.textColor : current.text_color,
+    highlight_color: params.patch.highlightColor !== undefined ? params.patch.highlightColor : current.highlight_color,
   };
 
   const now = nowIso();
   await db
     .prepare(
       `UPDATE pages SET title = ?1, status = ?2, assignee_id = ?3, due_date = ?4, tags = ?5,
-       parent_id = ?6, order_key = ?7, version = version + 1, updated_by = ?8, updated_at = ?9
-       WHERE id = ?10 AND team_id = ?11 AND version = ?12`,
+       parent_id = ?6, order_key = ?7, text_color = ?8, highlight_color = ?9,
+       version = version + 1, updated_by = ?10, updated_at = ?11
+       WHERE id = ?12 AND team_id = ?13 AND version = ?14`,
     )
     .bind(
       next.title,
@@ -153,6 +160,8 @@ export async function updatePageMeta(
       next.tags,
       next.parent_id,
       next.order_key,
+      next.text_color,
+      next.highlight_color,
       params.updatedBy,
       now,
       params.id,

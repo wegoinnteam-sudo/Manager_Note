@@ -77,7 +77,15 @@ function PageTreeRow({
         >
           {hasChildren ? (expanded ? "▾" : "▸") : "·"}
         </button>
-        <span className="page-tree__title">{node.page.title}</span>
+        <span
+          className="page-tree__title"
+          style={{
+            color: node.page.textColor ?? undefined,
+            backgroundColor: node.page.highlightColor ?? undefined,
+          }}
+        >
+          {node.page.title}
+        </span>
         {viewers.length > 0 && (
           <span className="page-tree__viewers" title={viewers.map((v) => v.name).join(", ")}>
             {viewers.slice(0, 3).map((v) => (
@@ -245,6 +253,20 @@ export function Sidebar({
     const detail = await api.getPage(page.id);
     await api.updatePageMeta(page.id, { expectedVersion: detail.version, title });
     await onPagesChanged();
+  };
+
+  const setPageColor = async (
+    page: PageSummaryDTO,
+    patch: { textColor?: string | null; highlightColor?: string | null },
+  ) => {
+    const detail = await api.getPage(page.id);
+    const updated = await api.updatePageMeta(page.id, { expectedVersion: detail.version, ...patch });
+    await onPagesChanged();
+    setContextMenu((prev) =>
+      prev && prev.page.id === page.id
+        ? { ...prev, page: { ...prev.page, textColor: updated.textColor, highlightColor: updated.highlightColor, version: updated.version } }
+        : prev,
+    );
   };
 
   const movePage = async (page: PageSummaryDTO, parentId: string | null) => {
@@ -441,6 +463,44 @@ export function Sidebar({
           })}>🔗 링크 복사</button>
           <button type="button" onClick={() => runAction(() => duplicatePage(contextMenu.page))}>⧉ 복제</button>
           <button type="button" onClick={() => runAction(() => renamePage(contextMenu.page))}>✎ 이름 바꾸기</button>
+          <div className="sidebar-context-menu__colors">
+            <label>
+              <span>글자색</span>
+              <input
+                type="color"
+                value={contextMenu.page.textColor ?? "#1f1f1f"}
+                onChange={(event) => runAction(() => setPageColor(contextMenu.page, { textColor: event.target.value }))}
+              />
+            </label>
+            {contextMenu.page.textColor && (
+              <button
+                type="button"
+                className="sidebar-context-menu__color-clear"
+                onClick={() => runAction(() => setPageColor(contextMenu.page, { textColor: null }))}
+              >
+                초기화
+              </button>
+            )}
+          </div>
+          <div className="sidebar-context-menu__colors">
+            <label>
+              <span>형광펜</span>
+              <input
+                type="color"
+                value={contextMenu.page.highlightColor ?? "#ffffff"}
+                onChange={(event) => runAction(() => setPageColor(contextMenu.page, { highlightColor: event.target.value }))}
+              />
+            </label>
+            {contextMenu.page.highlightColor && (
+              <button
+                type="button"
+                className="sidebar-context-menu__color-clear"
+                onClick={() => runAction(() => setPageColor(contextMenu.page, { highlightColor: null }))}
+              >
+                초기화
+              </button>
+            )}
+          </div>
           <button type="button" onClick={() => setMoving((value) => !value)}>↪ 옮기기</button>
           {moving && (
             <div className="sidebar-context-menu__move">

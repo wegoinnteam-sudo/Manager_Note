@@ -70,6 +70,8 @@ export const api = {
       tags?: string[];
       parentId?: string | null;
       orderKey?: number;
+      textColor?: string | null;
+      highlightColor?: string | null;
     },
   ) => request<PageDetailDTO>(`/api/pages/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
   updatePageContent: (id: string, expectedVersion: number, content: PageContent) =>

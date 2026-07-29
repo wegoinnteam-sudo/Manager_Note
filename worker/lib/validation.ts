@@ -82,6 +82,8 @@ export const createPageSchema = z.object({
   title: z.string().max(MAX_TITLE_LENGTH).optional(),
 });
 
+const hexColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/);
+
 export const updatePageMetaSchema = z.object({
   expectedVersion: z.number().int().nonnegative(),
   title: z.string().max(MAX_TITLE_LENGTH).optional(),
@@ -91,6 +93,8 @@ export const updatePageMetaSchema = z.object({
   tags: z.array(z.string().max(50)).max(20).optional(),
   parentId: z.string().nullable().optional(),
   orderKey: z.number().optional(),
+  textColor: hexColorSchema.nullable().optional(),
+  highlightColor: hexColorSchema.nullable().optional(),
 });
 
 export const updatePageContentSchema = z.object({
