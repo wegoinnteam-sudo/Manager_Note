@@ -6,40 +6,55 @@ import type {
   DatabaseViewSort,
   DatabaseTemplate,
   HandoffStatus,
+  PageCategory,
   PageBlock,
   PageSummaryDTO,
   TeamMemberDTO,
 } from "@shared/types";
+import { CATEGORY_LABELS, PAGE_CATEGORIES, UNCATEGORIZED_LABEL } from "@shared/types";
 import { api } from "@/lib/api";
 import { StatusBadge, STATUS_LABELS, nextStatus } from "@/features/status/Status";
 import { memberName } from "@/hooks/useTeamMembers";
 
 const STATUS_ORDER: HandoffStatus[] = ["in_progress", "handoff_pending", "done", "on_hold"];
 
-export type DatabaseViewType = "table" | "board" | "gallery" | "calendar" | "list";
+export type DatabaseViewType = "table" | "board" | "gallery" | "calendar" | "timeline" | "chart" | "list";
 
 const VIEW_TYPE_LABELS: Record<DatabaseViewType, string> = {
   table: "표",
   board: "보드",
   gallery: "갤러리",
   calendar: "캘린더",
+  timeline: "타임라인",
+  chart: "차트",
   list: "리스트",
 };
 
 const PROPERTY_LABELS: Record<DatabaseViewProperty, string> = {
   status: "상태",
+  category: "카테고리",
+  description: "설명",
+  tags: "태그",
   assigneeId: "담당자",
   dueDate: "마감일",
+  updatedAt: "최근 수정",
   overdue: "기한 지남",
   daysRemaining: "남은 일수",
   subItems: "하위 항목",
 };
 
-const DEFAULT_PROPERTIES: DatabaseViewProperty[] = ["status", "assigneeId", "dueDate", "overdue"];
+const DEFAULT_PROPERTIES: DatabaseViewProperty[] = ["category", "description", "tags", "status", "assigneeId", "dueDate"];
 
 type DbViewBlock = Extract<PageBlock, { type: "database_view" }>;
 
-type PatchFields = { status?: HandoffStatus; assigneeId?: string | null; dueDate?: string | null };
+type PatchFields = {
+  status?: HandoffStatus;
+  category?: PageCategory | null;
+  description?: string | null;
+  tags?: string[];
+  assigneeId?: string | null;
+  dueDate?: string | null;
+};
 type TemplateDraft = {
   id?: string;
   name: string;
@@ -56,6 +71,12 @@ function fieldValue(c: PageSummaryDTO, field: DatabaseViewSort["field"]): string
       return c.title;
     case "status":
       return c.status;
+    case "category":
+      return c.category ?? "";
+    case "description":
+      return c.description ?? "";
+    case "tags":
+      return c.tags.join(", ");
     case "assigneeId":
       return c.assigneeId ?? "";
     case "dueDate":
@@ -74,6 +95,10 @@ function matchesFilter(c: PageSummaryDTO, f: DatabaseViewFilter): boolean {
       return value === (f.value ?? "");
     case "neq":
       return value !== (f.value ?? "");
+    case "contains":
+      return value.toLocaleLowerCase().includes((f.value ?? "").toLocaleLowerCase());
+    case "notContains":
+      return !value.toLocaleLowerCase().includes((f.value ?? "").toLocaleLowerCase());
     case "isEmpty":
       return !value;
     case "isNotEmpty":
@@ -142,6 +167,7 @@ export function DatabaseView({
   const [nameDraft, setNameDraft] = useState(block.name ?? "");
   const [copied, setCopied] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [templateDraft, setTemplateDraft] = useState<TemplateDraft | null>(null);
   const menuWrapRef = useRef<HTMLDivElement | null>(null);
 
@@ -161,7 +187,15 @@ export function DatabaseView({
     [pages, sourceParentId],
   );
 
-  const filteredChildren = useMemo(() => (filter ? allChildren.filter((c) => matchesFilter(c, filter)) : allChildren), [allChildren, filter]);
+  const filteredChildren = useMemo(() => {
+    const query = searchQuery.trim().toLocaleLowerCase();
+    return allChildren.filter((child) => {
+      if (filter && !matchesFilter(child, filter)) return false;
+      if (!query) return true;
+      return [child.title, child.description ?? "", child.tags.join(" "), child.category ? CATEGORY_LABELS[child.category] : ""]
+        .some((value) => value.toLocaleLowerCase().includes(query));
+    });
+  }, [allChildren, filter, searchQuery]);
   const subItemCounts = useMemo(() => {
     const counts = new Map<string, number>();
     pages.forEach((page) => {
@@ -394,6 +428,16 @@ export function DatabaseView({
           </div>
         )}
       </div>
+      <div className="db-view__search">
+        <input
+          type="search"
+          value={searchQuery}
+          onChange={(event) => setSearchQuery(event.target.value)}
+          placeholder="현재 데이터베이스 검색…"
+          aria-label="현재 데이터베이스 검색"
+        />
+        {searchQuery && <button type="button" onClick={() => setSearchQuery("")}>지우기</button>}
+      </div>
       {templateDraft && (
         <DatabaseTemplateEditor
           draft={templateDraft}
@@ -466,6 +510,10 @@ export function DatabaseView({
         <GalleryView children={children} members={members} properties={properties} subItemCounts={subItemCounts} onOpenPage={onOpenPage} />
       ) : view === "list" ? (
         <ListView children={children} members={members} properties={properties} subItemCounts={subItemCounts} onOpenPage={onOpenPage} />
+      ) : view === "timeline" ? (
+        <TimelineView items={children} onOpenPage={onOpenPage} />
+      ) : view === "chart" ? (
+        <SummaryChartView items={children} />
       ) : (
         <CalendarGrid items={children} onOpenPage={onOpenPage} />
       )}
@@ -604,16 +652,21 @@ function DatabaseViewEditPanel({
           <option value="status">상태</option>
           <option value="assigneeId">담당자</option>
           <option value="dueDate">마감일</option>
+          <option value="category">카테고리</option>
+          <option value="description">설명</option>
+          <option value="tags">태그</option>
         </select>
         {filter && (
           <select value={filter.op} onChange={(e) => onChange({ filter: { ...filter, op: e.target.value as DatabaseViewFilter["op"] } })}>
             <option value="eq">이다</option>
             <option value="neq">아니다</option>
+            <option value="contains">포함</option>
+            <option value="notContains">포함하지 않음</option>
             <option value="isEmpty">비어있음</option>
             <option value="isNotEmpty">비어있지 않음</option>
           </select>
         )}
-        {filter && (filter.op === "eq" || filter.op === "neq") ? (
+        {filter && ["eq", "neq", "contains", "notContains"].includes(filter.op) ? (
           filter.field === "status" ? (
             <select value={filter.value ?? ""} onChange={(e) => onChange({ filter: { ...filter, value: e.target.value } })}>
               {STATUS_ORDER.map((s) => (
@@ -621,6 +674,11 @@ function DatabaseViewEditPanel({
                   {STATUS_LABELS[s]}
                 </option>
               ))}
+            </select>
+          ) : filter.field === "category" ? (
+            <select value={filter.value ?? ""} onChange={(e) => onChange({ filter: { ...filter, value: e.target.value } })}>
+              <option value="">카테고리 없음</option>
+              {PAGE_CATEGORIES.map((category) => <option key={category} value={category}>{CATEGORY_LABELS[category]}</option>)}
             </select>
           ) : filter.field === "assigneeId" ? (
             <select value={filter.value ?? ""} onChange={(e) => onChange({ filter: { ...filter, value: e.target.value } })}>
@@ -649,6 +707,9 @@ function DatabaseViewEditPanel({
           <option value="">정렬 없음</option>
           <option value="title">이름</option>
           <option value="status">상태</option>
+          <option value="category">카테고리</option>
+          <option value="description">설명</option>
+          <option value="tags">태그</option>
           <option value="dueDate">마감일</option>
           <option value="updatedAt">최근 수정</option>
         </select>
@@ -665,6 +726,7 @@ function DatabaseViewEditPanel({
           <div className="db-view-menu__section-title">그룹</div>
           <select value={groupBy} onChange={(e) => onChange({ groupBy: e.target.value as DatabaseViewGroupBy })}>
             <option value="status">상태</option>
+            <option value="category">카테고리</option>
             <option value="assigneeId">담당자</option>
             <option value="none">없음</option>
           </select>
@@ -675,6 +737,43 @@ function DatabaseViewEditPanel({
         닫기
       </button>
     </div>
+  );
+}
+
+function EditableTextCell({
+  value,
+  placeholder,
+  disabled,
+  onCommit,
+}: {
+  value: string;
+  placeholder: string;
+  disabled: boolean;
+  onCommit: (value: string) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+
+  const commit = () => {
+    if (draft !== value) onCommit(draft);
+  };
+
+  return (
+    <input
+      type="text"
+      value={draft}
+      disabled={disabled}
+      placeholder={placeholder}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") event.currentTarget.blur();
+        if (event.key === "Escape") {
+          setDraft(value);
+          event.currentTarget.blur();
+        }
+      }}
+    />
   );
 }
 
@@ -700,12 +799,16 @@ function TableView({
       <thead>
         <tr>
           <th>제목</th>
+          {properties.includes("category") && <th>카테고리</th>}
+          {properties.includes("description") && <th>설명</th>}
+          {properties.includes("tags") && <th>태그</th>}
           {properties.includes("status") && <th>상태</th>}
           {properties.includes("assigneeId") && <th>담당자</th>}
           {properties.includes("dueDate") && <th>마감일</th>}
           {properties.includes("overdue") && <th>기한 지남</th>}
           {properties.includes("daysRemaining") && <th>남은 일수</th>}
           {properties.includes("subItems") && <th>하위 항목</th>}
+          {properties.includes("updatedAt") && <th>최근 수정</th>}
         </tr>
       </thead>
       <tbody>
@@ -716,6 +819,34 @@ function TableView({
                 {c.title}
               </button>
             </td>
+            {properties.includes("category") && (
+              <td>
+                <select value={c.category ?? ""} disabled={!editable} onChange={(e) => patch(c, { category: (e.target.value || null) as PageCategory | null })}>
+                  <option value="">카테고리 없음</option>
+                  {PAGE_CATEGORIES.map((category) => <option key={category} value={category}>{CATEGORY_LABELS[category]}</option>)}
+                </select>
+              </td>
+            )}
+            {properties.includes("description") && (
+              <td>
+                <EditableTextCell
+                  value={c.description ?? ""}
+                  disabled={!editable}
+                  placeholder="설명"
+                  onCommit={(value) => patch(c, { description: value || null })}
+                />
+              </td>
+            )}
+            {properties.includes("tags") && (
+              <td>
+                <EditableTextCell
+                  value={c.tags.join(", ")}
+                  disabled={!editable}
+                  placeholder="쉼표로 태그 구분"
+                  onCommit={(value) => patch(c, { tags: value.split(",").map((tag) => tag.trim()).filter(Boolean) })}
+                />
+              </td>
+            )}
             {properties.includes("status") && (
               <td>
                 <select value={c.status} disabled={!editable} onChange={(e) => patch(c, { status: e.target.value as HandoffStatus })}>
@@ -747,6 +878,7 @@ function TableView({
             {properties.includes("overdue") && <td><FormulaValue page={c} property="overdue" /></td>}
             {properties.includes("daysRemaining") && <td><FormulaValue page={c} property="daysRemaining" /></td>}
             {properties.includes("subItems") && <td><FormulaValue page={c} property="subItems" subItemCount={subItemCounts.get(c.id) ?? 0} /></td>}
+            {properties.includes("updatedAt") && <td>{new Date(c.updatedAt).toLocaleDateString("ko-KR")}</td>}
           </tr>
         ))}
       </tbody>
@@ -768,7 +900,14 @@ function BoardCard({
   patch: (child: PageSummaryDTO, fields: PatchFields) => void;
 }) {
   return (
-    <div className="db-board__card">
+    <div
+      className="db-board__card"
+      draggable={editable}
+      onDragStart={(event) => {
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("application/x-team-note-db-page", c.id);
+      }}
+    >
       <button type="button" className="db-board__card-title" onClick={() => onOpenPage(c.id)}>
         {c.title}
       </button>
@@ -795,6 +934,13 @@ function BoardView({
   onOpenPage: (id: string) => void;
   patch: (child: PageSummaryDTO, fields: PatchFields) => void;
 }) {
+  const dropPage = (event: React.DragEvent, fields: PatchFields) => {
+    event.preventDefault();
+    const id = event.dataTransfer.getData("application/x-team-note-db-page");
+    const child = children.find((candidate) => candidate.id === id);
+    if (child) patch(child, fields);
+  };
+
   if (groupBy === "none") {
     return (
       <div className="db-board">
@@ -813,7 +959,14 @@ function BoardView({
     return (
       <div className="db-board">
         {groups.map((g) => (
-          <div key={g.key || "unassigned"} className="db-board__col">
+          <div
+            key={g.key || "unassigned"}
+            className="db-board__col"
+            onDragOver={(event) => {
+              if (editable) event.preventDefault();
+            }}
+            onDrop={(event) => dropPage(event, { assigneeId: g.key || null })}
+          >
             <div className="db-board__col-title">{g.label}</div>
             {children
               .filter((c) => (c.assigneeId ?? "") === g.key)
@@ -826,10 +979,45 @@ function BoardView({
     );
   }
 
+  if (groupBy === "category") {
+    const groups = [
+      ...PAGE_CATEGORIES.map((category) => ({ key: category, label: CATEGORY_LABELS[category] })),
+      { key: "", label: UNCATEGORIZED_LABEL },
+    ];
+    return (
+      <div className="db-board">
+        {groups.map((group) => (
+          <div
+            key={group.key || "uncategorized"}
+            className="db-board__col"
+            onDragOver={(event) => {
+              if (editable) event.preventDefault();
+            }}
+            onDrop={(event) => dropPage(event, { category: (group.key || null) as PageCategory | null })}
+          >
+            <div className="db-board__col-title">{group.label}</div>
+            {children
+              .filter((child) => (child.category ?? "") === group.key)
+              .map((child) => (
+                <BoardCard key={child.id} c={child} members={members} editable={editable} onOpenPage={onOpenPage} patch={patch} />
+              ))}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="db-board">
       {STATUS_ORDER.map((s) => (
-        <div key={s} className="db-board__col">
+        <div
+          key={s}
+          className="db-board__col"
+          onDragOver={(event) => {
+            if (editable) event.preventDefault();
+          }}
+          onDrop={(event) => dropPage(event, { status: s })}
+        >
           <div className="db-board__col-title">{STATUS_LABELS[s]}</div>
           {children
             .filter((c) => c.status === s)
@@ -860,12 +1048,16 @@ function GalleryView({
       {children.map((c) => (
         <button key={c.id} type="button" className="db-gallery__card" onClick={() => onOpenPage(c.id)}>
           <div className="db-gallery__title">{c.title}</div>
+          {properties.includes("category") && c.category && <span>{CATEGORY_LABELS[c.category]}</span>}
+          {properties.includes("description") && c.description && <span>{c.description}</span>}
+          {properties.includes("tags") && c.tags.length > 0 && <span>{c.tags.join(" · ")}</span>}
           {properties.includes("status") && <StatusBadge status={c.status} />}
           {properties.includes("assigneeId") && c.assigneeId && <span className="db-list__assignee">{memberName(members, c.assigneeId)}</span>}
           {properties.includes("dueDate") && c.dueDate && <span className="db-list__due">{c.dueDate}</span>}
           {properties.includes("overdue") && <FormulaValue page={c} property="overdue" />}
           {properties.includes("daysRemaining") && <FormulaValue page={c} property="daysRemaining" />}
           {properties.includes("subItems") && <FormulaValue page={c} property="subItems" subItemCount={subItemCounts.get(c.id) ?? 0} />}
+          {properties.includes("updatedAt") && <span>{new Date(c.updatedAt).toLocaleDateString("ko-KR")}</span>}
         </button>
       ))}
     </div>
@@ -890,12 +1082,71 @@ function ListView({
       {children.map((c) => (
         <div key={c.id} className="db-list__row" onClick={() => onOpenPage(c.id)}>
           <span className="db-list__title">{c.title}</span>
+          {properties.includes("category") && c.category && <span>{CATEGORY_LABELS[c.category]}</span>}
+          {properties.includes("description") && c.description && <span>{c.description}</span>}
+          {properties.includes("tags") && c.tags.length > 0 && <span>{c.tags.join(" · ")}</span>}
           {properties.includes("status") && <StatusBadge status={c.status} />}
           {properties.includes("assigneeId") && c.assigneeId && <span className="db-list__assignee">{memberName(members, c.assigneeId)}</span>}
           {properties.includes("dueDate") && c.dueDate && <span className="db-list__due">{c.dueDate}</span>}
           {properties.includes("overdue") && <FormulaValue page={c} property="overdue" />}
           {properties.includes("daysRemaining") && <FormulaValue page={c} property="daysRemaining" />}
           {properties.includes("subItems") && <FormulaValue page={c} property="subItems" subItemCount={subItemCounts.get(c.id) ?? 0} />}
+          {properties.includes("updatedAt") && <span>{new Date(c.updatedAt).toLocaleDateString("ko-KR")}</span>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TimelineView({ items, onOpenPage }: { items: PageSummaryDTO[]; onOpenPage: (id: string) => void }) {
+  const dated = [...items]
+    .filter((item) => item.dueDate)
+    .sort((a, b) => (a.dueDate ?? "").localeCompare(b.dueDate ?? ""));
+  const undated = items.filter((item) => !item.dueDate);
+
+  return (
+    <div className="db-timeline">
+      {dated.map((item) => (
+        <button key={item.id} type="button" className="db-timeline__row" onClick={() => onOpenPage(item.id)}>
+          <span className="db-timeline__date">{item.dueDate}</span>
+          <span className="db-timeline__line"><span /></span>
+          <span className="db-timeline__title">{item.title}</span>
+        </button>
+      ))}
+      {undated.length > 0 && (
+        <div className="db-timeline__undated">
+          <strong>날짜 없음</strong>
+          {undated.map((item) => (
+            <button key={item.id} type="button" onClick={() => onOpenPage(item.id)}>{item.title}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SummaryChartView({ items }: { items: PageSummaryDTO[] }) {
+  const groups = [
+    ...PAGE_CATEGORIES.map((category) => ({
+      key: category,
+      label: CATEGORY_LABELS[category],
+      value: items.filter((item) => item.category === category).length,
+    })),
+    {
+      key: "uncategorized",
+      label: UNCATEGORIZED_LABEL,
+      value: items.filter((item) => !item.category).length,
+    },
+  ];
+  const max = Math.max(1, ...groups.map((group) => group.value));
+
+  return (
+    <div className="db-summary-chart" aria-label="카테고리별 페이지 수">
+      {groups.map((group) => (
+        <div key={group.key} className="db-summary-chart__row">
+          <span>{group.label}</span>
+          <div><i style={{ width: `${(group.value / max) * 100}%` }} /></div>
+          <strong>{group.value}</strong>
         </div>
       ))}
     </div>

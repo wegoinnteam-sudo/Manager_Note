@@ -9,6 +9,7 @@ import { FormBlockView } from "./FormBlockView";
 import { ImageBlockView } from "./ImageBlockView";
 import { FileBlockView } from "./FileBlockView";
 import { RemoteCaretMarkers, RemotePresenceBadge } from "./RemoteCursors";
+import type { TemplateKey } from "./templates";
 
 const TEXTAREA_TYPES = new Set(["heading1", "heading2", "heading3", "paragraph", "bulleted_list_item", "numbered_list_item"]);
 
@@ -95,7 +96,7 @@ export function Block({
   pages: PageSummaryDTO[];
   members: TeamMemberDTO[];
   onPagesChanged: () => void;
-  onInsertTemplateAfter: (afterId: string, templateKey: "meeting_notes" | "handoff_note") => void;
+  onInsertTemplateAfter: (afterId: string, templateKey: TemplateKey) => void;
   onReplaceImage: (blockId: string) => void;
   remoteCursors: PresenceUser[];
   registerRef: (el: HTMLTextAreaElement | null) => void;
@@ -511,6 +512,47 @@ export function Block({
             </div>
           )}
           {remoteMarkers}
+        </div>
+        {editable && (
+          <button type="button" className="block-row__handle" onClick={onRemoveBlock} title="블록 제거">
+            ✕
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (block.type === "code" || block.type === "equation") {
+    const isCode = block.type === "code";
+    return (
+      <div id={domId} className="block-row">
+        <div className={isCode ? "code-block" : "equation-block"}>
+          {isCode && editable && (
+            <input
+              className="code-block__language"
+              value={block.language ?? "plain"}
+              aria-label="코드 언어"
+              onChange={(e) => onPatch({ language: e.target.value })}
+            />
+          )}
+          {editable ? (
+            <textarea
+              ref={(el) => {
+                localRef.current = el;
+                registerRef(el);
+                fitTextareaToContent(el);
+              }}
+              value={block.text}
+              rows={isCode ? 4 : 2}
+              placeholder={isCode ? "코드를 입력하세요…" : "수식을 입력하세요…"}
+              onFocus={onFocus}
+              onChange={(e) => onChangeText(e.target.value, e.target.selectionStart ?? e.target.value.length)}
+              onKeyDown={onKeyDownBlock}
+              onInput={(e) => fitTextareaToContent(e.currentTarget)}
+            />
+          ) : (
+            isCode ? <pre><code>{block.text}</code></pre> : <div className="equation-block__value">{block.text}</div>
+          )}
         </div>
         {editable && (
           <button type="button" className="block-row__handle" onClick={onRemoveBlock} title="블록 제거">

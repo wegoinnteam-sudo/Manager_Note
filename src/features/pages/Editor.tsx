@@ -53,6 +53,10 @@ function emptyBlockOfType(type: PageBlock["type"]): PageBlock {
       return { id, type, formKey: "leave_request" };
     case "quote":
       return { id, type, text: "" };
+    case "code":
+      return { id, type, text: "", language: "plain" };
+    case "equation":
+      return { id, type, text: "" };
     case "breadcrumb":
       return { id, type };
     default:
@@ -84,11 +88,19 @@ type SlashCommandType =
   | "db_board"
   | "db_gallery"
   | "db_calendar"
+  | "db_timeline"
+  | "db_chart"
   | "db_list"
   | "chart"
   | "button"
   | "form"
   | "quote"
+  | "code"
+  | "equation"
+  | "insert_date"
+  | "insert_reminder"
+  | "duplicate"
+  | "delete"
   | "breadcrumb"
   | "link_existing_page";
 
@@ -97,25 +109,31 @@ const DB_VIEW_BY_COMMAND: Partial<Record<SlashCommandType, DatabaseViewType>> = 
   db_board: "board",
   db_gallery: "gallery",
   db_calendar: "calendar",
+  db_timeline: "timeline",
+  db_chart: "chart",
   db_list: "list",
 };
 
 const SLASH_COMMANDS: { label: string; type: SlashCommandType; aliases: string[] }[] = [
-  { label: "텍스트", type: "paragraph", aliases: ["text"] },
+  { label: "텍스트", type: "paragraph", aliases: ["text", "plain"] },
   { label: "제목1", type: "heading1", aliases: ["heading 1", "h1"] },
   { label: "제목2", type: "heading2", aliases: ["heading 2", "h2"] },
   { label: "제목3", type: "heading3", aliases: ["heading 3", "h3"] },
   { label: "글머리표", type: "bulleted_list_item", aliases: ["bullet"] },
-  { label: "번호 목록", type: "numbered_list_item", aliases: ["numbered"] },
+  { label: "번호 목록", type: "numbered_list_item", aliases: ["numbered", "num"] },
   { label: "체크리스트", type: "checklist_item", aliases: ["to-do", "todo"] },
   { label: "토글", type: "toggle", aliases: ["toggle"] },
   { label: "콜아웃", type: "callout", aliases: ["callout"] },
   { label: "인용문", type: "quote", aliases: ["quote"] },
-  { label: "구분선", type: "divider", aliases: ["divider"] },
+  { label: "구분선", type: "divider", aliases: ["divider", "div"] },
+  { label: "코드", type: "code", aliases: ["code"] },
+  { label: "수식", type: "equation", aliases: ["equation", "math", "latex"] },
+  { label: "오늘 날짜", type: "insert_date", aliases: ["date", "today", "날짜"] },
+  { label: "알림 메모", type: "insert_reminder", aliases: ["reminder", "알림"] },
   { label: "표", type: "table", aliases: ["table"] },
   { label: "목차", type: "toc", aliases: ["table of contents", "toc"] },
   { label: "임베드", type: "embed", aliases: ["embed", "youtube", "google drive"] },
-  { label: "북마크", type: "bookmark", aliases: ["bookmark", "link"] },
+  { label: "북마크", type: "bookmark", aliases: ["bookmark", "link", "book", "web"] },
   { label: "이미지 삽입", type: "image", aliases: ["image"] },
   { label: "파일 첨부", type: "file", aliases: ["file", "pdf", "video", "audio", "동영상", "음성"] },
   { label: "페이지", type: "page_link", aliases: ["page", "새 페이지"] },
@@ -126,11 +144,15 @@ const SLASH_COMMANDS: { label: string; type: SlashCommandType; aliases: string[]
   { label: "데이터베이스 - 보드", type: "db_board", aliases: ["board", "kanban"] },
   { label: "데이터베이스 - 갤러리", type: "db_gallery", aliases: ["gallery"] },
   { label: "데이터베이스 - 캘린더", type: "db_calendar", aliases: ["calendar"] },
+  { label: "데이터베이스 - 타임라인", type: "db_timeline", aliases: ["timeline"] },
+  { label: "데이터베이스 - 요약 차트", type: "db_chart", aliases: ["database chart", "db chart"] },
   { label: "데이터베이스 - 리스트", type: "db_list", aliases: ["list"] },
   { label: "차트", type: "chart", aliases: ["chart", "graph"] },
   { label: "버튼", type: "button", aliases: ["button"] },
   { label: "폼", type: "form", aliases: ["form"] },
   { label: "현재 위치", type: "breadcrumb", aliases: ["breadcrumb"] },
+  { label: "현재 블록 복제", type: "duplicate", aliases: ["duplicate", "복제"] },
+  { label: "현재 블록 삭제", type: "delete", aliases: ["delete", "삭제"] },
 ];
 
 function filterCommands(query: string) {
@@ -561,6 +583,34 @@ export const Editor = forwardRef<EditorHandle, {
   const runSlashCommand = (block: PageBlock, cmd: { label: string; type: SlashCommandType }) => {
     setSlashMenu(null);
 
+    if (cmd.type === "duplicate") {
+      duplicateBlock(block.id);
+      return;
+    }
+
+    if (cmd.type === "delete") {
+      removeBlock(block.id);
+      return;
+    }
+
+    if (cmd.type === "insert_date") {
+      const today = new Intl.DateTimeFormat("ko-KR", { dateStyle: "long" }).format(new Date());
+      updateBlock(block.id, { type: "paragraph", text: today } as Partial<PageBlock>);
+      return;
+    }
+
+    if (cmd.type === "insert_reminder") {
+      const when = prompt("알림 날짜와 시간을 입력하세요. (예: 2026-08-01 09:00)");
+      if (!when?.trim()) {
+        updateBlock(block.id, { type: "paragraph", text: "" } as Partial<PageBlock>);
+        return;
+      }
+      updateBlock(block.id, { type: "callout", text: `⏰ ${when.trim()} — ` } as Partial<PageBlock>);
+      setActiveId(block.id);
+      requestAnimationFrame(() => refs.current.get(block.id)?.focus());
+      return;
+    }
+
     if (cmd.type === "image" || cmd.type === "file") {
       updateBlock(block.id, { text: "" } as Partial<PageBlock>);
       setActiveId(block.id);
@@ -596,6 +646,20 @@ export const Editor = forwardRef<EditorHandle, {
 
     if (cmd.type === "quote") {
       updateBlock(block.id, { type: "quote", text: "" } as Partial<PageBlock>);
+      setActiveId(block.id);
+      requestAnimationFrame(() => refs.current.get(block.id)?.focus());
+      return;
+    }
+
+    if (cmd.type === "code") {
+      updateBlock(block.id, { type: "code", text: "", language: "plain" } as Partial<PageBlock>);
+      setActiveId(block.id);
+      requestAnimationFrame(() => refs.current.get(block.id)?.focus());
+      return;
+    }
+
+    if (cmd.type === "equation") {
+      updateBlock(block.id, { type: "equation", text: "" } as Partial<PageBlock>);
       setActiveId(block.id);
       requestAnimationFrame(() => refs.current.get(block.id)?.focus());
       return;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { extensionOf, isAllowedExtension, createPageSchema, updatePageMetaSchema, attachmentInitSchema } from "../lib/validation";
+import { extensionOf, isAllowedExtension, createPageSchema, updatePageMetaSchema, attachmentInitSchema, pageContentSchema } from "../lib/validation";
 
 describe("extensionOf / isAllowedExtension", () => {
   it("extracts the lowercase extension", () => {
@@ -33,5 +33,25 @@ describe("zod schemas", () => {
     expect(() =>
       attachmentInitSchema.parse({ fileName: "a.pdf", mimeType: "application/pdf", sizeBytes: 0 }),
     ).toThrow();
+  });
+
+  it("accepts the extended editor and database blocks", () => {
+    expect(() =>
+      pageContentSchema.parse({
+        blocks: [
+          { id: "code-1", type: "code", text: "const ready = true;", language: "typescript" },
+          { id: "math-1", type: "equation", text: "a² + b² = c²" },
+          {
+            id: "db-1",
+            type: "database_view",
+            view: "timeline",
+            properties: ["category", "description", "tags", "updatedAt"],
+            filter: { field: "tags", op: "contains", value: "계약서" },
+            groupBy: "category",
+          },
+          { id: "button-1", type: "button", label: "객실 수리 요청", templateKey: "room_repair" },
+        ],
+      }),
+    ).not.toThrow();
   });
 });

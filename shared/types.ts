@@ -84,7 +84,17 @@ export interface PageDetailDTO extends PageSummaryDTO {
   createdAt: string;
 }
 
-export type DatabaseViewProperty = "status" | "assigneeId" | "dueDate" | "overdue" | "daysRemaining" | "subItems";
+export type DatabaseViewProperty =
+  | "status"
+  | "category"
+  | "description"
+  | "tags"
+  | "assigneeId"
+  | "dueDate"
+  | "updatedAt"
+  | "overdue"
+  | "daysRemaining"
+  | "subItems";
 
 export interface DatabaseTemplate {
   id: string;
@@ -98,7 +108,7 @@ export interface DatabaseTemplate {
 
 export interface DatabaseViewFilter {
   field: DatabaseViewProperty;
-  op: "eq" | "neq" | "isEmpty" | "isNotEmpty";
+  op: "eq" | "neq" | "contains" | "notContains" | "isEmpty" | "isNotEmpty";
   value?: string;
 }
 
@@ -107,7 +117,7 @@ export interface DatabaseViewSort {
   direction: "asc" | "desc";
 }
 
-export type DatabaseViewGroupBy = "status" | "assigneeId" | "none";
+export type DatabaseViewGroupBy = "status" | "category" | "assigneeId" | "none";
 
 // MVP block-based content model. Deliberately simple; extend with new
 // block "type" values rather than redesigning the shape.
@@ -139,7 +149,7 @@ type PageBlockVariant =
   | {
       id: string;
       type: "database_view";
-      view: "table" | "board" | "gallery" | "calendar" | "list";
+      view: "table" | "board" | "gallery" | "calendar" | "timeline" | "chart" | "list";
       name?: string;
       properties?: DatabaseViewProperty[];
       filter?: DatabaseViewFilter | null;
@@ -151,9 +161,16 @@ type PageBlockVariant =
       showSubItems?: boolean;
     }
   | { id: string; type: "chart" }
-  | { id: string; type: "button"; label: string; templateKey: "meeting_notes" | "handoff_note" }
+  | {
+      id: string;
+      type: "button";
+      label: string;
+      templateKey: "meeting_notes" | "handoff_note" | "emergency_manual" | "group_contract" | "room_repair" | "event_report";
+    }
   | { id: string; type: "form"; formKey: "leave_request" | "repair_request" | "purchase_request" }
   | { id: string; type: "quote"; text: string }
+  | { id: string; type: "code"; text: string; language?: string }
+  | { id: string; type: "equation"; text: string }
   | { id: string; type: "breadcrumb" };
 
 export interface PageContent {
