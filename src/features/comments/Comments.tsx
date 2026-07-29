@@ -46,7 +46,7 @@ export function Comments({ pageId, canComment, guestName }: { pageId: string; ca
             type="button"
             disabled={submitting || !draft.trim()}
             onClick={submit}
-            style={{ marginTop: 6, fontSize: 12, padding: "6px 12px", borderRadius: 6, border: "1px solid var(--color-border)", background: "#fff", cursor: "pointer" }}
+            style={{ marginTop: 6, fontSize: 12, padding: "6px 12px", borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--color-surface)", cursor: "pointer" }}
           >
             등록
           </button>

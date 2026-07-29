@@ -6,6 +6,7 @@ import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { useRoute } from "@/hooks/useRoute";
 import { useGuestIdentity } from "@/hooks/useGuestIdentity";
 import { usePresence } from "@/hooks/usePresence";
+import { useTheme } from "@/hooks/useTheme";
 import { api } from "@/lib/api";
 import { Sidebar } from "@/features/sidebar/Sidebar";
 import { WegoinnBoard } from "@/features/board/WegoinnBoard";
@@ -22,6 +23,7 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
   const members = useTeamMembers();
   const { path, navigate } = useRoute();
   const { users: presenceUsers, report: reportCursor } = usePresence(identity);
+  const { preference: theme, setTheme } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [justCreatedPageId, setJustCreatedPageId] = useState<string | null>(null);
   const dropHandlerRef = useRef<(files: FileList) => void>(() => {});
@@ -146,6 +148,8 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
           presenceUsers={presenceUsers}
           onPagesChanged={refreshPages}
           members={members}
+          theme={theme}
+          onThemeChange={setTheme}
         />
         <div className="main">
           <div className="topbar">

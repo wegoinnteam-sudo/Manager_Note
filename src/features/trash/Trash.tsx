@@ -30,7 +30,7 @@ export function Trash({ canRestore, onOpenPage, onRestored }: { canRestore: bool
             {p.title}
           </span>
           {canRestore && (
-            <button type="button" onClick={() => restore(p.id)} style={{ fontSize: 12, border: "1px solid var(--color-border)", background: "#fff", borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}>
+            <button type="button" onClick={() => restore(p.id)} style={{ fontSize: 12, border: "1px solid var(--color-border)", background: "var(--color-surface)", borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}>
               복원
             </button>
           )}

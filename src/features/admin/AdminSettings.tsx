@@ -55,7 +55,7 @@ export function AdminSettings() {
 
       <div className="section">
         <div className="section__title">Google Drive 동기화</div>
-        <button type="button" disabled={syncing} onClick={runSync} style={{ fontSize: 13, padding: "6px 14px", borderRadius: 6, border: "1px solid var(--color-border)", background: "#fff", cursor: "pointer" }}>
+        <button type="button" disabled={syncing} onClick={runSync} style={{ fontSize: 13, padding: "6px 14px", borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--color-surface)", cursor: "pointer" }}>
           {syncing ? "동기화 중…" : "지금 동기화"}
         </button>
         {syncMessage && <p style={{ fontSize: 12, marginTop: 8 }}>{syncMessage}</p>}
@@ -76,7 +76,7 @@ export function AdminSettings() {
             <option value="editor">편집자</option>
             <option value="admin">관리자</option>
           </select>
-          <button type="button" onClick={invite} disabled={!inviteEmail.trim()} style={{ padding: "6px 14px", borderRadius: 6, border: "1px solid var(--color-border)", background: "#fff", cursor: "pointer" }}>
+          <button type="button" onClick={invite} disabled={!inviteEmail.trim()} style={{ padding: "6px 14px", borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--color-surface)", cursor: "pointer" }}>
             초대
           </button>
         </div>

@@ -102,7 +102,7 @@ export function AttachmentPicker({
                 type="button"
                 disabled={!urlValue.trim()}
                 onClick={() => onPickUrl(urlValue.trim())}
-                style={{ padding: "6px 12px", border: "1px solid var(--color-border)", borderRadius: 6, background: "#fff", cursor: "pointer", fontSize: 13 }}
+                style={{ padding: "6px 12px", border: "1px solid var(--color-border)", borderRadius: 6, background: "var(--color-surface)", cursor: "pointer", fontSize: 13 }}
               >
                 삽입
               </button>
@@ -128,7 +128,7 @@ export function AttachmentPicker({
                   key={a.id}
                   type="button"
                   onClick={() => onPick([a])}
-                  style={{ display: "flex", alignItems: "center", gap: 8, padding: 8, border: "1px solid var(--color-border)", borderRadius: 6, marginBottom: 6, background: "#fff", cursor: "pointer", textAlign: "left" }}
+                  style={{ display: "flex", alignItems: "center", gap: 8, padding: 8, border: "1px solid var(--color-border)", borderRadius: 6, marginBottom: 6, background: "var(--color-surface)", cursor: "pointer", textAlign: "left" }}
                 >
                   {a.isImage ? (
                     <img src={`/api/attachments/${a.id}/preview`} alt="" style={{ width: 32, height: 32, objectFit: "cover", borderRadius: 4, flexShrink: 0 }} />

@@ -11,8 +11,39 @@
   --color-danger-bg: #fef2f2;
   --color-warn-bg: #fff7ed;
   --color-success-bg: #ecfdf5;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f8fafc;
+  --color-hover: rgba(0, 0, 0, 0.05);
+  --color-overlay: rgba(0, 0, 0, 0.55);
+  --color-shadow: rgba(0, 0, 0, 0.18);
   --radius: 6px;
   --sidebar-width: 280px;
+  color-scheme: light;
+}
+
+/* The inline script in index.html (and useTheme.ts on every subsequent
+   render) always resolves "system" down to an explicit "light"/"dark" and
+   stamps it as data-theme before paint, so this is the only rule needed —
+   no separate prefers-color-scheme media query, and no risk of an explicit
+   choice being overridden by the OS setting. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: #17181c;
+  --color-bg-sidebar: #1c1d22;
+  --color-border: #33353c;
+  --color-text: #e8e8ea;
+  --color-text-muted: #9a9ba3;
+  --color-accent: #5b8def;
+  --color-accent-bg: #1e2a44;
+  --color-danger: #f87171;
+  --color-danger-bg: #3a1e1e;
+  --color-warn-bg: #3a2a17;
+  --color-success-bg: #16302a;
+  --color-surface: #212226;
+  --color-surface-muted: #26272c;
+  --color-hover: rgba(255, 255, 255, 0.06);
+  --color-overlay: rgba(0, 0, 0, 0.7);
+  --color-shadow: rgba(0, 0, 0, 0.6);
 }
 
 * {
@@ -65,7 +96,7 @@ code {
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   font-size: 13px;
-  background: #fff;
+  background: var(--color-surface);
 }
 
 .sidebar__section-label {
@@ -95,7 +126,38 @@ code {
 .sidebar__new-page:hover,
 .sidebar__link:hover,
 .page-tree__row:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--color-hover);
+}
+
+.sidebar__theme-switch {
+  display: flex;
+  gap: 2px;
+  padding: 0 14px 8px;
+}
+
+.sidebar__theme-btn {
+  flex: 1;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  border-radius: var(--radius);
+  padding: 5px 4px;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.sidebar__theme-btn:not(:first-child) {
+  margin-left: -1px;
+}
+
+.sidebar__theme-btn--active {
+  background: var(--color-accent-bg);
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+  font-weight: 600;
+  position: relative;
+  z-index: 1;
 }
 
 .sidebar__favorite {
@@ -116,8 +178,8 @@ code {
   overflow-y: auto;
   border: 1px solid var(--color-border);
   border-radius: 9px;
-  background: #fff;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  background: var(--color-surface);
+  box-shadow: 0 12px 32px var(--color-shadow);
   padding: 6px;
 }
 
@@ -231,8 +293,8 @@ code {
   height: 100vh;
   overflow-y: auto;
   border-left: 1px solid var(--color-border);
-  background: #fff;
-  box-shadow: -12px 0 30px rgba(0, 0, 0, 0.12);
+  background: var(--color-surface);
+  box-shadow: -12px 0 30px var(--color-shadow);
   padding: 20px;
 }
 
@@ -253,7 +315,7 @@ code {
 .sidebar-page-preview__header button {
   border: 1px solid var(--color-border);
   border-radius: 5px;
-  background: #fff;
+  background: var(--color-surface);
   padding: 4px 8px;
   cursor: pointer;
 }
@@ -387,7 +449,7 @@ code {
   height: 19px;
   border: 2px solid;
   border-radius: 50%;
-  background: #fff;
+  background: var(--color-surface);
   font-size: 11px;
   line-height: 1;
 }
@@ -417,14 +479,14 @@ code {
 .handoff-card {
   border: 1px solid var(--color-border);
   border-radius: 10px;
-  background: #fff;
+  background: var(--color-surface);
   overflow: hidden;
 }
 
 .handoff-card__header {
   width: 100%;
   border: 0;
-  background: #f8fafc;
+  background: var(--color-surface-muted);
   padding: 11px 14px;
   display: flex;
   justify-content: space-between;
@@ -457,7 +519,7 @@ code {
 
 .onboarding-progress {
   height: 6px;
-  background: #e5e7eb;
+  background: var(--color-border);
   border-radius: 999px;
   overflow: hidden;
   margin-bottom: 10px;
@@ -508,7 +570,7 @@ code {
   border: 1px solid var(--color-border);
   border-radius: 6px;
   padding: 8px;
-  background: #fff;
+  background: var(--color-surface);
   font: inherit;
 }
 
@@ -521,7 +583,7 @@ code {
 .question-item__resolve {
   justify-self: start;
   border: 1px solid var(--color-border);
-  background: #fff;
+  background: var(--color-surface);
   border-radius: 6px;
   padding: 6px 10px;
   cursor: pointer;
@@ -618,8 +680,8 @@ code {
   overflow: hidden;
   border: 1px solid var(--color-border);
   border-radius: 9px;
-  background: #fff;
-  box-shadow: 0 16px 42px rgba(15, 23, 42, 0.2);
+  background: var(--color-surface);
+  box-shadow: 0 16px 42px var(--color-shadow);
   outline: none;
 }
 
@@ -761,11 +823,11 @@ code {
   overflow-y: auto;
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  background: #fff;
+  background: var(--color-surface);
   width: max-content;
   min-width: 180px;
   margin: 2px 0 10px 8px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 14px var(--color-shadow);
 }
 
 .slash-menu__item {
@@ -905,7 +967,7 @@ code {
 
 .table-block__actions button {
   border: 1px solid var(--color-border);
-  background: #fff;
+  background: var(--color-surface);
   border-radius: var(--radius);
   padding: 3px 8px;
   font-size: 12px;
@@ -1000,7 +1062,7 @@ code {
   padding: 8px 12px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  background: #fff;
+  background: var(--color-surface);
   cursor: pointer;
   font-size: 14px;
   font-weight: 600;
@@ -1059,7 +1121,7 @@ code {
 .columns-block__add {
   margin-top: 8px;
   border: 1px solid var(--color-border);
-  background: #fff;
+  background: var(--color-surface);
   border-radius: var(--radius);
   padding: 3px 8px;
   font-size: 12px;
@@ -1072,7 +1134,7 @@ code {
   text-align: left;
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  background: #fff;
+  background: var(--color-surface);
   padding: 10px 12px;
   cursor: pointer;
 }
@@ -1159,7 +1221,7 @@ code {
   height: 27px;
   border: 1px solid var(--color-accent);
   border-radius: 5px;
-  background: #fff;
+  background: var(--color-surface);
   color: var(--color-accent);
   font-size: 11px;
   cursor: pointer;
@@ -1173,7 +1235,7 @@ code {
   padding: 14px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  background: #fafafa;
+  background: var(--color-surface-muted);
 }
 
 .db-template-editor__title {
@@ -1194,7 +1256,7 @@ code {
 .db-template-editor textarea {
   border: 1px solid var(--color-border);
   border-radius: 5px;
-  background: #fff;
+  background: var(--color-surface);
   padding: 6px 8px;
   color: var(--color-text);
   font: inherit;
@@ -1216,7 +1278,7 @@ code {
 .db-template-list__item button {
   border: 1px solid var(--color-border);
   border-radius: 4px;
-  background: #fff;
+  background: var(--color-surface);
   padding: 4px 9px;
   font-size: 12px;
   cursor: pointer;
@@ -1306,7 +1368,7 @@ code {
   min-width: 200px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  background: #fff;
+  background: var(--color-surface);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
   padding: 4px;
   gap: 2px;
@@ -1376,7 +1438,7 @@ code {
   align-self: flex-end;
   margin-top: 8px;
   border: 1px solid var(--color-border);
-  background: #fff;
+  background: var(--color-surface);
   border-radius: 4px;
   padding: 4px 10px;
   font-size: 12px;
@@ -1443,7 +1505,7 @@ code {
   border: 1px solid var(--color-border);
   border-radius: 4px;
   padding: 3px 4px;
-  background: #fff;
+  background: var(--color-surface);
 }
 
 .db-board {
@@ -1472,7 +1534,7 @@ code {
 }
 
 .db-board__card {
-  background: #fff;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   padding: 8px 10px;
@@ -1517,7 +1579,7 @@ code {
 .db-gallery__card {
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  background: #fff;
+  background: var(--color-surface);
   padding: 14px 10px;
   cursor: pointer;
   text-align: left;
@@ -1573,7 +1635,7 @@ code {
 
 .db-calendar__nav button {
   border: 1px solid var(--color-border);
-  background: #fff;
+  background: var(--color-surface);
   border-radius: var(--radius);
   width: 24px;
   height: 24px;
@@ -1754,7 +1816,7 @@ code {
 
 .button-block {
   border: 1px solid var(--color-border);
-  background: #fff;
+  background: var(--color-surface);
   border-radius: var(--radius);
   padding: 8px 16px;
   font-size: 13px;
@@ -1869,7 +1931,7 @@ button.breadcrumb-block__item:hover {
   height: 20px;
   border: 2px solid;
   border-radius: 50%;
-  background: #fff;
+  background: var(--color-surface);
   font-size: 12px;
   line-height: 1;
 }
@@ -2091,7 +2153,7 @@ button.breadcrumb-block__item:hover {
   padding: 8px 10px;
   border: 1px solid var(--color-border);
   border-radius: 7px;
-  background: #fff;
+  background: var(--color-surface);
 }
 
 .file-block__identity {
@@ -2130,7 +2192,7 @@ button.breadcrumb-block__item:hover {
   flex: 0 0 auto;
   border: 1px solid var(--color-border);
   border-radius: 6px;
-  background: #fff;
+  background: var(--color-surface);
   color: var(--color-text);
   cursor: pointer;
 }
@@ -2187,7 +2249,7 @@ button.breadcrumb-block__item:hover {
   max-width: 100%;
   max-height: calc(100% - 28px);
   object-fit: contain;
-  background: #fff;
+  background: var(--color-surface);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.14);
 }
 
@@ -2213,7 +2275,7 @@ button.breadcrumb-block__item:hover {
   align-self: flex-start;
   max-width: 100%;
   height: auto;
-  background: #fff;
+  background: var(--color-surface);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.14);
 }
 
@@ -2229,7 +2291,7 @@ button.breadcrumb-block__item:hover {
   border: 1px solid var(--color-border);
   border-radius: 6px;
   padding: 5px 12px;
-  background: #fff;
+  background: var(--color-surface);
   cursor: pointer;
 }
 
@@ -2267,7 +2329,7 @@ button.breadcrumb-block__item:hover {
   border: 1px solid var(--color-border);
   border-radius: 5px;
   padding: 4px 9px;
-  background: #fff;
+  background: var(--color-surface);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -2301,7 +2363,7 @@ button.breadcrumb-block__item:hover {
 .file-preview__table-scroll th {
   position: sticky;
   left: 0;
-  background: #f8fafc;
+  background: var(--color-surface-muted);
   color: var(--color-text-muted);
   font-weight: 500;
 }
@@ -2324,7 +2386,7 @@ button.breadcrumb-block__item:hover {
   padding: 14px;
   overflow: auto;
   border: 1px solid var(--color-border);
-  background: #f8fafc;
+  background: var(--color-surface-muted);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -2428,7 +2490,7 @@ button.breadcrumb-block__item:hover {
 }
 
 .modal {
-  background: #fff;
+  background: var(--color-surface);
   border-radius: 10px;
   max-width: 90vw;
   max-height: 90vh;
@@ -2498,7 +2560,7 @@ button.breadcrumb-block__item:hover {
   padding: 10px 20px;
   border-radius: var(--radius);
   border: 1px solid var(--color-border);
-  background: #fff;
+  background: var(--color-surface);
   cursor: pointer;
   font-size: 14px;
 }
@@ -2509,7 +2571,7 @@ button.breadcrumb-block__item:hover {
   padding: 36px 32px;
   border: 1px solid var(--color-border);
   border-radius: 12px;
-  background: #fff;
+  background: var(--color-surface);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
   display: flex;
   flex-direction: column;

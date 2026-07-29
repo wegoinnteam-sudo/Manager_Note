@@ -2,7 +2,14 @@ import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import type { PageDetailDTO, PageSummaryDTO, TeamMemberDTO, UserDTO } from "@shared/types";
 import { buildPageTree, type PageTreeNode } from "@/hooks/usePages";
 import type { PresenceUser } from "@/hooks/usePresence";
+import type { ThemePreference } from "@/hooks/useTheme";
 import { api } from "@/lib/api";
+
+const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
+  { value: "light", label: "☀️ 라이트" },
+  { value: "dark", label: "🌙 다크" },
+  { value: "system", label: "💻 시스템" },
+];
 
 const FAVORITES_KEY = "th_sidebar_favorites";
 const OFFLINE_KEY_PREFIX = "th_offline_page_";
@@ -204,6 +211,8 @@ export function Sidebar({
   presenceUsers,
   onPagesChanged,
   members,
+  theme,
+  onThemeChange,
 }: {
   teamName: string;
   user: UserDTO;
@@ -219,6 +228,8 @@ export function Sidebar({
   presenceUsers: PresenceUser[];
   onPagesChanged: () => void;
   members: TeamMemberDTO[];
+  theme: ThemePreference;
+  onThemeChange: (theme: ThemePreference) => void;
 }) {
   const [query, setQuery] = useState("");
   const [draggedPageId, setDraggedPageId] = useState<string | null>(null);
@@ -498,6 +509,21 @@ export function Sidebar({
       </div>
 
       <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 8, marginTop: "auto" }}>
+        <div className="sidebar__theme-switch" role="radiogroup" aria-label="화면 테마">
+          {THEME_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              role="radio"
+              aria-checked={theme === option.value}
+              className={theme === option.value ? "sidebar__theme-btn sidebar__theme-btn--active" : "sidebar__theme-btn"}
+              onClick={() => onThemeChange(option.value)}
+              title={`${option.label} 모드 (이 기기에만 저장됨)`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
         <button type="button" className="sidebar__link" onClick={() => onNavigate("/trash")}>
           🗑 휴지통
         </button>
