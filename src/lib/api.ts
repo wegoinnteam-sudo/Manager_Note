@@ -84,8 +84,8 @@ export const api = {
   deleteAttachment: (id: string) => request<{ ok: true }>(`/api/attachments/${id}`, { method: "DELETE" }),
 
   listComments: (pageId: string) => request<{ comments: CommentDTO[] }>(`/api/pages/${pageId}/comments`),
-  createComment: (pageId: string, body: string) =>
-    request<CommentDTO>(`/api/pages/${pageId}/comments`, { method: "POST", body: JSON.stringify({ body }) }),
+  createComment: (pageId: string, body: string, authorName?: string) =>
+    request<CommentDTO>(`/api/pages/${pageId}/comments`, { method: "POST", body: JSON.stringify({ body, authorName }) }),
 
   listQuestions: (pageId: string) =>
     request<{ questions: InlineQuestionDTO[] }>(`/api/pages/${pageId}/questions`),

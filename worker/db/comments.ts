@@ -14,7 +14,7 @@ export interface CommentRow {
 export async function listCommentsByPage(db: Env["DB"], pageId: string): Promise<CommentRow[]> {
   const { results } = await db
     .prepare(
-      `SELECT c.id, c.page_id, c.author_id, u.name as author_name, c.body, c.created_at, c.updated_at
+      `SELECT c.id, c.page_id, c.author_id, COALESCE(c.author_name, u.name) as author_name, c.body, c.created_at, c.updated_at
        FROM comments c JOIN users u ON u.id = c.author_id
        WHERE c.page_id = ?1 AND c.is_deleted = 0 ORDER BY c.created_at ASC`,
     )
@@ -25,19 +25,20 @@ export async function listCommentsByPage(db: Env["DB"], pageId: string): Promise
 
 export async function createComment(
   db: Env["DB"],
-  params: { pageId: string; authorId: string; authorName: string; body: string },
+  params: { pageId: string; authorId: string; authorName: string; guestName?: string; body: string },
 ): Promise<CommentRow> {
   const id = newId("cmt");
   const now = nowIso();
+  const displayName = params.guestName?.trim() || null;
   await db
-    .prepare("INSERT INTO comments (id, page_id, author_id, body, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?5)")
-    .bind(id, params.pageId, params.authorId, params.body, now)
+    .prepare("INSERT INTO comments (id, page_id, author_id, author_name, body, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)")
+    .bind(id, params.pageId, params.authorId, displayName, params.body, now)
     .run();
   return {
     id,
     page_id: params.pageId,
     author_id: params.authorId,
-    author_name: params.authorName,
+    author_name: displayName ?? params.authorName,
     body: params.body,
     created_at: now,
     updated_at: now,

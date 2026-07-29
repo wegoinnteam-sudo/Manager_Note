@@ -216,7 +216,7 @@ pagesRoute.post("/:id/comments", requireRole("editor"), async (c) => {
   if (!page) throw Errors.notFound();
   const body = createCommentSchema.parse(await c.req.json());
   const user = c.var.user!;
-  const comment = await createComment(c.env.DB, { pageId: page.id, authorId: user.id, authorName: user.name, body: body.body });
+  const comment = await createComment(c.env.DB, { pageId: page.id, authorId: user.id, authorName: user.name, guestName: body.authorName, body: body.body });
   await logActivity(c.env.DB, {
     teamId: c.var.teamId,
     pageId: page.id,

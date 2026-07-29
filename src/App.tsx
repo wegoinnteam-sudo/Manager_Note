@@ -98,6 +98,7 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
         pages={pages}
         presenceUsers={presenceUsers}
         onCursorReport={(blockId, offset) => reportCursor(activePageId, blockId, offset)}
+        guestName={identity.name}
       />
     );
   } else {

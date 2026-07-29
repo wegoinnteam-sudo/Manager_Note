@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { CommentDTO } from "@shared/types";
 import { api } from "@/lib/api";
 
-export function Comments({ pageId, canComment }: { pageId: string; canComment: boolean }) {
+export function Comments({ pageId, canComment, guestName }: { pageId: string; canComment: boolean; guestName?: string }) {
   const [comments, setComments] = useState<CommentDTO[]>([]);
   const [draft, setDraft] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -20,7 +20,7 @@ export function Comments({ pageId, canComment }: { pageId: string; canComment: b
     if (!draft.trim()) return;
     setSubmitting(true);
     try {
-      await api.createComment(pageId, draft.trim());
+      await api.createComment(pageId, draft.trim(), guestName);
       setDraft("");
       await refresh();
     } finally {

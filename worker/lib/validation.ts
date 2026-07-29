@@ -100,6 +100,7 @@ export const updatePageContentSchema = z.object({
 
 export const createCommentSchema = z.object({
   body: z.string().min(1).max(5000),
+  authorName: z.string().trim().min(1).max(60).optional(),
 });
 
 export const createQuestionSchema = z.object({

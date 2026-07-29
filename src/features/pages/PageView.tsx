@@ -29,6 +29,7 @@ export function PageView({
   pages,
   presenceUsers,
   onCursorReport,
+  guestName,
 }: {
   pageId: string;
   canEdit: boolean;
@@ -43,6 +44,7 @@ export function PageView({
   pages: PageSummaryDTO[];
   presenceUsers: PresenceUser[];
   onCursorReport: (blockId: string | null, offset: number) => void;
+  guestName?: string;
 }) {
   const [page, setPage] = useState<PageDetailDTO | null>(null);
   const [attachments, setAttachments] = useState<AttachmentDTO[]>([]);
@@ -243,7 +245,7 @@ export function PageView({
           onCursorReport={onCursorReport}
         />
 
-        <Comments pageId={page.id} canComment={canEdit} />
+        <Comments pageId={page.id} canComment={canEdit} guestName={guestName} />
         <History pageId={page.id} members={members} />
 
         {canDelete && (
