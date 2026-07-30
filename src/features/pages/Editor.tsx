@@ -256,7 +256,7 @@ export const Editor = forwardRef<EditorHandle, {
   ref,
 ) {
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+  const [selectedBlockIds, setSelectedBlockIds] = useState<Set<string>>(() => new Set());
   const [picker, setPicker] = useState<"image" | "file" | "template" | "button_template" | "form" | "page_picker" | "replace_image" | null>(null);
   const [templateTargetId, setTemplateTargetId] = useState<string | null>(null);
   const [imageReplaceTargetId, setImageReplaceTargetId] = useState<string | null>(null);
@@ -862,40 +862,44 @@ export const Editor = forwardRef<EditorHandle, {
       }
     }
 
-    if (selectedBlockId === block.id) {
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "a") {
+      e.preventDefault();
+      setSelectedBlockIds(new Set(content.blocks.map((candidate) => candidate.id)));
+      setSlashMenu(null);
+      setMentionMenu(null);
+      return;
+    }
+
+    if (selectedBlockIds.has(block.id)) {
       if (e.key === "Escape") {
         e.preventDefault();
-        setSelectedBlockId(null);
+        setSelectedBlockIds(new Set());
         return;
       }
       if (e.key === "Backspace" || e.key === "Delete") {
         e.preventDefault();
-        const idx = content.blocks.findIndex((b) => b.id === block.id);
-        removeBlock(block.id);
-        setSelectedBlockId(null);
-        const prev = content.blocks[idx - 1];
-        if (prev) {
-          setActiveId(prev.id);
-          requestAnimationFrame(() => refs.current.get(prev.id)?.focus());
-        }
+        setBlocks(content.blocks.filter((candidate) => !selectedBlockIds.has(candidate.id)));
+        setSelectedBlockIds(new Set());
+        setActiveId(null);
+        onCursorReport(null, 0);
         return;
       }
       if (e.key === "ArrowUp" || e.key === "ArrowDown") {
         e.preventDefault();
         const idx = content.blocks.findIndex((b) => b.id === block.id);
         const target = content.blocks[idx + (e.key === "ArrowUp" ? -1 : 1)];
-        if (target) setSelectedBlockId(target.id);
+        if (target) setSelectedBlockIds(new Set([target.id]));
         return;
       }
       if (e.key === "Enter") {
         e.preventDefault();
-        setSelectedBlockId(null);
+        setSelectedBlockIds(new Set());
         return;
       }
-      setSelectedBlockId(null);
+      setSelectedBlockIds(new Set());
     } else if (e.key === "Escape") {
       e.preventDefault();
-      setSelectedBlockId(block.id);
+      setSelectedBlockIds(new Set([block.id]));
       return;
     }
 
@@ -1094,7 +1098,7 @@ export const Editor = forwardRef<EditorHandle, {
               draggedId === block.id ? "block-wrapper--dragging" : "",
               dragTarget?.id === block.id ? `block-wrapper--drop-${dragTarget.position}` : "",
               dragTarget?.id === block.id ? `block-wrapper--align-${dragTarget.align}` : "",
-              selectedBlockId === block.id ? "block-wrapper--selected" : "",
+              selectedBlockIds.has(block.id) ? "block-wrapper--selected" : "",
             ]
               .filter(Boolean)
               .join(" ")}
@@ -1173,7 +1177,7 @@ export const Editor = forwardRef<EditorHandle, {
                 editable={editable}
                 onFocus={() => {
                   setActiveId(block.id);
-                  setSelectedBlockId(null);
+                  setSelectedBlockIds(new Set());
                   onCursorReport(block.id, refs.current.get(block.id)?.selectionStart ?? 0);
                 }}
                 onChangeText={(text, caret) => handleChangeText(block, text, caret)}

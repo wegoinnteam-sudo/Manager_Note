@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import type { PageDetailDTO, PageSummaryDTO, TeamMemberDTO, UserDTO } from "@shared/types";
 import { buildPageTree, type PageTreeNode } from "@/hooks/usePages";
 import type { PresenceUser } from "@/hooks/usePresence";
@@ -28,7 +28,9 @@ function PageTreeRow({
   node,
   depth,
   activeId,
+  selectedIds,
   onOpen,
+  onExtendSelection,
   canReorder,
   draggedPageId,
   dropTarget,
@@ -46,7 +48,9 @@ function PageTreeRow({
   node: PageTreeNode;
   depth: number;
   activeId: string | null;
-  onOpen: (id: string) => void;
+  selectedIds: Set<string>;
+  onOpen: (event: React.MouseEvent, id: string) => void;
+  onExtendSelection: (id: string, direction: -1 | 1) => void;
   canReorder: boolean;
   draggedPageId: string | null;
   dropTarget: { pageId: string; position: "before" | "after" | "inside" } | null;
@@ -72,18 +76,23 @@ function PageTreeRow({
         className={[
           "page-tree__row",
           node.page.id === activeId ? "page-tree__row--active" : "",
+          selectedIds.has(node.page.id) ? "page-tree__row--selected" : "",
           node.page.id === draggedPageId ? "page-tree__row--dragging" : "",
           dropTarget?.pageId === node.page.id ? `page-tree__row--drop-${dropTarget.position}` : "",
         ]
           .filter(Boolean)
           .join(" ")}
         style={{ paddingLeft: 8 + depth * 14 }}
+        data-page-id={node.page.id}
         tabIndex={0}
-        onClick={() => onOpen(node.page.id)}
+        onClick={(event) => onOpen(event, node.page.id)}
         onKeyDown={(event) => {
           if (event.key === "F2" && !isEditing) {
             event.preventDefault();
             onStartRename(node.page);
+          } else if (event.shiftKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+            event.preventDefault();
+            onExtendSelection(node.page.id, event.key === "ArrowUp" ? -1 : 1);
           }
         }}
         onDragOver={(event) => onDragOver(event, node.page)}
@@ -174,7 +183,9 @@ function PageTreeRow({
               node={child}
               depth={depth + 1}
               activeId={activeId}
+              selectedIds={selectedIds}
               onOpen={onOpen}
+              onExtendSelection={onExtendSelection}
               canReorder={canReorder}
               draggedPageId={draggedPageId}
               dropTarget={dropTarget}
@@ -243,7 +254,21 @@ export function Sidebar({
   const [moving, setMoving] = useState(false);
   const [sidePreview, setSidePreview] = useState<PageDetailDTO | null>(null);
   const [busy, setBusy] = useState(false);
+  const [selectedPageIds, setSelectedPageIds] = useState<Set<string>>(() => new Set());
+  const selectionAnchorRef = useRef<string | null>(null);
+  const sidebarRef = useRef<HTMLElement>(null);
   const tree = useMemo(() => buildPageTree(pages), [pages]);
+  const pageOrder = useMemo(() => {
+    const ids: string[] = [];
+    const visit = (nodes: PageTreeNode[]) => {
+      for (const node of nodes) {
+        ids.push(node.page.id);
+        visit(node.children);
+      }
+    };
+    visit(tree);
+    return ids;
+  }, [tree]);
   const recent = useMemo(
     () => [...pages].sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1)).slice(0, 5),
     [pages],
@@ -269,6 +294,78 @@ export function Sidebar({
       window.removeEventListener("blur", close);
     };
   }, [contextMenu]);
+
+  useEffect(() => {
+    const validIds = new Set(pages.filter((page) => !page.isDeleted).map((page) => page.id));
+    setSelectedPageIds((current) => new Set([...current].filter((id) => validIds.has(id))));
+  }, [pages]);
+
+  const openOrSelectPage = useCallback(
+    (event: React.MouseEvent, pageId: string) => {
+      if (event.shiftKey && selectionAnchorRef.current) {
+        event.preventDefault();
+        const anchorIndex = pageOrder.indexOf(selectionAnchorRef.current);
+        const pageIndex = pageOrder.indexOf(pageId);
+        if (anchorIndex !== -1 && pageIndex !== -1) {
+          const start = Math.min(anchorIndex, pageIndex);
+          const end = Math.max(anchorIndex, pageIndex);
+          setSelectedPageIds(new Set(pageOrder.slice(start, end + 1)));
+          return;
+        }
+      }
+
+      selectionAnchorRef.current = pageId;
+      setSelectedPageIds(new Set([pageId]));
+      onOpenPage(pageId);
+    },
+    [onOpenPage, pageOrder],
+  );
+
+  const extendPageSelection = useCallback(
+    (pageId: string, direction: -1 | 1) => {
+      const pageIndex = pageOrder.indexOf(pageId);
+      const targetId = pageOrder[pageIndex + direction];
+      if (pageIndex === -1 || !targetId) return;
+
+      const anchorId = selectionAnchorRef.current ?? pageId;
+      selectionAnchorRef.current = anchorId;
+      const anchorIndex = pageOrder.indexOf(anchorId);
+      const targetIndex = pageOrder.indexOf(targetId);
+      setSelectedPageIds(new Set(pageOrder.slice(Math.min(anchorIndex, targetIndex), Math.max(anchorIndex, targetIndex) + 1)));
+      requestAnimationFrame(() => {
+        const rows = sidebarRef.current?.querySelectorAll<HTMLElement>("[data-page-id]");
+        [...(rows ?? [])].find((row) => row.dataset.pageId === targetId)?.focus();
+      });
+    },
+    [pageOrder],
+  );
+
+  useEffect(() => {
+    const handleDelete = async (event: KeyboardEvent) => {
+      if ((event.key !== "Delete" && event.key !== "Backspace") || selectedPageIds.size === 0 || busy) return;
+      if (!sidebarRef.current?.contains(document.activeElement)) return;
+      const target = event.target;
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) return;
+
+      event.preventDefault();
+      const selected = pages.filter((page) => selectedPageIds.has(page.id));
+      if (selected.length === 0) return;
+      if (!window.confirm(`선택한 ${selected.length}개 페이지를 휴지통으로 이동할까요?`)) return;
+
+      setBusy(true);
+      try {
+        await Promise.all(selected.map((page) => api.deletePage(page.id)));
+        setSelectedPageIds(new Set());
+        selectionAnchorRef.current = null;
+        await onPagesChanged();
+        if (activePageId && selectedPageIds.has(activePageId)) onNavigate("/");
+      } finally {
+        setBusy(false);
+      }
+    };
+    window.addEventListener("keydown", handleDelete);
+    return () => window.removeEventListener("keydown", handleDelete);
+  }, [activePageId, busy, onNavigate, onPagesChanged, pages, selectedPageIds]);
 
   const saveIds = (key: string, ids: string[], setter: (value: string[]) => void) => {
     localStorage.setItem(key, JSON.stringify(ids));
@@ -428,7 +525,7 @@ export function Sidebar({
   };
 
   return (
-    <aside className={className ? `sidebar ${className}` : "sidebar"}>
+    <aside ref={sidebarRef} className={className ? `sidebar ${className}` : "sidebar"}>
       <div className="sidebar__team">{teamName}</div>
       <input
         className="sidebar__search"
@@ -482,7 +579,9 @@ export function Sidebar({
             node={node}
             depth={0}
             activeId={activePageId}
-            onOpen={onOpenPage}
+            selectedIds={selectedPageIds}
+            onOpen={openOrSelectPage}
+            onExtendSelection={extendPageSelection}
             canReorder={canReorder}
             draggedPageId={draggedPageId}
             dropTarget={dropTarget}
