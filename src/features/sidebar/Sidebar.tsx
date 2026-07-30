@@ -138,7 +138,7 @@ function PageTreeRow({
           />
         ) : (
           <span
-            className="page-tree__title"
+            className={depth === 0 ? "page-tree__title page-tree__title--root" : "page-tree__title"}
             style={{
               color: node.page.textColor ?? undefined,
               backgroundColor: node.page.highlightColor ?? undefined,

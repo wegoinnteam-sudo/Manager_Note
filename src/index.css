@@ -409,6 +409,11 @@ code {
   padding: 0 3px;
 }
 
+.page-tree__title--root {
+  font-weight: 700;
+  font-size: 14px;
+}
+
 .page-tree__title-input {
   flex: 1;
   min-width: 0;
