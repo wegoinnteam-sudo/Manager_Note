@@ -210,6 +210,14 @@ export function TableBlockView({
   };
 
   const handleCellKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, r: number, c: number) => {
+    if (e.key === "Backspace" && e.currentTarget.value === "" && rows.length > 1 && rows[r].every((cell) => cell === "")) {
+      e.preventDefault();
+      const targetRow = Math.max(0, r - 1);
+      pendingCellFocusRef.current = { r: targetRow, c };
+      onPatch({ rows: rows.filter((_, ri) => ri !== r) });
+      return;
+    }
+
     if (e.key === "Enter") {
       e.preventDefault();
       if (r < rows.length - 1) {
