@@ -295,18 +295,38 @@ export const Editor = forwardRef<EditorHandle, {
   const [mentionMenu, setMentionMenu] = useState<{ blockId: string; query: string; highlighted: number; triggerStart: number } | null>(null);
   const [pendingUploads, setPendingUploads] = useState<{ id: string; previewUrl: string; afterId: string | null }[]>([]);
   const refs = useRef(new Map<string, HTMLTextAreaElement>());
+  const pendingFocusIdRef = useRef<string | null>(null);
+  const undoStackRef = useRef<PageContent[]>([]);
+  const redoStackRef = useRef<PageContent[]>([]);
   const attachmentsById = new Map(attachments.map((a) => [a.id, a]));
   const contentRef = useRef(content);
   contentRef.current = content;
 
   useImperativeHandle(ref, () => ({
     focusFirstBlock: () => {
-      const first = content.blocks[0];
+      const first = content.blocks.find((block) => "text" in block);
       if (!first) return;
+      const existing = refs.current.get(first.id);
+      if (existing) {
+        existing.focus();
+        existing.setSelectionRange(0, 0);
+        return;
+      }
+      pendingFocusIdRef.current = first.id;
       setActiveId(first.id);
-      requestAnimationFrame(() => refs.current.get(first.id)?.focus());
     },
   }));
+
+  useEffect(() => {
+    const pendingId = pendingFocusIdRef.current;
+    if (!pendingId || activeId !== pendingId) return;
+    const target = refs.current.get(pendingId);
+    if (!target) return;
+    pendingFocusIdRef.current = null;
+    target.focus();
+    target.setSelectionRange(0, 0);
+    onCursorReport(pendingId, 0);
+  }, [activeId, onCursorReport]);
 
   const headings: HeadingRef[] = content.blocks
     .map((b) => {
@@ -323,10 +343,70 @@ export const Editor = forwardRef<EditorHandle, {
     remoteCursorsByBlock.set(u.blockId, list);
   }
 
+  const applyHistoryContent = useCallback(
+    (next: PageContent) => {
+      contentRef.current = next;
+      setSelectedBlockIds(new Set());
+      setActiveId(null);
+      onCursorReport(null, 0);
+      onChange(next);
+    },
+    [onChange, onCursorReport],
+  );
+
+  const undo = useCallback(() => {
+    const previous = undoStackRef.current.pop();
+    if (!previous) return;
+    redoStackRef.current.push(contentRef.current);
+    applyHistoryContent(previous);
+  }, [applyHistoryContent]);
+
+  const redo = useCallback(() => {
+    const next = redoStackRef.current.pop();
+    if (!next) return;
+    undoStackRef.current.push(contentRef.current);
+    applyHistoryContent(next);
+  }, [applyHistoryContent]);
+
   const setBlocks = useCallback(
-    (blocks: PageBlock[]) => onChange({ blocks }),
+    (blocks: PageBlock[]) => {
+      const current = contentRef.current;
+      if (current.blocks === blocks) return;
+      undoStackRef.current.push(current);
+      if (undoStackRef.current.length > 100) undoStackRef.current.shift();
+      redoStackRef.current = [];
+      const next = { blocks };
+      contentRef.current = next;
+      onChange(next);
+    },
     [onChange],
   );
+
+  useEffect(() => {
+    const handleUndoRedo = (event: KeyboardEvent) => {
+      if (!editable || !(event.ctrlKey || event.metaKey) || event.altKey) return;
+      const target = event.target;
+      const insideEditor = target instanceof Node && editorRef.current?.contains(target);
+      if (
+        !insideEditor &&
+        (target instanceof HTMLInputElement ||
+          target instanceof HTMLTextAreaElement ||
+          (target instanceof HTMLElement && target.isContentEditable))
+      ) {
+        return;
+      }
+      const key = event.key.toLowerCase();
+      const isUndo = key === "z" && !event.shiftKey;
+      const isRedo = (key === "z" && event.shiftKey) || key === "y";
+      if (!isUndo && !isRedo) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (isUndo) undo();
+      else redo();
+    };
+    window.addEventListener("keydown", handleUndoRedo, true);
+    return () => window.removeEventListener("keydown", handleUndoRedo, true);
+  }, [editable, redo, undo]);
 
   const droppedFilesHandlerRef = useRef<(files: FileList) => void>(() => {});
 

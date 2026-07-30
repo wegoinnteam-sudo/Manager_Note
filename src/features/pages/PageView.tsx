@@ -258,6 +258,7 @@ export function PageView({
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
+              e.currentTarget.blur();
               editorRef.current?.focusFirstBlock();
             }
           }}
