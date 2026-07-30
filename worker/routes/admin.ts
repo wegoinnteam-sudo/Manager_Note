@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { AppBindings } from "../types";
 import type { PageCategory } from "../../shared/types";
-import { requireRole } from "../middleware/rbac";
+import { requireAuth, requireRole } from "../middleware/rbac";
 import { inviteUser, listUsers, setUserActive, updateUserRole } from "../db/users";
 import { toUserDTO } from "../lib/dto";
 import { logActivity } from "../db/activityLog";
@@ -12,7 +12,11 @@ import { WEGOINN_DB_CONTENT, type ContentSeedNode } from "../data/wegoinnDbConte
 
 export const adminRoute = new Hono<AppBindings>();
 
-adminRoute.use("*", requireRole("admin"));
+// User management stays admin-only. The Wegoinn DB seed routes further down
+// use requireAuth instead — any logged-in team member may (re-)run the seed,
+// since it only ever creates/updates this fixed 25-item dataset by title.
+adminRoute.use("/users", requireRole("admin"));
+adminRoute.use("/users/*", requireRole("admin"));
 
 adminRoute.get("/users", async (c) => {
   const rows = await listUsers(c.env.DB);
@@ -117,7 +121,7 @@ const SEED_PAGES: { title: string; category: PageCategory; description: string; 
   },
 ];
 
-adminRoute.post("/seed-wegoinn-db", async (c) => {
+adminRoute.post("/seed-wegoinn-db", requireAuth, async (c) => {
   const user = c.var.user!;
   const existing = await listPages(c.env.DB, c.var.teamId);
   const existingRootByTitle = new Map(existing.filter((p) => !p.parent_id && !p.is_deleted).map((p) => [p.title, p]));
@@ -190,7 +194,7 @@ adminRoute.post("/seed-wegoinn-db", async (c) => {
 
 const seedMetaByTitle = new Map(SEED_PAGES.map((item) => [item.title, item]));
 
-adminRoute.post("/seed-wegoinn-db-content", async (c) => {
+adminRoute.post("/seed-wegoinn-db-content", requireAuth, async (c) => {
   const user = c.var.user!;
   const rows = await listPages(c.env.DB, c.var.teamId);
   const byParentAndTitle = (parentId: string | null, title: string) =>
