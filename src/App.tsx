@@ -86,6 +86,20 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
     if (path !== "/db") setPeekPageId(null);
   }, [path]);
 
+  // Escape closes the peek panel — but only when nothing inside it already
+  // claimed the key (the editor itself preventDefaults Escape to select a
+  // block or close its own slash/mention menu, and that existing behavior
+  // should keep working exactly as it does today).
+  useEffect(() => {
+    if (!peekPageId) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      setPeekPageId(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [peekPageId]);
+
   let content: React.ReactNode;
   if (path === "/db") {
     content = (
