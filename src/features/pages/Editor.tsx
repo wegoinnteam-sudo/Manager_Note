@@ -22,6 +22,28 @@ function newBlockId(): string {
   return crypto.randomUUID();
 }
 
+const TYPABLE_BLOCK_TYPES = new Set<PageBlock["type"]>([
+  "paragraph",
+  "heading1",
+  "heading2",
+  "heading3",
+  "bulleted_list_item",
+  "numbered_list_item",
+  "checklist_item",
+]);
+
+// File/image blocks aren't focusable text, so there's no "press Enter to add
+// a line below" affordance on them. Insert an empty paragraph right after an
+// upload (unless the next block already offers one) so there's always
+// somewhere to click and type immediately below an attachment.
+function withTrailingParagraph(blocks: PageBlock[], afterIndex: number): PageBlock[] {
+  const next = blocks[afterIndex + 1];
+  if (next && TYPABLE_BLOCK_TYPES.has(next.type)) return blocks;
+  const copy = [...blocks];
+  copy.splice(afterIndex + 1, 0, emptyBlockOfType("paragraph"));
+  return copy;
+}
+
 function emptyBlockOfType(type: PageBlock["type"]): PageBlock {
   const id = newBlockId();
   switch (type) {
@@ -257,6 +279,8 @@ export const Editor = forwardRef<EditorHandle, {
 ) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selectedBlockIds, setSelectedBlockIds] = useState<Set<string>>(() => new Set());
+  const [marquee, setMarquee] = useState<{ startX: number; startY: number; x: number; y: number } | null>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
   const [picker, setPicker] = useState<"image" | "file" | "template" | "button_template" | "form" | "page_picker" | "replace_image" | null>(null);
   const [templateTargetId, setTemplateTargetId] = useState<string | null>(null);
   const [imageReplaceTargetId, setImageReplaceTargetId] = useState<string | null>(null);
@@ -344,13 +368,17 @@ export const Editor = forwardRef<EditorHandle, {
       const newBlocks: PageBlock[] = uploaded.map((a) =>
         a.isImage ? { id: newBlockId(), type: "image", attachmentId: a.id } : { id: newBlockId(), type: "file", attachmentId: a.id },
       );
-      const blocks = [...contentRef.current.blocks];
+      let blocks = [...contentRef.current.blocks];
+      let insertAt: number;
       if (afterId) {
         const idx = blocks.findIndex((b) => b.id === afterId);
-        blocks.splice(idx === -1 ? blocks.length : idx + 1, 0, ...newBlocks);
+        insertAt = idx === -1 ? blocks.length : idx + 1;
+        blocks.splice(insertAt, 0, ...newBlocks);
       } else {
+        insertAt = blocks.length;
         blocks.push(...newBlocks);
       }
+      blocks = withTrailingParagraph(blocks, insertAt + newBlocks.length - 1);
       setBlocks(blocks);
     });
   };
@@ -360,6 +388,68 @@ export const Editor = forwardRef<EditorHandle, {
   useEffect(() => {
     registerFileDropHandler((files) => droppedFilesHandlerRef.current(files));
   }, [registerFileDropHandler]);
+
+  // Click-and-drag anywhere in the editor background (not on a textarea,
+  // button, link, etc.) draws a selection rectangle; any block it overlaps
+  // gets added to selectedBlockIds, same set used by Ctrl+A/Escape select.
+  const startMarqueeSelect = (e: React.MouseEvent) => {
+    if (!editable || e.button !== 0) return;
+    const target = e.target as HTMLElement;
+    if (target.closest("textarea, input, button, a, select, [contenteditable]")) return;
+    setSelectedBlockIds(new Set());
+    setMarquee({ startX: e.clientX, startY: e.clientY, x: e.clientX, y: e.clientY });
+  };
+
+  useEffect(() => {
+    if (!marquee) return;
+    const onMove = (e: MouseEvent) => {
+      setMarquee((current) => (current ? { ...current, x: e.clientX, y: e.clientY } : current));
+    };
+    const onUp = (e: MouseEvent) => {
+      const left = Math.min(marquee.startX, e.clientX);
+      const right = Math.max(marquee.startX, e.clientX);
+      const top = Math.min(marquee.startY, e.clientY);
+      const bottom = Math.max(marquee.startY, e.clientY);
+      const moved = right - left > 4 || bottom - top > 4;
+      if (moved && editorRef.current) {
+        const hits = new Set<string>();
+        editorRef.current.querySelectorAll<HTMLElement>("[data-block-id]").forEach((el) => {
+          const rect = el.getBoundingClientRect();
+          if (rect.left < right && rect.right > left && rect.top < bottom && rect.bottom > top) {
+            hits.add(el.dataset.blockId!);
+          }
+        });
+        setSelectedBlockIds(hits);
+      }
+      setMarquee(null);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [marquee]);
+
+  // Delete/Backspace for a mouse-drawn selection: no textarea is focused in
+  // that case, so handleKeyDown's per-block onKeyDownBlock never fires —
+  // handle it globally instead, but stay out of the way while typing.
+  useEffect(() => {
+    if (selectedBlockIds.size === 0) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      const active = document.activeElement;
+      if (active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement) return;
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        setBlocks(content.blocks.filter((b) => !selectedBlockIds.has(b.id)));
+        setSelectedBlockIds(new Set());
+      } else if (e.key === "Escape") {
+        setSelectedBlockIds(new Set());
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [selectedBlockIds, content.blocks, setBlocks]);
 
   const updateBlock = (id: string, patch: Partial<PageBlock>) => {
     setBlocks(content.blocks.map((b) => (b.id === id ? ({ ...b, ...patch } as PageBlock) : b)));
@@ -384,13 +474,17 @@ export const Editor = forwardRef<EditorHandle, {
     const newBlocks: PageBlock[] = newAttachments.map((a) =>
       type === "image" ? { id: newBlockId(), type: "image", attachmentId: a.id } : { id: newBlockId(), type: "file", attachmentId: a.id },
     );
-    const blocks = [...content.blocks];
+    let blocks = [...content.blocks];
+    let insertAt: number;
     if (activeId) {
       const idx = blocks.findIndex((b) => b.id === activeId);
-      blocks.splice(idx + 1, 0, ...newBlocks);
+      insertAt = idx + 1;
+      blocks.splice(insertAt, 0, ...newBlocks);
     } else {
+      insertAt = blocks.length;
       blocks.push(...newBlocks);
     }
+    blocks = withTrailingParagraph(blocks, insertAt + newBlocks.length - 1);
     setBlocks(blocks);
     setPicker(null);
   };
@@ -1079,7 +1173,18 @@ export const Editor = forwardRef<EditorHandle, {
   };
 
   return (
-    <div className="editor">
+    <div className="editor" ref={editorRef} onMouseDown={startMarqueeSelect}>
+      {marquee && (
+        <div
+          className="editor__marquee"
+          style={{
+            left: Math.min(marquee.startX, marquee.x) - (editorRef.current?.getBoundingClientRect().left ?? 0),
+            top: Math.min(marquee.startY, marquee.y) - (editorRef.current?.getBoundingClientRect().top ?? 0),
+            width: Math.abs(marquee.x - marquee.startX),
+            height: Math.abs(marquee.y - marquee.startY),
+          }}
+        />
+      )}
       {content.blocks.map((block, i) => (
         <div
           key={block.id}
@@ -1091,6 +1196,7 @@ export const Editor = forwardRef<EditorHandle, {
           }}
         >
           <div
+            data-block-id={block.id}
             className={[
               "block-wrapper",
               block.type === "image" && editable ? "block-wrapper--image-movable" : "",

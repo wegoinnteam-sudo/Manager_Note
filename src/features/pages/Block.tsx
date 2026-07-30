@@ -8,6 +8,7 @@ import { ChartView } from "./ChartView";
 import { FormBlockView } from "./FormBlockView";
 import { ImageBlockView } from "./ImageBlockView";
 import { FileBlockView } from "./FileBlockView";
+import { TableBlockView } from "./TableBlockView";
 import { SecretBlockView } from "./SecretBlockView";
 import { RemoteCaretMarkers, RemotePresenceBadge } from "./RemoteCursors";
 import type { TemplateKey } from "./templates";
@@ -356,65 +357,9 @@ export function Block({
   }
 
   if (block.type === "table") {
-    const rows = block.rows;
-    const updateCell = (r: number, c: number, value: string) => {
-      onPatch({ rows: rows.map((row, ri) => (ri === r ? row.map((cell, ci) => (ci === c ? value : cell)) : row)) });
-    };
-    const addRow = () => onPatch({ rows: [...rows, rows[0].map(() => "")] });
-    const addColumn = () => onPatch({ rows: rows.map((row) => [...row, ""]) });
-    const removeRow = (r: number) => rows.length > 1 && onPatch({ rows: rows.filter((_, ri) => ri !== r) });
-    const removeColumn = (c: number) => rows[0].length > 1 && onPatch({ rows: rows.map((row) => row.filter((_, ci) => ci !== c)) });
-
     return (
-      <div id={domId} className="block-row">
-        <div className="table-block">
-          <table>
-            <tbody>
-              {rows.map((row, r) => (
-                <tr key={r}>
-                  {row.map((cell, c) => (
-                    <td key={c}>
-                      {editable ? (
-                        <input value={cell} onChange={(e) => updateCell(r, c, e.target.value)} />
-                      ) : (
-                        <span>{cell}</span>
-                      )}
-                    </td>
-                  ))}
-                  {editable && (
-                    <td className="table-block__row-actions">
-                      <button type="button" onClick={() => removeRow(r)} title="행 삭제">
-                        ✕
-                      </button>
-                    </td>
-                  )}
-                </tr>
-              ))}
-              {editable && (
-                <tr>
-                  {rows[0].map((_, c) => (
-                    <td key={c} className="table-block__col-actions">
-                      <button type="button" onClick={() => removeColumn(c)} title="열 삭제">
-                        ✕
-                      </button>
-                    </td>
-                  ))}
-                  <td />
-                </tr>
-              )}
-            </tbody>
-          </table>
-          {editable && (
-            <div className="table-block__actions">
-              <button type="button" onClick={addRow}>
-                + 행
-              </button>
-              <button type="button" onClick={addColumn}>
-                + 열
-              </button>
-            </div>
-          )}
-        </div>
+      <div id={domId}>
+        <TableBlockView block={block} editable={editable} onPatch={onPatch} onRemoveBlock={onRemoveBlock} />
       </div>
     );
   }
