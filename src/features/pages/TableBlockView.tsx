@@ -26,11 +26,13 @@ export function TableBlockView({
   editable,
   onPatch,
   onRemoveBlock,
+  onInsertParagraphAfter,
 }: {
   block: TableBlock;
   editable: boolean;
   onPatch: (patch: Partial<PageBlock>) => void;
   onRemoveBlock: () => void;
+  onInsertParagraphAfter: () => void;
 }) {
   const rows = block.rows;
   const [selection, setSelection] = useState<Selection | null>(null);
@@ -205,6 +207,13 @@ export function TableBlockView({
                         <input
                           value={cell}
                           onChange={(e) => updateCell(r, c, e.target.value)}
+                          onKeyDown={(e) => {
+                            const isLastCell = r === rows.length - 1 && c === row.length - 1;
+                            if (e.key === "Enter" && !e.shiftKey && isLastCell) {
+                              e.preventDefault();
+                              onInsertParagraphAfter();
+                            }
+                          }}
                           style={{ color: style?.color, fontSize: FONT_SIZE_PX[style?.fontSize ?? "md"] }}
                         />
                       ) : (

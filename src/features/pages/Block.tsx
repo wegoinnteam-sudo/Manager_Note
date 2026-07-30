@@ -67,6 +67,7 @@ export function Block({
   onKeyDownBlock,
   onPasteBlock,
   onRemoveBlock,
+  onInsertParagraphAfter,
   onDuplicateBlock,
   onPatch,
   onOpenPage,
@@ -92,6 +93,7 @@ export function Block({
   onKeyDownBlock: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   onPasteBlock: (e: React.ClipboardEvent<HTMLTextAreaElement>) => void;
   onRemoveBlock: () => void;
+  onInsertParagraphAfter: () => void;
   onDuplicateBlock: () => void;
   onPatch: (patch: Partial<PageBlock>) => void;
   onOpenPage: (pageId: string) => void;
@@ -359,7 +361,13 @@ export function Block({
   if (block.type === "table") {
     return (
       <div id={domId}>
-        <TableBlockView block={block} editable={editable} onPatch={onPatch} onRemoveBlock={onRemoveBlock} />
+        <TableBlockView
+          block={block}
+          editable={editable}
+          onPatch={onPatch}
+          onRemoveBlock={onRemoveBlock}
+          onInsertParagraphAfter={onInsertParagraphAfter}
+        />
       </div>
     );
   }

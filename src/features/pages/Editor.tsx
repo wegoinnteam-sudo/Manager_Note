@@ -545,8 +545,8 @@ export const Editor = forwardRef<EditorHandle, {
       blocks.push(block);
     }
     setBlocks(blocks);
+    pendingFocusIdRef.current = block.id;
     setActiveId(block.id);
-    requestAnimationFrame(() => refs.current.get(block.id)?.focus());
   };
 
   const insertReferenceBlocks = (type: "image" | "file", newAttachments: AttachmentDTO[]) => {
@@ -1371,6 +1371,7 @@ export const Editor = forwardRef<EditorHandle, {
                 onKeyDownBlock={(e) => handleKeyDown(block, e)}
                 onPasteBlock={(e) => handlePasteImage(block, e)}
                 onRemoveBlock={() => removeBlock(block.id)}
+                onInsertParagraphAfter={() => insertBlock(block.id, "paragraph")}
                 onDuplicateBlock={() => duplicateBlock(block.id)}
                 onPatch={(patch) => updateBlock(block.id, patch)}
                 onOpenPage={onOpenPage}
