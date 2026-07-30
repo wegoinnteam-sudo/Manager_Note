@@ -17,6 +17,7 @@ export async function searchPages(db: Env["DB"], teamId: string, q: string): Pro
        LEFT JOIN users creator ON creator.id = p.created_by
        WHERE p.team_id = ?1 AND p.is_deleted = 0 AND (
          p.title LIKE ?2 OR
+         p.description LIKE ?2 OR
          pc.content_json LIKE ?2 OR
          p.tags LIKE ?2 OR
          p.status LIKE ?2 OR
