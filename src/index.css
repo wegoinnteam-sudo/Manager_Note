@@ -3507,6 +3507,7 @@ button.breadcrumb-block__item:hover {
   background: rgba(0, 0, 0, 0.35);
   z-index: 200;
   display: flex;
+  justify-content: flex-end;
 }
 
 .wdb-peek-panel {
@@ -3515,7 +3516,7 @@ button.breadcrumb-block__item:hover {
   max-width: 66%;
   height: 100%;
   background: var(--color-bg);
-  box-shadow: 8px 0 28px rgba(0, 0, 0, 0.28);
+  box-shadow: -8px 0 28px rgba(0, 0, 0, 0.28);
   display: flex;
   flex-direction: column;
   animation: wdb-peek-slide-in 0.18s ease-out;
@@ -3523,7 +3524,7 @@ button.breadcrumb-block__item:hover {
 
 @keyframes wdb-peek-slide-in {
   from {
-    transform: translateX(-100%);
+    transform: translateX(100%);
   }
   to {
     transform: translateX(0);
