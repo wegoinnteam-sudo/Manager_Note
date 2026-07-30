@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { AppBindings } from "../types";
 import type { PageCategory } from "../../shared/types";
-import { requireAuth, requireRole } from "../middleware/rbac";
+import { requireAuth } from "../middleware/rbac";
 import { inviteUser, listUsers, setUserActive, updateUserRole } from "../db/users";
 import { toUserDTO } from "../lib/dto";
 import { logActivity } from "../db/activityLog";
@@ -12,11 +12,11 @@ import { WEGOINN_DB_CONTENT, type ContentSeedNode } from "../data/wegoinnDbConte
 
 export const adminRoute = new Hono<AppBindings>();
 
-// User management stays admin-only. The Wegoinn DB seed routes further down
-// use requireAuth instead — any logged-in team member may (re-)run the seed,
-// since it only ever creates/updates this fixed 25-item dataset by title.
-adminRoute.use("/users", requireRole("admin"));
-adminRoute.use("/users/*", requireRole("admin"));
+// Any logged-in team member may view/invite/change roles here — opened up
+// at the user's explicit request so the whole team can self-serve without
+// needing a separate admin promotion step first.
+adminRoute.use("/users", requireAuth);
+adminRoute.use("/users/*", requireAuth);
 
 adminRoute.get("/users", async (c) => {
   const rows = await listUsers(c.env.DB);

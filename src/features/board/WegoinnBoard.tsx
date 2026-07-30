@@ -78,6 +78,7 @@ export function WegoinnBoard({
   canEdit,
   onOpenPage,
   onPagesChanged,
+  onNavigate,
 }: {
   pages: PageSummaryDTO[];
   members: TeamMemberDTO[];
@@ -85,6 +86,7 @@ export function WegoinnBoard({
   canEdit: boolean;
   onOpenPage: (id: string) => void;
   onPagesChanged: () => Promise<void> | void;
+  onNavigate: (path: string) => void;
 }) {
   const initial = useMemo(readQueryParams, []);
   const [view, setView] = useState<ViewMode>(initial.view);
@@ -253,6 +255,9 @@ export function WegoinnBoard({
         </button>
         <button type="button" disabled={contentSeeding} onClick={runContentSeed}>
           {contentSeeding ? "채우는 중…" : "하위 페이지·본문 내용 채우기"}
+        </button>
+        <button type="button" onClick={() => onNavigate("/admin")}>
+          ⚙ 설정
         </button>
         {seedResult && (
           <span className="wdb__admin-tools-result">

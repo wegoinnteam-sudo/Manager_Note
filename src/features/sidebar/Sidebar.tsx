@@ -198,7 +198,6 @@ function PageTreeRow({
 
 export function Sidebar({
   teamName,
-  user,
   pages,
   activePageId,
   onOpenPage,
@@ -527,11 +526,9 @@ export function Sidebar({
         <button type="button" className="sidebar__link" onClick={() => onNavigate("/trash")}>
           🗑 휴지통
         </button>
-        {user.role === "admin" && (
-          <button type="button" className="sidebar__link" onClick={() => onNavigate("/admin")}>
-            ⚙ 설정
-          </button>
-        )}
+        <button type="button" className="sidebar__link" onClick={() => onNavigate("/admin")}>
+          ⚙ 설정
+        </button>
       </div>
 
       {contextMenu && (

@@ -87,12 +87,13 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
         canEdit={canEdit}
         onOpenPage={openPage}
         onPagesChanged={refreshPages}
+        onNavigate={navigate}
       />
     );
   } else if (path === "/trash") {
     content = <Trash canRestore={canEdit} onOpenPage={openPage} onRestored={refreshPages} />;
   } else if (path === "/admin") {
-    content = user.role === "admin" ? <AdminSettings /> : <div className="page-view">관리자만 접근할 수 있습니다.</div>;
+    content = <AdminSettings />;
   } else if (path.startsWith("/search/")) {
     content = <SearchResults query={decodeURIComponent(path.slice("/search/".length))} onOpenPage={openPage} />;
   } else if (activePageId) {
