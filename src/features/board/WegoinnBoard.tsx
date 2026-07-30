@@ -107,6 +107,8 @@ export function WegoinnBoard({
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newCategoryColor, setNewCategoryColor] = useState("#2563eb");
   const [categoryBusy, setCategoryBusy] = useState(false);
+  const [draggedCategoryKey, setDraggedCategoryKey] = useState<string | null>(null);
+  const [dragOverCategoryKey, setDragOverCategoryKey] = useState<string | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -189,6 +191,28 @@ export function WegoinnBoard({
     } finally {
       setCategoryBusy(false);
     }
+  };
+
+  const deleteCategory = async (key: string) => {
+    const target = categories.find((c) => c.key === key);
+    if (!target) return;
+    if (!window.confirm(`"${target.label}" 카테고리를 삭제할까요? 이 카테고리의 자료는 카테고리 없음으로 이동합니다.`)) return;
+    await api.deletePageCategory(key);
+    if (categoryFilter === key) setCategoryFilter("all");
+    await onCategoriesChanged();
+    await onPagesChanged();
+  };
+
+  const reorderCategories = async (draggedKey: string, targetKey: string) => {
+    if (draggedKey === targetKey) return;
+    const order = categories.map((c) => c.key);
+    const from = order.indexOf(draggedKey);
+    const to = order.indexOf(targetKey);
+    if (from === -1 || to === -1) return;
+    order.splice(from, 1);
+    order.splice(to, 0, draggedKey);
+    await api.reorderPageCategories(order);
+    await onCategoriesChanged();
   };
 
   const createInCategory = async (category: PageCategory | null) => {
@@ -423,10 +447,51 @@ export function WegoinnBoard({
                 setDropBeforeId(null);
               }}
             >
-              <div className="wdb-board__col-title">
+              <div
+                className={
+                  dragOverCategoryKey === col.key ? "wdb-board__col-title wdb-board__col-title--drop" : "wdb-board__col-title"
+                }
+                draggable={canEdit && col.key !== null}
+                onDragStart={(event: DragEvent) => {
+                  if (!col.key) return;
+                  event.stopPropagation();
+                  setDraggedCategoryKey(col.key);
+                }}
+                onDragOver={(event: DragEvent) => {
+                  if (!draggedCategoryKey || !col.key || draggedCategoryKey === col.key) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setDragOverCategoryKey(col.key);
+                }}
+                onDrop={(event: DragEvent) => {
+                  if (!draggedCategoryKey || !col.key) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  void reorderCategories(draggedCategoryKey, col.key);
+                  setDraggedCategoryKey(null);
+                  setDragOverCategoryKey(null);
+                }}
+                onDragEnd={() => {
+                  setDraggedCategoryKey(null);
+                  setDragOverCategoryKey(null);
+                }}
+              >
                 <span className="wdb-board__col-dot" style={{ background: col.color }} />
                 {col.label}
                 <span className="wdb-board__col-count">{col.items.length}</span>
+                {canEdit && col.key !== null && (
+                  <button
+                    type="button"
+                    className="wdb-board__col-delete"
+                    title="카테고리 삭제"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void deleteCategory(col.key!);
+                    }}
+                  >
+                    🗑
+                  </button>
+                )}
               </div>
               {col.items.map((page) => (
                 <div

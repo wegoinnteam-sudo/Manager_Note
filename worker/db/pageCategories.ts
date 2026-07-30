@@ -50,3 +50,21 @@ export async function createPageCategory(
     .run();
   return { key, label, color, orderKey };
 }
+
+// Removing a category never deletes pages — anything filed under it just
+// falls back to "카테고리 없음" (category = NULL), same as any other page
+// without a category.
+export async function deletePageCategory(db: Env["DB"], teamId: string, key: string): Promise<void> {
+  await db.batch([
+    db.prepare("UPDATE pages SET category = NULL WHERE team_id = ?1 AND category = ?2").bind(teamId, key),
+    db.prepare("DELETE FROM page_categories WHERE team_id = ?1 AND key = ?2").bind(teamId, key),
+  ]);
+}
+
+export async function reorderPageCategories(db: Env["DB"], teamId: string, orderedKeys: string[]): Promise<void> {
+  await db.batch(
+    orderedKeys.map((key, index) =>
+      db.prepare("UPDATE page_categories SET order_key = ?1 WHERE team_id = ?2 AND key = ?3").bind(index, teamId, key),
+    ),
+  );
+}

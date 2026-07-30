@@ -61,6 +61,9 @@ export const api = {
   listPageCategories: () => request<{ categories: PageCategoryDTO[] }>("/api/page-categories"),
   createPageCategory: (label: string, color: string) =>
     request<PageCategoryDTO>("/api/page-categories", { method: "POST", body: JSON.stringify({ label, color }) }),
+  deletePageCategory: (key: string) => request<{ ok: true }>(`/api/page-categories/${encodeURIComponent(key)}`, { method: "DELETE" }),
+  reorderPageCategories: (keys: string[]) =>
+    request<{ ok: true }>("/api/page-categories/reorder", { method: "PATCH", body: JSON.stringify({ keys }) }),
   createPage: (input: {
     parentId?: string | null;
     title?: string;

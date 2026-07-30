@@ -3276,6 +3276,34 @@ button.breadcrumb-block__item:hover {
   font-size: 13px;
   font-weight: 700;
   margin-bottom: 10px;
+  cursor: grab;
+  border-radius: 6px;
+  padding: 2px 4px;
+  border: 1px dashed transparent;
+}
+
+.wdb-board__col-title--drop {
+  border-color: var(--color-accent);
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.wdb-board__col-delete {
+  border: none;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  opacity: 0;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.wdb-board__col-title:hover .wdb-board__col-delete {
+  opacity: 1;
+}
+
+.wdb-board__col-delete:hover {
+  background: rgba(220, 38, 38, 0.12);
 }
 
 .wdb-board__col-dot {

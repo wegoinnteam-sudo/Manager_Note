@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { AppBindings } from "../types";
 import { requireAuth, requireRole } from "../middleware/rbac";
-import { createPageCategory, listPageCategories } from "../db/pageCategories";
+import { createPageCategory, deletePageCategory, listPageCategories, reorderPageCategories } from "../db/pageCategories";
 
 export const pageCategoriesRoute = new Hono<AppBindings>();
 
@@ -20,4 +20,15 @@ pageCategoriesRoute.post("/", requireRole("editor"), async (c) => {
     })
     .parse(await c.req.json());
   return c.json(await createPageCategory(c.env.DB, c.var.teamId, body.label, body.color), 201);
+});
+
+pageCategoriesRoute.patch("/reorder", requireRole("editor"), async (c) => {
+  const body = z.object({ keys: z.array(z.string()).min(1).max(100) }).parse(await c.req.json());
+  await reorderPageCategories(c.env.DB, c.var.teamId, body.keys);
+  return c.json({ ok: true });
+});
+
+pageCategoriesRoute.delete("/:key", requireRole("editor"), async (c) => {
+  await deletePageCategory(c.env.DB, c.var.teamId, c.req.param("key"));
+  return c.json({ ok: true });
 });
