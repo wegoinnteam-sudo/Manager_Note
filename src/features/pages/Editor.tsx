@@ -323,27 +323,6 @@ export const Editor = forwardRef<EditorHandle, {
   const contentRef = useRef(content);
   contentRef.current = content;
 
-  useImperativeHandle(ref, () => ({
-    focusFirstBlock: () => {
-      const first = content.blocks.find((block) => "text" in block);
-      if (!first) {
-        const firstControl = editorRef.current?.querySelector<HTMLInputElement | HTMLTextAreaElement>(
-          ".block-wrapper input, .block-wrapper textarea",
-        );
-        firstControl?.focus();
-        return;
-      }
-      const existing = refs.current.get(first.id);
-      if (existing) {
-        existing.focus();
-        existing.setSelectionRange(0, 0);
-        return;
-      }
-      pendingFocusIdRef.current = first.id;
-      setActiveId(first.id);
-    },
-  }));
-
   useEffect(() => {
     const pendingId = pendingFocusIdRef.current;
     if (!pendingId || activeId !== pendingId) return;
@@ -408,6 +387,35 @@ export const Editor = forwardRef<EditorHandle, {
     },
     [onChange],
   );
+
+  useImperativeHandle(ref, () => ({
+    focusFirstBlock: () => {
+      const first = contentRef.current.blocks.find((block) => "text" in block);
+      if (!first) {
+        const firstControl = editorRef.current?.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+          ".block-wrapper input, .block-wrapper textarea",
+        );
+        if (firstControl) {
+          firstControl.focus();
+          return;
+        }
+
+        const paragraph = emptyBlockOfType("paragraph");
+        pendingFocusIdRef.current = paragraph.id;
+        setBlocks([paragraph]);
+        setActiveId(paragraph.id);
+        return;
+      }
+      const existing = refs.current.get(first.id);
+      if (existing) {
+        existing.focus();
+        existing.setSelectionRange(0, 0);
+        return;
+      }
+      pendingFocusIdRef.current = first.id;
+      setActiveId(first.id);
+    },
+  }));
 
   useEffect(() => {
     const handleUndoRedo = (event: KeyboardEvent) => {
