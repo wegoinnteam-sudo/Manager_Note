@@ -15,11 +15,22 @@ export function useDebouncedCallback<A extends unknown[]>(fn: (...args: A) => vo
     };
   }, []);
 
-  return useCallback(
+  const cancel = useCallback(() => {
+    if (!timerRef.current) return;
+    clearTimeout(timerRef.current);
+    timerRef.current = null;
+  }, []);
+
+  const debounced = useCallback(
     (...args: A) => {
       if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => fnRef.current(...args), delayMs);
+      timerRef.current = setTimeout(() => {
+        timerRef.current = null;
+        fnRef.current(...args);
+      }, delayMs);
     },
     [delayMs],
   );
+
+  return Object.assign(debounced, { cancel });
 }

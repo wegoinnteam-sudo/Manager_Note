@@ -163,6 +163,19 @@ export function PageView({
   );
   const debouncedSaveContent = useDebouncedCallback(saveContent, 1000);
 
+  useEffect(() => {
+    if (!canEdit || !page) return;
+    const saveImmediately = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.key.toLowerCase() !== "s") return;
+      event.preventDefault();
+      debouncedSaveTitle.cancel();
+      debouncedSaveContent.cancel();
+      void Promise.all([saveMeta({ title: page.title }), saveContent(page.contentJson)]);
+    };
+    window.addEventListener("keydown", saveImmediately);
+    return () => window.removeEventListener("keydown", saveImmediately);
+  }, [canEdit, debouncedSaveContent, debouncedSaveTitle, page, saveContent, saveMeta]);
+
   const clampReferencePosition = useCallback((position: ReferencePosition): ReferencePosition => {
     const panel = referencePanelRef.current;
     const width = panel?.offsetWidth ?? referenceWidth;
