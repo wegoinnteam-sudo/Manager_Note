@@ -28,6 +28,7 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
   const { categories, refresh: refreshCategories } = usePageCategories();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [justCreatedPageId, setJustCreatedPageId] = useState<string | null>(null);
+  const [peekPageId, setPeekPageId] = useState<string | null>(null);
   const dropHandlerRef = useRef<(files: FileList) => void>(() => {});
 
   const registerFileDropHandler = useCallback((fn: (files: FileList) => void) => {
@@ -79,20 +80,58 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
     reportCursor(activePageId, null, 0);
   }, [activePageId, reportCursor]);
 
+  // Opening a card from Wegoinn DB never leaves /db — it peeks the page in a
+  // side panel instead. Any other navigation away should close that panel.
+  useEffect(() => {
+    if (path !== "/db") setPeekPageId(null);
+  }, [path]);
+
   let content: React.ReactNode;
   if (path === "/db") {
     content = (
-      <WegoinnBoard
-        pages={pages}
-        members={members}
-        user={user}
-        canEdit={canEdit}
-        categories={categories}
-        onCategoriesChanged={refreshCategories}
-        onOpenPage={openPage}
-        onPagesChanged={refreshPages}
-        onNavigate={navigate}
-      />
+      <>
+        <WegoinnBoard
+          pages={pages}
+          members={members}
+          user={user}
+          canEdit={canEdit}
+          categories={categories}
+          onCategoriesChanged={refreshCategories}
+          onOpenPage={openPage}
+          onPeekPage={setPeekPageId}
+          onPagesChanged={refreshPages}
+          onNavigate={navigate}
+        />
+        {peekPageId && (
+          <div className="wdb-peek-overlay" onClick={() => setPeekPageId(null)}>
+            <div className="wdb-peek-panel" onClick={(e) => e.stopPropagation()}>
+              <button type="button" className="wdb-peek-panel__back" onClick={() => setPeekPageId(null)}>
+                🗂 Wegoinn DB
+              </button>
+              <div className="wdb-peek-panel__body">
+                <PageView
+                  key={peekPageId}
+                  pageId={peekPageId}
+                  canEdit={canEdit}
+                  canDelete={canDeleteAll}
+                  members={members}
+                  autoFocusTitle={false}
+                  onConsumedAutoFocus={() => {}}
+                  registerFileDropHandler={registerFileDropHandler}
+                  onDeleted={() => setPeekPageId(null)}
+                  onPagesChanged={refreshPages}
+                  onOpenPage={setPeekPageId}
+                  pages={pages}
+                  presenceUsers={presenceUsers}
+                  onCursorReport={(blockId, offset) => reportCursor(peekPageId, blockId, offset)}
+                  guestName={identity.name}
+                  canViewSensitive={canEdit}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </>
     );
   } else if (path === "/trash") {
     content = <Trash canRestore={canEdit} onOpenPage={openPage} onRestored={refreshPages} />;
@@ -134,7 +173,7 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
   }
 
   return (
-    <GlobalDropzone active={!!activePageId && canEdit} onFiles={(files) => dropHandlerRef.current(files)}>
+    <GlobalDropzone active={(!!activePageId || !!peekPageId) && canEdit} onFiles={(files) => dropHandlerRef.current(files)}>
       <div className="app-shell">
         <Sidebar
           className={sidebarOpen ? "sidebar--open" : ""}

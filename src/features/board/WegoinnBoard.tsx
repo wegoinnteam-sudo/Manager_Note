@@ -77,6 +77,7 @@ export function WegoinnBoard({
   categories,
   onCategoriesChanged,
   onOpenPage,
+  onPeekPage,
   onPagesChanged,
   onNavigate,
 }: {
@@ -87,6 +88,7 @@ export function WegoinnBoard({
   categories: PageCategoryDTO[];
   onCategoriesChanged: () => Promise<void> | void;
   onOpenPage: (id: string) => void;
+  onPeekPage: (id: string) => void;
   onPagesChanged: () => Promise<void> | void;
   onNavigate: (path: string) => void;
 }) {
@@ -510,7 +512,7 @@ export function WegoinnBoard({
                     setDraggedId(null);
                     setDropBeforeId(null);
                   }}
-                  onClick={() => onOpenPage(page.id)}
+                  onClick={() => onPeekPage(page.id)}
                 >
                   <div className="wdb-card__title">
                     <HighlightedText text={page.title || "제목 없음"} query={query} />
@@ -573,7 +575,7 @@ export function WegoinnBoard({
                     <input type="checkbox" aria-label={`${page.title} 선택`} checked={selected.has(page.id)} onChange={() => toggleSelect(page.id)} />
                   </td>
                   <td>
-                    <button type="button" className="wdb-table__title" onClick={() => onOpenPage(page.id)}>
+                    <button type="button" className="wdb-table__title" onClick={() => onPeekPage(page.id)}>
                       <HighlightedText text={page.title || "제목 없음"} query={query} />
                     </button>
                   </td>

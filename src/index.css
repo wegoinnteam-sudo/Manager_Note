@@ -3500,3 +3500,58 @@ button.breadcrumb-block__item:hover {
     margin-left: 0;
   }
 }
+
+.wdb-peek-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 200;
+  display: flex;
+}
+
+.wdb-peek-panel {
+  width: 66%;
+  min-width: 320px;
+  max-width: 66%;
+  height: 100%;
+  background: var(--color-bg);
+  box-shadow: 8px 0 28px rgba(0, 0, 0, 0.28);
+  display: flex;
+  flex-direction: column;
+  animation: wdb-peek-slide-in 0.18s ease-out;
+}
+
+@keyframes wdb-peek-slide-in {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.wdb-peek-panel__back {
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin: 12px 16px 0;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.wdb-peek-panel__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+@media (max-width: 860px) {
+  .wdb-peek-panel {
+    width: 100%;
+    max-width: 100%;
+  }
+}
