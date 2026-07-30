@@ -8,7 +8,7 @@ import { api } from "@/lib/api";
 const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
   { value: "light", label: "☀️ 라이트" },
   { value: "dark", label: "🌙 다크" },
-  { value: "system", label: "💻 시스템" },
+  { value: "gray", label: "◉ 회색" },
 ];
 
 const FAVORITES_KEY = "th_sidebar_favorites";

@@ -21,11 +21,7 @@
   color-scheme: light;
 }
 
-/* The inline script in index.html (and useTheme.ts on every subsequent
-   render) always resolves "system" down to an explicit "light"/"dark" and
-   stamps it as data-theme before paint, so this is the only rule needed —
-   no separate prefers-color-scheme media query, and no risk of an explicit
-   choice being overridden by the OS setting. */
+/* Theme choices are explicit and stored per browser. */
 :root[data-theme="dark"] {
   color-scheme: dark;
   --color-bg: #17181c;
@@ -44,6 +40,26 @@
   --color-hover: rgba(255, 255, 255, 0.06);
   --color-overlay: rgba(0, 0, 0, 0.7);
   --color-shadow: rgba(0, 0, 0, 0.6);
+}
+
+:root[data-theme="gray"] {
+  color-scheme: light;
+  --color-bg: #d9dde3;
+  --color-bg-sidebar: #c9ced6;
+  --color-border: #b5bbc5;
+  --color-text: #252a31;
+  --color-text-muted: #626a75;
+  --color-accent: #315f9b;
+  --color-accent-bg: #c8d5e5;
+  --color-danger: #b42323;
+  --color-danger-bg: #ead0d0;
+  --color-warn-bg: #e7dcc8;
+  --color-success-bg: #cfe1d6;
+  --color-surface: #eceff3;
+  --color-surface-muted: #dfe3e8;
+  --color-hover: rgba(45, 53, 64, 0.1);
+  --color-overlay: rgba(35, 40, 47, 0.58);
+  --color-shadow: rgba(35, 40, 47, 0.24);
 }
 
 * {

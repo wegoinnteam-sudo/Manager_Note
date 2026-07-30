@@ -5,12 +5,7 @@
       (function () {
         try {
           var stored = localStorage.getItem("th_theme");
-          var theme =
-            stored === "light" || stored === "dark"
-              ? stored
-              : window.matchMedia("(prefers-color-scheme: dark)").matches
-                ? "dark"
-                : "light";
+          var theme = stored === "light" || stored === "dark" || stored === "gray" ? stored : "gray";
           document.documentElement.setAttribute("data-theme", theme);
         } catch (e) {}
       })();

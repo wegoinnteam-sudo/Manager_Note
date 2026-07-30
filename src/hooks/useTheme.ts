@@ -1,26 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
 
-export type ThemePreference = "light" | "dark" | "system";
+export type ThemePreference = "light" | "dark" | "gray";
 
 const THEME_KEY = "th_theme";
 
-function prefersDark(): boolean {
-  return window.matchMedia("(prefers-color-scheme: dark)").matches;
-}
-
-function resolveTheme(pref: ThemePreference): "light" | "dark" {
-  return pref === "system" ? (prefersDark() ? "dark" : "light") : pref;
-}
-
 function applyTheme(pref: ThemePreference) {
-  const resolved = resolveTheme(pref);
-  document.documentElement.setAttribute("data-theme", resolved);
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", resolved === "dark" ? "#17181c" : "#ffffff");
+  document.documentElement.setAttribute("data-theme", pref);
+  const themeColor = pref === "dark" ? "#17181c" : pref === "gray" ? "#d9dde3" : "#ffffff";
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", themeColor);
 }
 
 function readStoredPreference(): ThemePreference {
   const stored = localStorage.getItem(THEME_KEY);
-  return stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
+  if (stored === "light" || stored === "dark" || stored === "gray") return stored;
+  // Migrate the former "system" option to its replacement, the gray theme.
+  return "gray";
 }
 
 /**
@@ -33,11 +27,6 @@ export function useTheme() {
 
   useEffect(() => {
     applyTheme(preference);
-    if (preference !== "system") return;
-    const mql = window.matchMedia("(prefers-color-scheme: dark)");
-    const onChange = () => applyTheme("system");
-    mql.addEventListener("change", onChange);
-    return () => mql.removeEventListener("change", onChange);
   }, [preference]);
 
   const setTheme = useCallback((next: ThemePreference) => {
