@@ -312,6 +312,7 @@ export const Editor = forwardRef<EditorHandle, {
     position: "before" | "after";
     align: "left" | "center" | "right";
   } | null>(null);
+  const dragPointerRef = useRef<{ x: number; y: number } | null>(null);
   const [slashMenu, setSlashMenu] = useState<{ blockId: string; query: string; highlighted: number } | null>(null);
   const [mentionMenu, setMentionMenu] = useState<{ blockId: string; query: string; highlighted: number; triggerStart: number } | null>(null);
   const [pendingUploads, setPendingUploads] = useState<{ id: string; previewUrl: string; afterId: string | null }[]>([]);
@@ -515,16 +516,29 @@ export const Editor = forwardRef<EditorHandle, {
     setMarquee({ startX: e.clientX, startY: e.clientY, x: e.clientX, y: e.clientY });
   };
 
+  const marqueeRef = useRef(marquee);
+  marqueeRef.current = marquee;
+  const marqueeActive = marquee !== null;
+
   useEffect(() => {
-    if (!marquee) return;
+    // Depending on `marquee` itself (instead of just whether it's active)
+    // would re-subscribe these listeners on every single pixel of mouse
+    // movement, since a new object is set each time — that churn opened a
+    // window where a stray move could sneak in and keep the box visible
+    // for an extra frame after the button was actually released. Keying
+    // off `marqueeActive` means we attach once per drag and read the live
+    // rect from marqueeRef, so mouseup ends it immediately.
+    if (!marqueeActive) return;
     const onMove = (e: MouseEvent) => {
       setMarquee((current) => (current ? { ...current, x: e.clientX, y: e.clientY } : current));
     };
     const onUp = (e: MouseEvent) => {
-      const left = Math.min(marquee.startX, e.clientX);
-      const right = Math.max(marquee.startX, e.clientX);
-      const top = Math.min(marquee.startY, e.clientY);
-      const bottom = Math.max(marquee.startY, e.clientY);
+      const current = marqueeRef.current;
+      if (!current) return;
+      const left = Math.min(current.startX, e.clientX);
+      const right = Math.max(current.startX, e.clientX);
+      const top = Math.min(current.startY, e.clientY);
+      const bottom = Math.max(current.startY, e.clientY);
       const moved = right - left > 4 || bottom - top > 4;
       if (moved && editorRef.current) {
         const hits = new Set<string>();
@@ -544,7 +558,35 @@ export const Editor = forwardRef<EditorHandle, {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, [marquee]);
+  }, [marqueeActive]);
+
+  // Dragging a block (e.g. an image) to the top/bottom edge of the scrolling
+  // pane auto-scrolls it, same as reordering in Notion/Trello — otherwise a
+  // block can't be moved above whatever's currently the first visible one.
+  useEffect(() => {
+    if (!draggedId) {
+      dragPointerRef.current = null;
+      return;
+    }
+    const EDGE = 72;
+    const MAX_SPEED = 18;
+    let raf = requestAnimationFrame(function step() {
+      const pointer = dragPointerRef.current;
+      const scrollEl = editorRef.current?.closest<HTMLElement>(".main");
+      if (pointer && scrollEl) {
+        const rect = scrollEl.getBoundingClientRect();
+        const distTop = pointer.y - rect.top;
+        const distBottom = rect.bottom - pointer.y;
+        if (distTop < EDGE) {
+          scrollEl.scrollTop -= MAX_SPEED * (1 - Math.max(distTop, 0) / EDGE);
+        } else if (distBottom < EDGE) {
+          scrollEl.scrollTop += MAX_SPEED * (1 - Math.max(distBottom, 0) / EDGE);
+        }
+      }
+      raf = requestAnimationFrame(step);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [draggedId]);
 
   // Delete/Backspace for a mouse-drawn selection: no textarea is focused in
   // that case, so handleKeyDown's per-block onKeyDownBlock never fires —
@@ -1328,7 +1370,14 @@ export const Editor = forwardRef<EditorHandle, {
   };
 
   return (
-    <div className="editor" ref={editorRef} onMouseDown={startMarqueeSelect}>
+    <div
+      className="editor"
+      ref={editorRef}
+      onMouseDown={startMarqueeSelect}
+      onDragOver={(e) => {
+        if (draggedId) dragPointerRef.current = { x: e.clientX, y: e.clientY };
+      }}
+    >
       {marquee && (
         <div
           className="editor__marquee"
