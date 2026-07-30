@@ -40,12 +40,25 @@ export function TableBlockView({
   const anchorRef = useRef<CellPos | null>(null);
   const draggingRef = useRef(false);
   const resizeRef = useRef<{ c: number; startX: number; startWidth: number; pointerId: number } | null>(null);
+  const cellRefs = useRef(new Map<string, HTMLInputElement>());
+  const pendingCellFocusRef = useRef<CellPos | null>(null);
+  const selectionRef = useRef<Selection | null>(null);
+  selectionRef.current = selection;
 
   const isRange = !!selection && (selection.r1 !== selection.r2 || selection.c1 !== selection.c2);
 
   useEffect(() => {
     const onUp = () => {
+      if (!draggingRef.current) return;
       draggingRef.current = false;
+      // A real multi-cell drag still leaves the anchor cell's <input> focused
+      // (native click-to-focus on mousedown) — blur it so the Delete/Backspace
+      // listener below (which defers to normal in-input editing whenever an
+      // input is focused) is free to clear the whole selected range instead.
+      const sel = selectionRef.current;
+      if (sel && (sel.r1 !== sel.r2 || sel.c1 !== sel.c2) && document.activeElement instanceof HTMLInputElement) {
+        document.activeElement.blur();
+      }
     };
     window.addEventListener("mouseup", onUp);
     return () => window.removeEventListener("mouseup", onUp);
@@ -57,6 +70,16 @@ export function TableBlockView({
     window.addEventListener("mousedown", close);
     return () => window.removeEventListener("mousedown", close);
   }, [menu]);
+
+  useEffect(() => {
+    const pending = pendingCellFocusRef.current;
+    if (!pending) return;
+    const input = cellRefs.current.get(cellKey(pending.r, pending.c));
+    if (!input) return;
+    pendingCellFocusRef.current = null;
+    input.focus();
+    input.select();
+  }, [rows]);
 
   useEffect(() => {
     if (!isRange || !selection) return;
@@ -179,6 +202,59 @@ export function TableBlockView({
     setMenu({ x: e.clientX, y: e.clientY });
   };
 
+  const focusCell = (r: number, c: number) => {
+    const input = cellRefs.current.get(cellKey(r, c));
+    if (!input) return;
+    input.focus();
+    input.select();
+  };
+
+  const handleCellKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, r: number, c: number) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (r < rows.length - 1) {
+        focusCell(r + 1, c);
+        return;
+      }
+      pendingCellFocusRef.current = { r: rows.length, c };
+      onPatch({ rows: [...rows, rows[0].map(() => "")] });
+      return;
+    }
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if (r < rows.length - 1) focusCell(r + 1, c);
+      else onInsertParagraphAfter();
+      return;
+    }
+    if (e.key === "ArrowUp" && r > 0) {
+      e.preventDefault();
+      focusCell(r - 1, c);
+      return;
+    }
+
+    const caretStart = e.currentTarget.selectionStart ?? 0;
+    const caretEnd = e.currentTarget.selectionEnd ?? 0;
+    if (e.key === "ArrowRight" && caretStart === e.currentTarget.value.length && caretEnd === caretStart) {
+      const nextColumn = c + 1;
+      if (nextColumn < rows[r].length) {
+        e.preventDefault();
+        focusCell(r, nextColumn);
+      } else if (r < rows.length - 1) {
+        e.preventDefault();
+        focusCell(r + 1, 0);
+      }
+    } else if (e.key === "ArrowLeft" && caretStart === 0 && caretEnd === 0) {
+      if (c > 0) {
+        e.preventDefault();
+        focusCell(r, c - 1);
+      } else if (r > 0) {
+        e.preventDefault();
+        focusCell(r - 1, rows[r - 1].length - 1);
+      }
+    }
+  };
+
   return (
     <div className="block-row">
       <div className="table-block">
@@ -205,15 +281,14 @@ export function TableBlockView({
                     >
                       {editable ? (
                         <input
+                          ref={(input) => {
+                            const key = cellKey(r, c);
+                            if (input) cellRefs.current.set(key, input);
+                            else cellRefs.current.delete(key);
+                          }}
                           value={cell}
                           onChange={(e) => updateCell(r, c, e.target.value)}
-                          onKeyDown={(e) => {
-                            const isLastCell = r === rows.length - 1 && c === row.length - 1;
-                            if (e.key === "Enter" && !e.shiftKey && isLastCell) {
-                              e.preventDefault();
-                              onInsertParagraphAfter();
-                            }
-                          }}
+                          onKeyDown={(e) => handleCellKeyDown(e, r, c)}
                           style={{ color: style?.color, fontSize: FONT_SIZE_PX[style?.fontSize ?? "md"] }}
                         />
                       ) : (
