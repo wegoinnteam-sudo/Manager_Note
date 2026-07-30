@@ -25,7 +25,22 @@ export const pageBlockSchema = z.discriminatedUnion("type", [
   z.object({ id: z.string(), type: z.literal("file"), attachmentId: z.string() }),
   z.object({ id: z.string(), type: z.literal("toggle"), text: z.string().max(2000), body: z.string().max(20000), expanded: z.boolean() }),
   z.object({ id: z.string(), type: z.literal("callout"), text: z.string().max(20000) }),
-  z.object({ id: z.string(), type: z.literal("table"), rows: z.array(z.array(z.string().max(2000)).max(20)).max(200) }),
+  z.object({
+    id: z.string(),
+    type: z.literal("table"),
+    rows: z.array(z.array(z.string().max(2000)).max(20)).max(200),
+    colWidths: z.array(z.number().min(20).max(2000)).max(20).optional(),
+    cellStyles: z
+      .record(
+        z.string(),
+        z.object({
+          color: z.string().max(20).optional(),
+          bg: z.string().max(20).optional(),
+          fontSize: z.enum(["sm", "md", "lg"]).optional(),
+        }),
+      )
+      .optional(),
+  }),
   z.object({ id: z.string(), type: z.literal("embed"), url: z.string().url().max(2000) }),
   z.object({ id: z.string(), type: z.literal("bookmark"), url: z.string().url().max(2000) }),
   z.object({ id: z.string(), type: z.literal("toc") }),
@@ -105,7 +120,7 @@ export const pageBlockSchema = z.discriminatedUnion("type", [
 
 export const secretValueSchema = z.object({ value: z.string().min(1).max(1000) });
 
-const pageCategorySchema = z.enum(["reception", "cleaning", "marketing", "wegoinn2", "operations"]);
+const pageCategorySchema = z.string().trim().min(1).max(80);
 const descriptionSchema = z.string().max(300);
 
 export const createPageSchema = z.object({

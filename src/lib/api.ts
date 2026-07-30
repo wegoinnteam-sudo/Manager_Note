@@ -11,6 +11,7 @@ import type {
   TeamMemberDTO,
   InlineQuestionDTO,
   PageCategory,
+  PageCategoryDTO,
 } from "@shared/types";
 
 export class ApiClientError extends Error {
@@ -57,6 +58,9 @@ export const api = {
 
   listPages: (opts: { trash?: boolean } = {}) =>
     request<{ pages: PageSummaryDTO[] }>(`/api/pages${opts.trash ? "?trash=1" : ""}`),
+  listPageCategories: () => request<{ categories: PageCategoryDTO[] }>("/api/page-categories"),
+  createPageCategory: (label: string, color: string) =>
+    request<PageCategoryDTO>("/api/page-categories", { method: "POST", body: JSON.stringify({ label, color }) }),
   createPage: (input: {
     parentId?: string | null;
     title?: string;

@@ -7,6 +7,7 @@ import { useRoute } from "@/hooks/useRoute";
 import { useGuestIdentity } from "@/hooks/useGuestIdentity";
 import { usePresence } from "@/hooks/usePresence";
 import { useTheme } from "@/hooks/useTheme";
+import { usePageCategories } from "@/hooks/usePageCategories";
 import { api } from "@/lib/api";
 import { Sidebar } from "@/features/sidebar/Sidebar";
 import { WegoinnBoard } from "@/features/board/WegoinnBoard";
@@ -24,6 +25,7 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
   const { path, navigate } = useRoute();
   const { users: presenceUsers, report: reportCursor } = usePresence(identity);
   const { preference: theme, setTheme } = useTheme();
+  const { categories, refresh: refreshCategories } = usePageCategories();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [justCreatedPageId, setJustCreatedPageId] = useState<string | null>(null);
   const dropHandlerRef = useRef<(files: FileList) => void>(() => {});
@@ -85,6 +87,8 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
         members={members}
         user={user}
         canEdit={canEdit}
+        categories={categories}
+        onCategoriesChanged={refreshCategories}
         onOpenPage={openPage}
         onPagesChanged={refreshPages}
         onNavigate={navigate}
@@ -137,6 +141,7 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
           teamName="팀 인수인계 노트"
           user={user}
           pages={pages}
+          categories={categories}
           activePageId={activePageId}
           onOpenPage={openPage}
           onCreatePage={createPage}

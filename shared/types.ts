@@ -9,13 +9,20 @@ export type UploadStatus = "pending" | "ready" | "failed";
 
 // "Wegoinn DB" board categories — a fixed single-select property on pages,
 // mirroring the team's existing Notion database structure.
-export type PageCategory = "reception" | "cleaning" | "marketing" | "wegoinn2" | "operations";
+export type PageCategory = string;
+
+export interface PageCategoryDTO {
+  key: PageCategory;
+  label: string;
+  color: string;
+  orderKey: number;
+}
 
 // Column order on the "Wegoinn DB" board — matches the team's real Notion
 // board layout (Reception, Cleaning, 운영(기타), Wegoinn 2.0, Marketing).
 export const PAGE_CATEGORIES: PageCategory[] = ["reception", "cleaning", "operations", "wegoinn2", "marketing"];
 
-export const CATEGORY_LABELS: Record<PageCategory, string> = {
+export const CATEGORY_LABELS: Record<string, string> = {
   reception: "Reception",
   cleaning: "Cleaning",
   marketing: "Marketing",
@@ -23,7 +30,7 @@ export const CATEGORY_LABELS: Record<PageCategory, string> = {
   operations: "운영(기타)",
 };
 
-export const CATEGORY_COLORS: Record<PageCategory, string> = {
+export const CATEGORY_COLORS: Record<string, string> = {
   reception: "#2563eb",
   cleaning: "#16a34a",
   marketing: "#9333ea",
@@ -140,7 +147,13 @@ type PageBlockVariant =
   | { id: string; type: "file"; attachmentId: string }
   | { id: string; type: "toggle"; text: string; body: string; expanded: boolean }
   | { id: string; type: "callout"; text: string }
-  | { id: string; type: "table"; rows: string[][] }
+  | {
+      id: string;
+      type: "table";
+      rows: string[][];
+      colWidths?: number[];
+      cellStyles?: Record<string, { color?: string; bg?: string; fontSize?: "sm" | "md" | "lg" }>;
+    }
   | { id: string; type: "embed"; url: string }
   | { id: string; type: "bookmark"; url: string }
   | { id: string; type: "toc" }

@@ -1,10 +1,7 @@
 import { useEffect, useMemo, useState, type DragEvent, type ReactNode } from "react";
-import type { PageCategory, PageSummaryDTO, TeamMemberDTO, UserDTO } from "@shared/types";
+import type { PageCategory, PageCategoryDTO, PageSummaryDTO, TeamMemberDTO, UserDTO } from "@shared/types";
 import {
-  CATEGORY_COLORS,
-  CATEGORY_LABELS,
   DEFAULT_TAG_COLOR,
-  PAGE_CATEGORIES,
   TAG_COLORS,
   UNCATEGORIZED_COLOR,
   UNCATEGORIZED_LABEL,
@@ -62,9 +59,10 @@ function TagChips({ tags }: { tags: string[] }) {
   );
 }
 
-function CategoryBadge({ category }: { category: PageCategory | null }) {
-  const label = category ? CATEGORY_LABELS[category] : UNCATEGORIZED_LABEL;
-  const color = category ? CATEGORY_COLORS[category] : UNCATEGORIZED_COLOR;
+function CategoryBadge({ category, categories }: { category: PageCategory | null; categories: PageCategoryDTO[] }) {
+  const definition = categories.find((item) => item.key === category);
+  const label = definition?.label ?? (category || UNCATEGORIZED_LABEL);
+  const color = definition?.color ?? UNCATEGORIZED_COLOR;
   return (
     <span className="wdb-category-badge" style={{ color, background: `${color}1f` }}>
       {label}
@@ -76,6 +74,8 @@ export function WegoinnBoard({
   pages,
   members,
   canEdit,
+  categories,
+  onCategoriesChanged,
   onOpenPage,
   onPagesChanged,
   onNavigate,
@@ -84,6 +84,8 @@ export function WegoinnBoard({
   members: TeamMemberDTO[];
   user: UserDTO;
   canEdit: boolean;
+  categories: PageCategoryDTO[];
+  onCategoriesChanged: () => Promise<void> | void;
   onOpenPage: (id: string) => void;
   onPagesChanged: () => Promise<void> | void;
   onNavigate: (path: string) => void;
@@ -101,6 +103,10 @@ export function WegoinnBoard({
   const [seedResult, setSeedResult] = useState<{ created: number; skipped: number } | null>(null);
   const [contentSeeding, setContentSeeding] = useState(false);
   const [contentSeedResult, setContentSeedResult] = useState<{ pagesCreated: number; contentFilled: number } | null>(null);
+  const [addingCategory, setAddingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryColor, setNewCategoryColor] = useState("#2563eb");
+  const [categoryBusy, setCategoryBusy] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -132,11 +138,11 @@ export function WegoinnBoard({
   }, [roots, categoryFilter, tagFilter, query]);
 
   const columns = useMemo(() => {
-    const cols: { key: PageCategory | null; label: string; color: string; items: PageSummaryDTO[] }[] = PAGE_CATEGORIES.map((cat) => ({
-      key: cat,
-      label: CATEGORY_LABELS[cat],
-      color: CATEGORY_COLORS[cat],
-      items: filtered.filter((p) => p.category === cat).sort((a, b) => a.orderKey - b.orderKey),
+    const cols: { key: PageCategory | null; label: string; color: string; items: PageSummaryDTO[] }[] = categories.map((category) => ({
+      key: category.key,
+      label: category.label,
+      color: category.color,
+      items: filtered.filter((p) => p.category === category.key).sort((a, b) => a.orderKey - b.orderKey),
     }));
     cols.push({
       key: null,
@@ -145,7 +151,7 @@ export function WegoinnBoard({
       items: filtered.filter((p) => !p.category).sort((a, b) => a.orderKey - b.orderKey),
     });
     return cols;
-  }, [filtered]);
+  }, [categories, filtered]);
 
   const sortedList = useMemo(() => {
     const dir = sort.dir === "asc" ? 1 : -1;
@@ -154,7 +160,7 @@ export function WegoinnBoard({
         case "title":
           return p.title;
         case "category":
-          return p.category ? CATEGORY_LABELS[p.category] : UNCATEGORIZED_LABEL;
+          return categories.find((category) => category.key === p.category)?.label ?? p.category ?? UNCATEGORIZED_LABEL;
         case "date":
           return p.dueDate ?? "";
         case "updatedAt":
@@ -168,7 +174,22 @@ export function WegoinnBoard({
       const vb = value(b);
       return va < vb ? -dir : va > vb ? dir : 0;
     });
-  }, [filtered, sort]);
+  }, [categories, filtered, sort]);
+
+  const createCategory = async () => {
+    const label = newCategoryName.trim();
+    if (!label || categoryBusy) return;
+    setCategoryBusy(true);
+    try {
+      const created = await api.createPageCategory(label, newCategoryColor);
+      await onCategoriesChanged();
+      setCategoryFilter(created.key);
+      setNewCategoryName("");
+      setAddingCategory(false);
+    } finally {
+      setCategoryBusy(false);
+    }
+  };
 
   const createInCategory = async (category: PageCategory | null) => {
     const page = await api.createPage({ parentId: null, category });
@@ -290,9 +311,9 @@ export function WegoinnBoard({
         />
         <select className="wdb__filter" aria-label="카테고리 필터" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value as CategoryFilter)}>
           <option value="all">전체 카테고리</option>
-          {PAGE_CATEGORIES.map((cat) => (
-            <option key={cat} value={cat}>
-              {CATEGORY_LABELS[cat]}
+          {categories.map((category) => (
+            <option key={category.key} value={category.key}>
+              {category.label}
             </option>
           ))}
           <option value="none">{UNCATEGORIZED_LABEL}</option>
@@ -308,15 +329,42 @@ export function WegoinnBoard({
           </select>
         )}
         {canEdit && (
-          <button
-            type="button"
-            className="wdb__new-btn"
-            onClick={() => createInCategory(categoryFilter !== "all" && categoryFilter !== "none" ? categoryFilter : null)}
-          >
-            + 새 자료
-          </button>
+          <>
+            <button type="button" className="wdb__add-db-btn" onClick={() => setAddingCategory(true)}>
+              + DB 추가
+            </button>
+            <button
+              type="button"
+              className="wdb__new-btn"
+              onClick={() => createInCategory(categoryFilter !== "all" && categoryFilter !== "none" ? categoryFilter : null)}
+            >
+              + 새 자료
+            </button>
+          </>
         )}
       </div>
+
+      {addingCategory && (
+        <div className="wdb-category-create" role="dialog" aria-label="DB 대분류 추가">
+          <strong>새 DB 대분류</strong>
+          <input
+            autoFocus
+            value={newCategoryName}
+            maxLength={60}
+            placeholder="대분류 이름"
+            onChange={(event) => setNewCategoryName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") void createCategory();
+              if (event.key === "Escape") setAddingCategory(false);
+            }}
+          />
+          <input type="color" aria-label="대분류 색상" value={newCategoryColor} onChange={(event) => setNewCategoryColor(event.target.value)} />
+          <button type="button" disabled={!newCategoryName.trim() || categoryBusy} onClick={() => void createCategory()}>
+            {categoryBusy ? "추가 중…" : "추가"}
+          </button>
+          <button type="button" onClick={() => setAddingCategory(false)}>취소</button>
+        </div>
+      )}
 
       {selected.size > 0 && (
         <div className="wdb__bulkbar">
@@ -333,9 +381,9 @@ export function WegoinnBoard({
             <option value="" disabled>
               카테고리로 이동…
             </option>
-            {PAGE_CATEGORIES.map((cat) => (
-              <option key={cat} value={cat}>
-                {CATEGORY_LABELS[cat]}
+            {categories.map((category) => (
+              <option key={category.key} value={category.key}>
+                {category.label}
               </option>
             ))}
             <option value="none">{UNCATEGORIZED_LABEL}</option>
@@ -465,7 +513,7 @@ export function WegoinnBoard({
                     </button>
                   </td>
                   <td>
-                    <CategoryBadge category={page.category} />
+                    <CategoryBadge category={page.category} categories={categories} />
                   </td>
                   <td className="wdb-table__desc">{page.description ?? ""}</td>
                   <td>

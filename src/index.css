@@ -390,6 +390,47 @@ code {
   box-shadow: inset 3px 0 0 var(--color-accent);
 }
 
+.page-tree__collapse-all {
+  display: block;
+  margin: 0 4px 4px auto;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.page-tree__category-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--color-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.page-tree__category-row:hover {
+  background: var(--color-surface-hover);
+}
+
+.page-tree__category-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+
+.page-tree__category-count {
+  margin-left: auto;
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
 .page-tree__toggle {
   width: 16px;
   height: 16px;
@@ -783,6 +824,16 @@ code {
 
 .editor {
   min-height: 200px;
+  position: relative;
+}
+
+.editor__marquee {
+  position: absolute;
+  z-index: 20;
+  pointer-events: none;
+  background: rgba(37, 99, 235, 0.12);
+  border: 1px solid var(--color-accent);
+  border-radius: 2px;
 }
 
 .block-row {
@@ -982,6 +1033,89 @@ code {
   padding: 3px 8px;
   font-size: 12px;
   cursor: pointer;
+}
+
+.table-block__cell--selected {
+  background: rgba(37, 99, 235, 0.14) !important;
+  outline: 1px solid var(--color-accent);
+  outline-offset: -1px;
+}
+
+.table-block__col-resize {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 1;
+  touch-action: none;
+}
+
+.table-block__col-resize:hover {
+  background: var(--color-accent);
+  opacity: 0.5;
+}
+
+.table-context-menu {
+  position: fixed;
+  z-index: 100;
+  min-width: 180px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.table-context-menu button {
+  text-align: left;
+  border: none;
+  background: none;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--color-text);
+}
+
+.table-context-menu button:hover {
+  background: var(--color-hover, rgba(0, 0, 0, 0.06));
+}
+
+.table-context-menu__label {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  padding: 4px 8px 0;
+}
+
+.table-context-menu__row {
+  display: flex;
+  gap: 4px;
+  padding: 0 8px 4px;
+}
+
+.table-context-menu__row button {
+  flex: 1;
+  padding: 4px;
+  border: 1px solid var(--color-border);
+}
+
+.table-context-menu__swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  padding: 0;
+  cursor: pointer;
+  flex: none;
+}
+
+.table-context-menu__swatch--bg {
+  width: 20px;
 }
 
 .embed-block {
@@ -2991,6 +3125,58 @@ button.breadcrumb-block__item:hover {
   font-weight: 600;
   cursor: pointer;
   margin-left: auto;
+}
+
+.wdb__add-db-btn {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+  color: var(--color-text);
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.wdb-category-create {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  max-width: 100%;
+  margin: -4px 0 16px auto;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.wdb-category-create input:not([type="color"]) {
+  min-width: 180px;
+  padding: 6px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.wdb-category-create input[type="color"] {
+  width: 32px;
+  height: 30px;
+  padding: 2px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+}
+
+.wdb-category-create button {
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+  color: var(--color-text);
+  cursor: pointer;
 }
 
 .wdb__bulkbar {

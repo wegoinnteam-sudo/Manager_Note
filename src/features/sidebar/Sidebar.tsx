@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import type { PageDetailDTO, PageSummaryDTO, TeamMemberDTO, UserDTO } from "@shared/types";
+import type { PageCategoryDTO, PageDetailDTO, PageSummaryDTO, TeamMemberDTO, UserDTO } from "@shared/types";
 import { buildPageTree, type PageTreeNode } from "@/hooks/usePages";
 import type { PresenceUser } from "@/hooks/usePresence";
 import type { ThemePreference } from "@/hooks/useTheme";
@@ -210,6 +210,7 @@ function PageTreeRow({
 export function Sidebar({
   teamName,
   pages,
+  categories,
   activePageId,
   onOpenPage,
   onCreatePage,
@@ -227,6 +228,7 @@ export function Sidebar({
   teamName: string;
   user: UserDTO;
   pages: PageSummaryDTO[];
+  categories: PageCategoryDTO[];
   activePageId: string | null;
   onOpenPage: (id: string) => void;
   onCreatePage: () => void;
@@ -254,10 +256,23 @@ export function Sidebar({
   const [moving, setMoving] = useState(false);
   const [sidePreview, setSidePreview] = useState<PageDetailDTO | null>(null);
   const [busy, setBusy] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(() => new Set());
   const [selectedPageIds, setSelectedPageIds] = useState<Set<string>>(() => new Set());
   const selectionAnchorRef = useRef<string | null>(null);
   const sidebarRef = useRef<HTMLElement>(null);
   const tree = useMemo(() => buildPageTree(pages), [pages]);
+  const categoryTrees = useMemo(
+    () =>
+      categories.map((category) => ({
+        category,
+        nodes: tree.filter((node) => node.page.category === category.key),
+      })),
+    [categories, tree],
+  );
+  const uncategorizedTree = useMemo(
+    () => tree.filter((node) => !node.page.category || !categories.some((category) => category.key === node.page.category)),
+    [categories, tree],
+  );
   const pageOrder = useMemo(() => {
     const ids: string[] = [];
     const visit = (nodes: PageTreeNode[]) => {
@@ -266,9 +281,10 @@ export function Sidebar({
         visit(node.children);
       }
     };
-    visit(tree);
+    for (const group of categoryTrees) visit(group.nodes);
+    visit(uncategorizedTree);
     return ids;
-  }, [tree]);
+  }, [categoryTrees, uncategorizedTree]);
   const recent = useMemo(
     () => [...pages].sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1)).slice(0, 5),
     [pages],
@@ -299,6 +315,14 @@ export function Sidebar({
     const validIds = new Set(pages.filter((page) => !page.isDeleted).map((page) => page.id));
     setSelectedPageIds((current) => new Set([...current].filter((id) => validIds.has(id))));
   }, [pages]);
+
+  useEffect(() => {
+    setExpandedCategories((current) => {
+      const next = new Set(current);
+      categories.forEach((category) => next.add(category.key));
+      return next;
+    });
+  }, [categories]);
 
   const openOrSelectPage = useCallback(
     (event: React.MouseEvent, pageId: string) => {
@@ -573,7 +597,65 @@ export function Sidebar({
 
       <div className="sidebar__section-label">페이지</div>
       <div className="page-tree">
-        {tree.map((node) => (
+        {categories.length > 0 && (
+          <button type="button" className="page-tree__collapse-all" onClick={() => setExpandedCategories(new Set())}>
+            모두 접기
+          </button>
+        )}
+        {categoryTrees.map(({ category, nodes }) => (
+          <div key={category.key} className="page-tree__category">
+            <button
+              type="button"
+              className="page-tree__category-row"
+              onClick={() =>
+                setExpandedCategories((current) => {
+                  const next = new Set(current);
+                  if (next.has(category.key)) next.delete(category.key);
+                  else next.add(category.key);
+                  return next;
+                })
+              }
+            >
+              <span>{expandedCategories.has(category.key) ? "▾" : "▸"}</span>
+              <span className="page-tree__category-dot" style={{ background: category.color }} />
+              <strong>{category.label}</strong>
+              <span className="page-tree__category-count">{nodes.length}</span>
+            </button>
+            {expandedCategories.has(category.key) &&
+              nodes.map((node) => (
+                <PageTreeRow
+                  key={node.page.id}
+                  node={node}
+                  depth={1}
+                  activeId={activePageId}
+                  selectedIds={selectedPageIds}
+                  onOpen={openOrSelectPage}
+                  onExtendSelection={extendPageSelection}
+                  canReorder={canReorder}
+                  draggedPageId={draggedPageId}
+                  dropTarget={dropTarget}
+                  onDragStart={handleDragStart}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                  onDragEnd={() => {
+                    setDraggedPageId(null);
+                    setDropTarget(null);
+                  }}
+                  viewersByPage={viewersByPage}
+                  onContextMenu={(event, page) => {
+                    event.preventDefault();
+                    setMoving(false);
+                    setContextMenu({ page, x: event.clientX, y: event.clientY });
+                  }}
+                  editingPageId={editingPageId}
+                  onStartRename={(page) => setEditingPageId(page.id)}
+                  onCommitRename={commitRename}
+                  onCancelRename={() => setEditingPageId(null)}
+                />
+              ))}
+          </div>
+        ))}
+        {uncategorizedTree.map((node) => (
           <PageTreeRow
             key={node.page.id}
             node={node}

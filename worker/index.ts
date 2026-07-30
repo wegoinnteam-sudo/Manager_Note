@@ -15,6 +15,7 @@ import { authRoute } from "./routes/auth";
 import { adminRoute } from "./routes/admin";
 import { teamRoute } from "./routes/team";
 import { presenceRoute } from "./routes/presence";
+import { pageCategoriesRoute } from "./routes/pageCategories";
 import { runDriveSync } from "./drive/sync";
 import { ensureDefaultTeam } from "./db/teams";
 
@@ -36,6 +37,7 @@ app.route("/api/drive", driveRoute);
 app.route("/api/admin", adminRoute);
 app.route("/api/team", teamRoute);
 app.route("/api/presence", presenceRoute);
+app.route("/api/page-categories", pageCategoriesRoute);
 
 app.onError((err, c) => {
   if (err instanceof AppError) {
