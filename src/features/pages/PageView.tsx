@@ -257,6 +257,14 @@ export function PageView({
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
+              if (e.nativeEvent.isComposing) return;
+              e.preventDefault();
+              e.currentTarget.blur();
+              editorRef.current?.focusFirstBlock();
+            }
+          }}
+          onKeyUp={(e) => {
+            if (e.key === "Enter" && document.activeElement === e.currentTarget) {
               e.preventDefault();
               e.currentTarget.blur();
               editorRef.current?.focusFirstBlock();
