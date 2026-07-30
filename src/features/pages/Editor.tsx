@@ -234,6 +234,27 @@ function detectMarkdownAutoFormat(text: string): { type: PageBlock["type"]; rest
   return null;
 }
 
+// "--" followed by any other character becomes an em dash, and "-->" becomes
+// an arrow — both fire as soon as the closing character is typed, so typing
+// "-", "-", ">" in sequence still lands on the arrow rather than "—>".
+function applyInlineDashShortcuts(text: string, caret: number): { text: string; caret: number } | null {
+  const head = text.slice(0, caret);
+  if (head.endsWith("-->")) {
+    const next = head.slice(0, -3) + "→";
+    return { text: next + text.slice(caret), caret: next.length };
+  }
+  const m = head.match(/--([^->])$/);
+  if (m) {
+    const next = head.slice(0, -3) + "—" + m[1];
+    return { text: next + text.slice(caret), caret: next.length };
+  }
+  return null;
+}
+
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
 function isoDate(offsetDays: number): string {
   const d = new Date();
   d.setDate(d.getDate() + offsetDays);
@@ -305,7 +326,13 @@ export const Editor = forwardRef<EditorHandle, {
   useImperativeHandle(ref, () => ({
     focusFirstBlock: () => {
       const first = content.blocks.find((block) => "text" in block);
-      if (!first) return;
+      if (!first) {
+        const firstControl = editorRef.current?.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+          ".block-wrapper input, .block-wrapper textarea",
+        );
+        firstControl?.focus();
+        return;
+      }
       const existing = refs.current.get(first.id);
       if (existing) {
         existing.focus();
@@ -941,7 +968,16 @@ export const Editor = forwardRef<EditorHandle, {
     requestAnimationFrame(() => refs.current.get(block.id)?.focus());
   };
 
-  const handleChangeText = (block: PageBlock, text: string, caret: number) => {
+  const handleChangeText = (block: PageBlock, rawText: string, rawCaret: number) => {
+    const dashShortcut = applyInlineDashShortcuts(rawText, rawCaret);
+    const text = dashShortcut ? dashShortcut.text : rawText;
+    const caret = dashShortcut ? dashShortcut.caret : rawCaret;
+    if (dashShortcut) {
+      requestAnimationFrame(() => {
+        refs.current.get(block.id)?.setSelectionRange(dashShortcut.caret, dashShortcut.caret);
+      });
+    }
+
     if (block.type === "paragraph") {
       if (text === "---") {
         const idx = content.blocks.findIndex((b) => b.id === block.id);
@@ -986,6 +1022,23 @@ export const Editor = forwardRef<EditorHandle, {
   };
 
   const handleKeyDown = (block: PageBlock, e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === ";" && "text" in block) {
+      e.preventDefault();
+      const now = new Date();
+      const stamp = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())} ${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
+      const el = e.currentTarget;
+      const start = el.selectionStart ?? block.text.length;
+      const end = el.selectionEnd ?? start;
+      const nextText = block.text.slice(0, start) + stamp + block.text.slice(end);
+      const nextCaret = start + stamp.length;
+      updateBlock(block.id, { text: nextText } as Partial<PageBlock>);
+      onCursorReport(block.id, nextCaret);
+      requestAnimationFrame(() => {
+        refs.current.get(block.id)?.setSelectionRange(nextCaret, nextCaret);
+      });
+      return;
+    }
+
     if (mentionMenu && mentionMenu.blockId === block.id) {
       const filtered = filterMentions(mentionMenu.query, members);
       if (e.key === "ArrowDown") {
@@ -1238,6 +1291,20 @@ export const Editor = forwardRef<EditorHandle, {
       e.preventDefault();
       const followType = block.type === "bulleted_list_item" || block.type === "numbered_list_item" || block.type === "checklist_item" ? block.type : "paragraph";
       insertBlock(block.id, followType);
+      return;
+    }
+    // Backspace on an empty numbered/bulleted list item or toggle first drops
+    // just the list/toggle formatting (stays in the same block) — only a
+    // second Backspace, now on a plain empty paragraph, merges into the
+    // previous block via the branch below.
+    if (
+      e.key === "Backspace" &&
+      (block.type === "bulleted_list_item" || block.type === "numbered_list_item" || block.type === "toggle") &&
+      block.text === ""
+    ) {
+      e.preventDefault();
+      updateBlock(block.id, { type: "paragraph", text: "" } as Partial<PageBlock>);
+      requestAnimationFrame(() => refs.current.get(block.id)?.focus());
       return;
     }
     if (e.key === "Backspace" && "text" in block && block.text === "" && content.blocks.length > 1) {
