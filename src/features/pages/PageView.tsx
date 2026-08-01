@@ -24,6 +24,7 @@ export function PageView({
   canEdit,
   canDelete,
   members,
+  guestColors,
   autoFocusTitle,
   onConsumedAutoFocus,
   registerFileDropHandler,
@@ -42,6 +43,7 @@ export function PageView({
   canEdit: boolean;
   canDelete: boolean;
   members: TeamMemberDTO[];
+  guestColors: Record<string, string>;
   autoFocusTitle: boolean;
   onConsumedAutoFocus: () => void;
   registerFileDropHandler: (handler: (files: FileList) => void) => void;
@@ -351,6 +353,8 @@ export function PageView({
           presenceUsers={presenceUsers.filter((u) => u.pageId === page.id)}
           onCursorReport={onCursorReport}
           canViewSensitive={canViewSensitive}
+          guestName={guestName}
+          guestColors={guestColors}
         />
 
         <Comments pageId={page.id} canComment={canEdit} guestName={guestName} />

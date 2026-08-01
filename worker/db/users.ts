@@ -8,12 +8,11 @@ export interface UserRow {
   avatar_url: string | null;
   role: Role;
   is_active: number;
-  color: string | null;
 }
 
 export async function getUserByEmail(db: Env["DB"], email: string): Promise<UserRow | null> {
   const row = await db
-    .prepare("SELECT id, email, name, avatar_url, role, is_active, color FROM users WHERE email = ?1")
+    .prepare("SELECT id, email, name, avatar_url, role, is_active FROM users WHERE email = ?1")
     .bind(email.toLowerCase())
     .first<UserRow>();
   return row ?? null;
@@ -21,7 +20,7 @@ export async function getUserByEmail(db: Env["DB"], email: string): Promise<User
 
 export async function getUserById(db: Env["DB"], id: string): Promise<UserRow | null> {
   const row = await db
-    .prepare("SELECT id, email, name, avatar_url, role, is_active, color FROM users WHERE id = ?1")
+    .prepare("SELECT id, email, name, avatar_url, role, is_active FROM users WHERE id = ?1")
     .bind(id)
     .first<UserRow>();
   return row ?? null;
@@ -59,7 +58,6 @@ export async function upsertUserFromGoogleProfile(
     avatar_url: profile.avatarUrl,
     role: defaultRole,
     is_active: 1,
-    color: null,
   };
 }
 
@@ -73,7 +71,7 @@ export async function inviteUser(db: Env["DB"], email: string, role: Role): Prom
     .prepare("INSERT INTO users (id, email, name, role) VALUES (?1, ?2, ?3, ?4)")
     .bind(id, normalized, normalized.split("@")[0], role)
     .run();
-  return { id, email: normalized, name: normalized.split("@")[0], avatar_url: null, role, is_active: 1, color: null };
+  return { id, email: normalized, name: normalized.split("@")[0], avatar_url: null, role, is_active: 1 };
 }
 
 export async function setUserActive(db: Env["DB"], userId: string, isActive: boolean): Promise<void> {
@@ -87,14 +85,6 @@ export async function updateUserRole(db: Env["DB"], userId: string, role: Role):
   await db
     .prepare("UPDATE users SET role = ?1, updated_at = ?2 WHERE id = ?3")
     .bind(role, nowIso(), userId)
-    .run();
-}
-
-/** Self-service: lets a user pick their own calendar color (or null to reset to the default). */
-export async function updateUserColor(db: Env["DB"], userId: string, color: string | null): Promise<void> {
-  await db
-    .prepare("UPDATE users SET color = ?1, updated_at = ?2 WHERE id = ?3")
-    .bind(color, nowIso(), userId)
     .run();
 }
 
@@ -120,7 +110,6 @@ export async function ensurePublicEditor(db: Env["DB"]): Promise<UserRow> {
     avatar_url: null,
     role: "editor",
     is_active: 1,
-    color: null,
   };
 }
 
@@ -141,13 +130,12 @@ export async function ensureSystemUser(db: Env["DB"]): Promise<UserRow> {
     avatar_url: null,
     role: "viewer",
     is_active: 0,
-    color: null,
   };
 }
 
 export async function listUsers(db: Env["DB"]): Promise<UserRow[]> {
   const { results } = await db
-    .prepare("SELECT id, email, name, avatar_url, role, is_active, color FROM users ORDER BY name")
+    .prepare("SELECT id, email, name, avatar_url, role, is_active FROM users ORDER BY name")
     .all<UserRow>();
   return results ?? [];
 }

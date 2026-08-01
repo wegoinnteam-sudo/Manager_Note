@@ -60,6 +60,7 @@ pagesRoute.post("/", requireRole("editor"), async (c) => {
     createdBy: user.id,
     category: body.category,
     description: body.description,
+    authorName: body.authorName,
     tags: body.tags,
     orderKey: body.orderKey,
   });

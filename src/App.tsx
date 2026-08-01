@@ -3,6 +3,7 @@ import type { UserDTO } from "@shared/types";
 import { useAuth } from "@/hooks/useAuth";
 import { usePages } from "@/hooks/usePages";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
+import { useGuestColors } from "@/hooks/useGuestColors";
 import { useRoute } from "@/hooks/useRoute";
 import { useGuestIdentity } from "@/hooks/useGuestIdentity";
 import { usePresence } from "@/hooks/usePresence";
@@ -21,7 +22,8 @@ import type { GuestIdentity } from "@/hooks/useGuestIdentity";
 
 function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }) {
   const { pages, setPages, refresh: refreshPages } = usePages();
-  const { members, refresh: refreshMembers } = useTeamMembers();
+  const { members } = useTeamMembers();
+  const { colors: guestColors, refresh: refreshGuestColors } = useGuestColors();
   const { path, navigate } = useRoute();
   const { users: presenceUsers, report: reportCursor } = usePresence(identity);
   const { preference: theme, setTheme } = useTheme();
@@ -150,6 +152,7 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
         canEdit={canEdit}
         canDelete={canDeleteAll}
         members={members}
+        guestColors={guestColors}
         autoFocusTitle={justCreatedPageId === activePageId}
         onConsumedAutoFocus={() => setJustCreatedPageId(null)}
         registerFileDropHandler={registerFileDropHandler}
@@ -198,7 +201,9 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
           presenceUsers={presenceUsers}
           onPagesChanged={refreshPages}
           members={members}
-          onMyColorChanged={refreshMembers}
+          guestName={identity.name}
+          guestColors={guestColors}
+          onGuestColorChanged={refreshGuestColors}
           theme={theme}
           onThemeChange={setTheme}
         />
@@ -230,6 +235,7 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
                   canEdit={canEdit}
                   canDelete={canDeleteAll}
                   members={members}
+                  guestColors={guestColors}
                   autoFocusTitle={false}
                   onConsumedAutoFocus={() => {}}
                   registerFileDropHandler={registerFileDropHandler}

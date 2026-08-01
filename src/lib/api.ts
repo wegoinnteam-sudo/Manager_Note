@@ -54,7 +54,6 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export const api = {
   me: () => request<UserDTO>("/api/me"),
-  updateMyColor: (color: string | null) => request<UserDTO>("/api/me/color", { method: "PATCH", body: JSON.stringify({ color }) }),
   logout: () => request<{ ok: true }>("/api/auth/logout", { method: "POST" }),
 
   listPages: (opts: { trash?: boolean } = {}) =>
@@ -70,6 +69,7 @@ export const api = {
     title?: string;
     category?: PageCategory | null;
     description?: string | null;
+    authorName?: string;
     tags?: string[];
     orderKey?: number;
   }) => request<PageDetailDTO>("/api/pages", { method: "POST", body: JSON.stringify(input) }),
@@ -135,6 +135,10 @@ export const api = {
   listHistory: (pageId: string) => request<{ history: StatusHistoryDTO[] }>(`/api/pages/${pageId}/history`),
 
   listTeamMembers: () => request<{ members: TeamMemberDTO[] }>("/api/team/members"),
+
+  listGuestColors: () => request<{ colors: { name: string; color: string }[] }>("/api/guest-colors"),
+  setGuestColor: (name: string, color: string | null) =>
+    request<{ colors: { name: string; color: string }[] }>("/api/guest-colors", { method: "PUT", body: JSON.stringify({ name, color }) }),
 
   search: (q: string) => request<{ pages: PageSummaryDTO[]; attachments: AttachmentDTO[] }>(`/api/search?q=${encodeURIComponent(q)}`),
 

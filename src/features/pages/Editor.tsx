@@ -296,8 +296,10 @@ export const Editor = forwardRef<EditorHandle, {
   presenceUsers: PresenceUser[];
   onCursorReport: (blockId: string | null, offset: number) => void;
   canViewSensitive: boolean;
+  guestName?: string;
+  guestColors: Record<string, string>;
 }>(function Editor(
-  { pageId, content, attachments, editable, onChange, onOpenPage, onPeekPage, onPagesChanged, onAttachmentUploaded, pages, members, registerFileDropHandler, presenceUsers, onCursorReport, canViewSensitive },
+  { pageId, content, attachments, editable, onChange, onOpenPage, onPeekPage, onPagesChanged, onAttachmentUploaded, pages, members, registerFileDropHandler, presenceUsers, onCursorReport, canViewSensitive, guestName, guestColors },
   ref,
 ) {
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -1519,6 +1521,8 @@ export const Editor = forwardRef<EditorHandle, {
                   else refs.current.delete(block.id);
                 }}
                 canViewSensitive={canViewSensitive}
+                guestName={guestName}
+                guestColors={guestColors}
               />
             </div>
           </div>

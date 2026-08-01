@@ -210,7 +210,6 @@ function PageTreeRow({
 
 export function Sidebar({
   teamName,
-  user,
   pages,
   categories,
   activePageId,
@@ -224,7 +223,9 @@ export function Sidebar({
   presenceUsers,
   onPagesChanged,
   members,
-  onMyColorChanged,
+  guestName,
+  guestColors,
+  onGuestColorChanged,
   theme,
   onThemeChange,
 }: {
@@ -243,7 +244,9 @@ export function Sidebar({
   presenceUsers: PresenceUser[];
   onPagesChanged: () => void;
   members: TeamMemberDTO[];
-  onMyColorChanged: () => void;
+  guestName: string;
+  guestColors: Record<string, string>;
+  onGuestColorChanged: () => void;
   theme: ThemePreference;
   onThemeChange: (theme: ThemePreference) => void;
 }) {
@@ -406,13 +409,13 @@ export function Sidebar({
     saveIds(FAVORITES_KEY, next, setFavorites);
   };
 
-  const myColor = members.find((m) => m.id === user.id)?.color ?? null;
+  const myColor = guestColors[guestName] ?? null;
 
   const changeMyColor = async (color: string | null) => {
     setColorSaving(true);
     try {
-      await api.updateMyColor(color);
-      onMyColorChanged();
+      await api.setGuestColor(guestName, color);
+      onGuestColorChanged();
     } finally {
       setColorSaving(false);
     }
@@ -706,7 +709,7 @@ export function Sidebar({
           <span>내 캘린더 색상</span>
           <input
             type="color"
-            value={myColor ?? defaultAuthorColor(user.id)}
+            value={myColor ?? defaultAuthorColor(guestName)}
             disabled={colorSaving}
             onChange={(e) => changeMyColor(e.target.value)}
             title="캘린더 일정 색상 (내가 만든 일정에 적용됩니다)"

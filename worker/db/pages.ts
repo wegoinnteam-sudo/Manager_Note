@@ -22,6 +22,7 @@ export interface PageRow {
   highlight_color: string | null;
   category: string | null;
   description: string | null;
+  author_name: string | null;
   version: number;
   open_question_count?: number;
   is_system: number;
@@ -80,6 +81,7 @@ export async function createPage(
     isSystem?: boolean;
     category?: PageCategory | null;
     description?: string | null;
+    authorName?: string | null;
     tags?: string[];
     orderKey?: number;
   },
@@ -101,8 +103,8 @@ export async function createPage(
 
   await db
     .prepare(
-      `INSERT INTO pages (id, team_id, parent_id, title, order_key, is_system, category, description, tags, created_by, updated_by, created_at, updated_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?10, ?11, ?11)`,
+      `INSERT INTO pages (id, team_id, parent_id, title, order_key, is_system, category, description, author_name, tags, created_by, updated_by, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?11, ?12, ?12)`,
     )
     .bind(
       id,
@@ -113,6 +115,7 @@ export async function createPage(
       params.isSystem ? 1 : 0,
       params.category ?? null,
       params.description ?? null,
+      params.authorName?.trim() || null,
       JSON.stringify(params.tags ?? []),
       params.createdBy,
       now,

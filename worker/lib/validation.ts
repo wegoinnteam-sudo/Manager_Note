@@ -131,15 +131,12 @@ export const createPageSchema = z.object({
   title: z.string().max(MAX_TITLE_LENGTH).optional(),
   category: pageCategorySchema.nullable().optional(),
   description: descriptionSchema.nullable().optional(),
+  authorName: z.string().trim().min(1).max(60).optional(),
   tags: z.array(z.string().max(50)).max(20).optional(),
   orderKey: z.number().optional(),
 });
 
 export const hexColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/);
-
-export const updateMyColorSchema = z.object({
-  color: hexColorSchema.nullable(),
-});
 
 export const updatePageMetaSchema = z.object({
   expectedVersion: z.number().int().nonnegative(),

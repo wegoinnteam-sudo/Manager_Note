@@ -60,10 +60,6 @@ export interface UserDTO {
   name: string;
   role: Role;
   avatarUrl: string | null;
-  // Self-chosen color used to color-code this person's calendar schedules.
-  // Null until they pick one in settings — callers fall back to a
-  // deterministic per-id color (see src/lib/authorColors.ts).
-  color: string | null;
 }
 
 export interface PageSummaryDTO {
@@ -75,8 +71,7 @@ export interface PageSummaryDTO {
   assigneeId: string | null;
   dueDate: string | null;
   // Calendar date-range fields. endDate defaults to dueDate (single-day
-  // event) when unset — see CATEGORY_COLORS for how a page's category
-  // doubles as its calendar color since this app has only one real team.
+  // event) when unset.
   endDate: string | null;
   startTime: string | null;
   endTime: string | null;
@@ -92,6 +87,11 @@ export interface PageSummaryDTO {
   highlightColor: string | null;
   category: PageCategory | null;
   description: string | null;
+  // Display name the visitor typed in locally (see useGuestIdentity on the
+  // frontend), snapshotted at creation time — every unauthenticated visitor
+  // shares one "공용 편집자" account, so createdBy alone can't tell two
+  // people apart. Used to color-code calendar schedules by author.
+  authorName: string | null;
   tags: string[];
 }
 
@@ -108,7 +108,7 @@ export type DatabaseViewProperty =
   | "description"
   | "tags"
   | "assigneeId"
-  | "createdBy"
+  | "authorName"
   | "dueDate"
   | "updatedAt"
   | "overdue"
@@ -259,7 +259,6 @@ export interface TeamMemberDTO {
   email: string;
   avatarUrl: string | null;
   role: Role;
-  color: string | null;
 }
 
 export interface ApiError {

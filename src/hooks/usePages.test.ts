@@ -25,6 +25,7 @@ function page(overrides: Partial<PageSummaryDTO>): PageSummaryDTO {
     highlightColor: null,
     category: null,
     description: null,
+    authorName: null,
     tags: [],
     ...overrides,
   };

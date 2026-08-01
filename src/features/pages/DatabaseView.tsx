@@ -17,7 +17,7 @@ import { api } from "@/lib/api";
 import { StatusBadge, STATUS_LABELS, nextStatus } from "@/features/status/Status";
 import { memberName } from "@/hooks/useTeamMembers";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { getAuthorColor } from "@/lib/authorColors";
+import { authorKey, colorForAuthorName, getAuthorColor } from "@/lib/authorColors";
 import { layoutWeekSegments } from "./calendarLayout";
 import { ScheduleModal, type ScheduleFormValues } from "./ScheduleModal";
 import { Modal } from "@/components/Modal";
@@ -42,7 +42,7 @@ const PROPERTY_LABELS: Record<DatabaseViewProperty, string> = {
   description: "설명",
   tags: "태그",
   assigneeId: "담당자",
-  createdBy: "작성자",
+  authorName: "작성자",
   dueDate: "마감일",
   updatedAt: "최근 수정",
   overdue: "기한 지남",
@@ -72,7 +72,7 @@ type TemplateDraft = {
   body: string;
 };
 
-function fieldValue(c: PageSummaryDTO, field: DatabaseViewSort["field"]): string {
+function fieldValue(c: PageSummaryDTO, field: DatabaseViewSort["field"], members: TeamMemberDTO[]): string {
   switch (field) {
     case "title":
       return c.title;
@@ -86,8 +86,8 @@ function fieldValue(c: PageSummaryDTO, field: DatabaseViewSort["field"]): string
       return c.tags.join(", ");
     case "assigneeId":
       return c.assigneeId ?? "";
-    case "createdBy":
-      return c.createdBy;
+    case "authorName":
+      return authorKey(c, members);
     case "dueDate":
       return c.dueDate ?? "";
     case "updatedAt":
@@ -97,8 +97,8 @@ function fieldValue(c: PageSummaryDTO, field: DatabaseViewSort["field"]): string
   }
 }
 
-function matchesFilter(c: PageSummaryDTO, f: DatabaseViewFilter): boolean {
-  const value = fieldValue(c, f.field);
+function matchesFilter(c: PageSummaryDTO, f: DatabaseViewFilter, members: TeamMemberDTO[]): boolean {
+  const value = fieldValue(c, f.field, members);
   switch (f.op) {
     case "eq":
       return value === (f.value ?? "");
@@ -173,6 +173,8 @@ export function DatabaseView({
   onPatch,
   onDuplicate,
   onRemove,
+  guestName,
+  guestColors,
 }: {
   block: DbViewBlock;
   parentId: string;
@@ -185,6 +187,8 @@ export function DatabaseView({
   onPatch: (patch: Partial<DbViewBlock>) => void;
   onDuplicate: () => void;
   onRemove: () => void;
+  guestName?: string;
+  guestColors: Record<string, string>;
 }) {
   const view = block.view;
   const properties = block.properties ?? DEFAULT_PROPERTIES;
@@ -230,12 +234,12 @@ export function DatabaseView({
   const filteredChildren = useMemo(() => {
     const query = searchQuery.trim().toLocaleLowerCase();
     return allChildren.filter((child) => {
-      if (filter && !matchesFilter(child, filter)) return false;
+      if (filter && !matchesFilter(child, filter, members)) return false;
       if (!query) return true;
       return [child.title, child.description ?? "", child.tags.join(" "), child.category ? CATEGORY_LABELS[child.category] : ""]
         .some((value) => value.toLocaleLowerCase().includes(query));
     });
-  }, [allChildren, filter, searchQuery]);
+  }, [allChildren, filter, searchQuery, members]);
   const subItemCounts = useMemo(() => {
     const counts = new Map<string, number>();
     pages.forEach((page) => {
@@ -248,26 +252,26 @@ export function DatabaseView({
     if (!sort) return filteredChildren;
     const dir = sort.direction === "asc" ? 1 : -1;
     return [...filteredChildren].sort((a, b) => {
-      const va = fieldValue(a, sort.field);
-      const vb = fieldValue(b, sort.field);
+      const va = fieldValue(a, sort.field, members);
+      const vb = fieldValue(b, sort.field, members);
       return va < vb ? -dir : va > vb ? dir : 0;
     });
-  }, [filteredChildren, sort]);
+  }, [filteredChildren, sort, members]);
 
   const presentAuthors = useMemo(() => {
     const seen = new Set<string>();
     allChildren.forEach((child) => {
-      if (child.dueDate) seen.add(child.createdBy);
+      if (child.dueDate) seen.add(authorKey(child, members));
     });
     return [...seen];
-  }, [allChildren]);
+  }, [allChildren, members]);
 
   const authorFilter: string | null =
-    filter && filter.field === "createdBy" && filter.op === "eq" ? (filter.value ?? "") : null;
+    filter && filter.field === "authorName" && filter.op === "eq" ? (filter.value ?? "") : null;
 
-  const onToggleAuthorFilter = (authorId: string) => {
-    if (authorFilter === authorId) onPatch({ filter: null });
-    else onPatch({ filter: { field: "createdBy", op: "eq", value: authorId } });
+  const onToggleAuthorFilter = (authorName: string) => {
+    if (authorFilter === authorName) onPatch({ filter: null });
+    else onPatch({ filter: { field: "authorName", op: "eq", value: authorName } });
   };
 
   const openCreateModal = (start: string, end: string) => {
@@ -294,6 +298,7 @@ export function DatabaseView({
       title: values.title.trim() || "제목 없음",
       category: values.category,
       description: values.description || null,
+      authorName: guestName,
     });
     await api.updatePageMeta(page.id, {
       expectedVersion: page.version,
@@ -349,7 +354,7 @@ export function DatabaseView({
     if (!editable || creating) return;
     setCreating(true);
     try {
-      let page = await api.createPage({ parentId: sourceParentId, title: template?.title || "제목 없음" });
+      let page = await api.createPage({ parentId: sourceParentId, title: template?.title || "제목 없음", authorName: guestName });
       if (template && (template.status || template.assigneeId !== undefined || template.dueDate !== undefined)) {
         page = await api.updatePageMeta(page.id, {
           expectedVersion: page.version,
@@ -588,7 +593,11 @@ export function DatabaseView({
                   category: null,
                 }
           }
-          authorName={selectedSchedule ? memberName(members, selectedSchedule.createdBy) : currentUser?.name ?? "-"}
+          authorName={
+            selectedSchedule
+              ? selectedSchedule.authorName || memberName(members, selectedSchedule.createdBy)
+              : guestName ?? currentUser?.name ?? "-"
+          }
           onSave={async (values) => {
             if (selectedSchedule) await updateSchedule(selectedSchedule, values);
             else await createSchedule(values);
@@ -692,6 +701,7 @@ export function DatabaseView({
           presentAuthors={presentAuthors}
           authorFilter={authorFilter}
           onToggleAuthorFilter={onToggleAuthorFilter}
+          guestColors={guestColors}
         />
       )}
     </div>
@@ -1371,6 +1381,7 @@ function CalendarGrid({
   presentAuthors,
   authorFilter,
   onToggleAuthorFilter,
+  guestColors,
 }: {
   blockId: string;
   items: PageSummaryDTO[];
@@ -1389,6 +1400,7 @@ function CalendarGrid({
   presentAuthors: string[];
   authorFilter: string | null;
   onToggleAuthorFilter: (authorId: string) => void;
+  guestColors: Record<string, string>;
 }) {
   const [panelPosition, setPanelPosition] = useState<CalendarPanelPosition>(
     () => loadCalendarPanelPosition(blockId) ?? { x: 320, y: 96 },
@@ -1733,7 +1745,10 @@ function CalendarGrid({
     [items],
   );
 
-  const legendEntries = useMemo(() => presentAuthors.map((id) => getAuthorColor(id, members)), [presentAuthors, members]);
+  const legendEntries = useMemo(
+    () => presentAuthors.map((name) => colorForAuthorName(name, guestColors)),
+    [presentAuthors, guestColors],
+  );
 
   const pad = (n: number) => String(n).padStart(2, "0");
   const firstOfMonth = new Date(cursor.year, cursor.month, 1);
@@ -1846,7 +1861,7 @@ function CalendarGrid({
               </div>
               <div className="db-calendar__week-bars">
                 {segments.map((seg) => {
-                  const color = getAuthorColor(seg.item.createdBy, members);
+                  const color = getAuthorColor(seg.item, members, guestColors);
                   const tooltip = [
                     seg.item.title,
                     scheduleRangeLabel(seg.item.startDate, seg.item.endDate),

@@ -81,6 +81,8 @@ export function Block({
   remoteCursors,
   registerRef,
   canViewSensitive,
+  guestName,
+  guestColors,
 }: {
   block: PageBlock;
   index: number;
@@ -108,6 +110,8 @@ export function Block({
   remoteCursors: PresenceUser[];
   registerRef: (el: HTMLTextAreaElement | null) => void;
   canViewSensitive: boolean;
+  guestName?: string;
+  guestColors: Record<string, string>;
 }) {
   const localRef = useRef<HTMLTextAreaElement | null>(null);
   const [, bumpRender] = useState(0);
@@ -241,6 +245,8 @@ export function Block({
           onPatch={onPatch}
           onDuplicate={onDuplicateBlock}
           onRemove={onRemoveBlock}
+          guestName={guestName}
+          guestColors={guestColors}
         />
         {editable && (
           <button type="button" className="block-row__handle" onClick={onRemoveBlock} title="블록 제거">

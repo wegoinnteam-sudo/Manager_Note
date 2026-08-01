@@ -16,6 +16,7 @@ import { adminRoute } from "./routes/admin";
 import { teamRoute } from "./routes/team";
 import { presenceRoute } from "./routes/presence";
 import { pageCategoriesRoute } from "./routes/pageCategories";
+import { guestColorsRoute } from "./routes/guestColors";
 import { runDriveSync } from "./drive/sync";
 import { ensureDefaultTeam } from "./db/teams";
 
@@ -38,6 +39,7 @@ app.route("/api/admin", adminRoute);
 app.route("/api/team", teamRoute);
 app.route("/api/presence", presenceRoute);
 app.route("/api/page-categories", pageCategoriesRoute);
+app.route("/api/guest-colors", guestColorsRoute);
 
 app.onError((err, c) => {
   if (err instanceof AppError) {
