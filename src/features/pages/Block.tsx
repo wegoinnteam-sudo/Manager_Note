@@ -98,7 +98,7 @@ export function Block({
   onDuplicateBlock: () => void;
   onPatch: (patch: Partial<PageBlock>) => void;
   onOpenPage: (pageId: string) => void;
-  onPeekPage: (pageId: string, label?: string) => void;
+  onPeekPage: (pageId: string, label?: string, anchorLeft?: number) => void;
   currentPageId: string;
   pages: PageSummaryDTO[];
   members: TeamMemberDTO[];

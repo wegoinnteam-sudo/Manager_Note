@@ -35,6 +35,7 @@ export function PageView({
   onCursorReport,
   guestName,
   canViewSensitive,
+  autoSave = true,
 }: {
   pageId: string;
   canEdit: boolean;
@@ -46,12 +47,16 @@ export function PageView({
   onDeleted: () => void;
   onPagesChanged: () => void;
   onOpenPage: (pageId: string) => void;
-  onPeekPage: (pageId: string, label?: string) => void;
+  onPeekPage: (pageId: string, label?: string, anchorLeft?: number) => void;
   pages: PageSummaryDTO[];
   presenceUsers: PresenceUser[];
   onCursorReport: (blockId: string | null, offset: number) => void;
   guestName?: string;
   canViewSensitive: boolean;
+  // When false, edits are held locally and only sent to the server when the
+  // user presses the Save button — used for the calendar date peek panel,
+  // where clicking elsewhere should not silently persist changes.
+  autoSave?: boolean;
 }) {
   const [page, setPage] = useState<PageDetailDTO | null>(null);
   const [attachments, setAttachments] = useState<AttachmentDTO[]>([]);
@@ -165,18 +170,23 @@ export function PageView({
   );
   const debouncedSaveContent = useDebouncedCallback(saveContent, 1000);
 
+  const saveNow = useCallback(() => {
+    if (!page) return;
+    debouncedSaveTitle.cancel();
+    debouncedSaveContent.cancel();
+    void Promise.all([saveMeta({ title: page.title }), saveContent(page.contentJson)]);
+  }, [page, debouncedSaveTitle, debouncedSaveContent, saveMeta, saveContent]);
+
   useEffect(() => {
     if (!canEdit || !page) return;
     const saveImmediately = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey || event.key.toLowerCase() !== "s") return;
       event.preventDefault();
-      debouncedSaveTitle.cancel();
-      debouncedSaveContent.cancel();
-      void Promise.all([saveMeta({ title: page.title }), saveContent(page.contentJson)]);
+      saveNow();
     };
     window.addEventListener("keydown", saveImmediately);
     return () => window.removeEventListener("keydown", saveImmediately);
-  }, [canEdit, debouncedSaveContent, debouncedSaveTitle, page, saveContent, saveMeta]);
+  }, [canEdit, page, saveNow]);
 
   const clampReferencePosition = useCallback((position: ReferencePosition): ReferencePosition => {
     const panel = referencePanelRef.current;
@@ -252,6 +262,15 @@ export function PageView({
   return (
     <div className="page-shell">
       <div className="page-view">
+        {!autoSave && canEdit && (
+          <div className="page-view__manual-save">
+            <button type="button" onClick={saveNow} disabled={saveState === "saving"}>
+              {saveState === "saving" ? "저장 중…" : "저장"}
+            </button>
+            <span className="page-view__manual-save-hint">저장 버튼을 눌러야 저장됩니다</span>
+          </div>
+        )}
+
         {saveState === "conflict" && (
           <div style={{ background: "var(--color-warn-bg)", border: "1px solid #f59e0b", borderRadius: 6, padding: "8px 12px", marginBottom: 12, fontSize: 13 }}>
             다른 사용자가 먼저 이 페이지를 수정했습니다.{" "}
@@ -268,7 +287,7 @@ export function PageView({
           disabled={!canEdit}
           onChange={(e) => {
             setPage({ ...page, title: e.target.value });
-            debouncedSaveTitle(e.target.value);
+            if (autoSave) debouncedSaveTitle(e.target.value);
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
@@ -302,7 +321,7 @@ export function PageView({
           editable={canEdit}
           onChange={(content) => {
             setPage({ ...page, contentJson: content });
-            debouncedSaveContent(content);
+            if (autoSave) debouncedSaveContent(content);
           }}
           onOpenPage={onOpenPage}
           onPeekPage={onPeekPage}

@@ -158,7 +158,7 @@ export function DatabaseView({
   members: TeamMemberDTO[];
   editable: boolean;
   onOpenPage: (id: string) => void;
-  onPeekPage: (id: string, label?: string) => void;
+  onPeekPage: (id: string, label?: string, anchorLeft?: number) => void;
   onPagesChanged: () => void;
   onPatch: (patch: Partial<DbViewBlock>) => void;
   onDuplicate: () => void;
@@ -267,14 +267,14 @@ export function DatabaseView({
     }
   };
 
-  const createItemOnDate = async (date: string) => {
+  const createItemOnDate = async (date: string, anchorLeft?: number) => {
     if (!editable || creating) return;
     setCreating(true);
     try {
       let page = await api.createPage({ parentId: sourceParentId, title: "제목 없음" });
       page = await api.updatePageMeta(page.id, { expectedVersion: page.version, dueDate: date });
       onPagesChanged();
-      onPeekPage(page.id, dateLabel(date));
+      onPeekPage(page.id, dateLabel(date), anchorLeft);
     } finally {
       setCreating(false);
     }
@@ -544,7 +544,7 @@ export function DatabaseView({
           editable={editable}
           size={block.calendarSize ?? 64}
           onResize={(size) => onPatch({ calendarSize: size })}
-          width={block.calendarWidth ?? 100}
+          width={block.calendarWidth ?? 0}
           onResizeWidth={(width) => onPatch({ calendarWidth: width })}
           onCreateOnDate={editable ? createItemOnDate : undefined}
         />
@@ -1185,6 +1185,8 @@ function SummaryChartView({ items }: { items: PageSummaryDTO[] }) {
   );
 }
 
+const MIN_CALENDAR_WIDTH = 320;
+
 function CalendarGrid({
   items,
   onPeekPage,
@@ -1196,13 +1198,13 @@ function CalendarGrid({
   onCreateOnDate,
 }: {
   items: PageSummaryDTO[];
-  onPeekPage: (id: string, label?: string) => void;
+  onPeekPage: (id: string, label?: string, anchorLeft?: number) => void;
   editable: boolean;
   size: number;
   onResize: (size: number) => void;
   width: number;
   onResizeWidth: (width: number) => void;
-  onCreateOnDate?: (date: string) => void;
+  onCreateOnDate?: (date: string, anchorLeft?: number) => void;
 }) {
   const [cursor, setCursor] = useState(() => {
     const d = new Date();
@@ -1241,13 +1243,14 @@ function CalendarGrid({
   };
 
   const resizingWidth = useRef<{ side: "left" | "right"; pointerId: number } | null>(null);
-  const dragWidthStart = useRef({ x: 0, width });
+  const dragWidthStart = useRef({ x: 0, width: 0 });
 
   const startWidthResize = (e: React.PointerEvent<HTMLSpanElement>, side: "left" | "right") => {
     if (e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
-    dragWidthStart.current = { x: e.clientX, width };
+    const currentWidth = width >= MIN_CALENDAR_WIDTH ? width : frameRef.current?.getBoundingClientRect().width ?? 600;
+    dragWidthStart.current = { x: e.clientX, width: currentWidth };
     resizingWidth.current = { side, pointerId: e.pointerId };
     e.currentTarget.setPointerCapture(e.pointerId);
   };
@@ -1260,6 +1263,9 @@ function CalendarGrid({
     }
   };
 
+  // The calendar is allowed to grow past its normal text-column width (up to
+  // the edge of the .main scroll container) so it can fill the blank space
+  // next to it instead of being capped at the page's reading width.
   const doWidthResize = (e: React.PointerEvent<HTMLSpanElement>) => {
     const current = resizingWidth.current;
     if (!current || current.pointerId !== e.pointerId) return;
@@ -1267,11 +1273,15 @@ function CalendarGrid({
       stopWidthResize(e);
       return;
     }
-    const containerWidth = frameRef.current?.parentElement?.getBoundingClientRect().width;
-    if (!containerWidth) return;
-    const deltaPct = ((e.clientX - dragWidthStart.current.x) / containerWidth) * 100;
-    const next = current.side === "right" ? dragWidthStart.current.width + deltaPct : dragWidthStart.current.width - deltaPct;
-    onResizeWidth(Math.min(100, Math.max(40, Math.round(next))));
+    const rect = frameRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const mainRect = frameRef.current?.closest(".main")?.getBoundingClientRect();
+    const deltaPx = e.clientX - dragWidthStart.current.x;
+    const next =
+      current.side === "right"
+        ? Math.min(dragWidthStart.current.width + deltaPx, (mainRect?.right ?? window.innerWidth) - 24 - rect.left)
+        : Math.min(dragWidthStart.current.width - deltaPx, rect.right - ((mainRect?.left ?? 0) + 24));
+    onResizeWidth(Math.max(MIN_CALENDAR_WIDTH, Math.round(next)));
   };
 
   const byDate = useMemo(() => {
@@ -1293,7 +1303,11 @@ function CalendarGrid({
   while (cells.length % 7 !== 0) cells.push(null);
 
   return (
-    <div className="db-calendar" ref={frameRef} style={{ width: `${width}%` }}>
+    <div
+      className="db-calendar"
+      ref={frameRef}
+      style={width >= MIN_CALENDAR_WIDTH ? { width: `${width}px`, maxWidth: "none" } : undefined}
+    >
       <div className="db-calendar__nav">
         <button type="button" onClick={() => setCursor((c) => (c.month === 0 ? { year: c.year - 1, month: 11 } : { year: c.year, month: c.month - 1 }))}>
           ‹
@@ -1321,11 +1335,11 @@ function CalendarGrid({
               className={`db-calendar__cell${day ? "" : " db-calendar__cell--empty"}${clickable ? " db-calendar__cell--clickable" : ""}`}
               role={clickable ? "button" : undefined}
               tabIndex={clickable ? 0 : undefined}
-              onClick={clickable ? () => onCreateOnDate!(dateKey!) : undefined}
+              onClick={clickable ? () => onCreateOnDate!(dateKey!, frameRef.current?.getBoundingClientRect().right) : undefined}
               onKeyDown={
                 clickable
                   ? (e) => {
-                      if (e.key === "Enter" || e.key === " ") onCreateOnDate!(dateKey!);
+                      if (e.key === "Enter" || e.key === " ") onCreateOnDate!(dateKey!, frameRef.current?.getBoundingClientRect().right);
                     }
                   : undefined
               }
@@ -1338,7 +1352,7 @@ function CalendarGrid({
                   className="db-calendar__item"
                   onClick={(e) => {
                     e.stopPropagation();
-                    onPeekPage(c.id, c.dueDate ? dateLabel(c.dueDate) : undefined);
+                    onPeekPage(c.id, c.dueDate ? dateLabel(c.dueDate) : undefined, frameRef.current?.getBoundingClientRect().right);
                   }}
                 >
                   {c.title}

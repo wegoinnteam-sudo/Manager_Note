@@ -286,7 +286,7 @@ export const Editor = forwardRef<EditorHandle, {
   editable: boolean;
   onChange: (next: PageContent) => void;
   onOpenPage: (pageId: string) => void;
-  onPeekPage: (pageId: string, label?: string) => void;
+  onPeekPage: (pageId: string, label?: string, anchorLeft?: number) => void;
   onPagesChanged: () => void;
   onAttachmentUploaded: (attachment: AttachmentDTO) => void;
   pages: PageSummaryDTO[];

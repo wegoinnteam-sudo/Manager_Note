@@ -30,16 +30,22 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
   const [justCreatedPageId, setJustCreatedPageId] = useState<string | null>(null);
   const [peekPageId, setPeekPageId] = useState<string | null>(null);
   const [peekLabel, setPeekLabel] = useState<string | null>(null);
+  // Set only when the peek was opened from a calendar date — docks the panel
+  // to the right of that calendar (instead of the viewport edge) and switches
+  // the peeked page to manual save instead of autosave.
+  const [peekAnchorLeft, setPeekAnchorLeft] = useState<number | null>(null);
   const dropHandlerRef = useRef<(files: FileList) => void>(() => {});
 
-  const peekPage = useCallback((id: string, label?: string) => {
+  const peekPage = useCallback((id: string, label?: string, anchorLeft?: number) => {
     setPeekPageId(id);
     setPeekLabel(label ?? null);
+    setPeekAnchorLeft(anchorLeft ?? null);
   }, []);
 
   const closePeek = useCallback(() => {
     setPeekPageId(null);
     setPeekLabel(null);
+    setPeekAnchorLeft(null);
   }, []);
 
   const registerFileDropHandler = useCallback((fn: (files: FileList) => void) => {
@@ -203,9 +209,13 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
           </div>
           {content}
         </div>
-        {peekPageId && (
-          <div className="wdb-peek-overlay" onClick={closePeek}>
-            <div className="wdb-peek-panel" onClick={(e) => e.stopPropagation()}>
+        {peekPageId && (() => {
+          const panel = (
+            <div
+              className={peekAnchorLeft != null ? "wdb-peek-panel wdb-peek-panel--docked" : "wdb-peek-panel"}
+              style={peekAnchorLeft != null ? { left: peekAnchorLeft } : undefined}
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="wdb-peek-panel__header">
                 <button type="button" className="wdb-peek-panel__back" onClick={closePeek}>
                   {path === "/db" ? "🗂 Wegoinn DB" : "✕ 닫기"}
@@ -231,11 +241,19 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
                   onCursorReport={(blockId, offset) => reportCursor(peekPageId, blockId, offset)}
                   guestName={identity.name}
                   canViewSensitive={canEdit}
+                  autoSave={peekAnchorLeft == null}
                 />
               </div>
             </div>
-          </div>
-        )}
+          );
+          // Docked (calendar-triggered) peeks skip the dimming backdrop so the
+          // calendar itself stays fully visible and clickable next to the panel.
+          return peekAnchorLeft != null ? panel : (
+            <div className="wdb-peek-overlay" onClick={closePeek}>
+              {panel}
+            </div>
+          );
+        })()}
       </div>
     </GlobalDropzone>
   );
