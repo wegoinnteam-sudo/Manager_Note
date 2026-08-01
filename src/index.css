@@ -1924,7 +1924,7 @@ code {
 }
 
 .db-calendar__cell {
-  min-height: 64px;
+  min-height: var(--db-calendar-cell-size, 64px);
   border: 1px solid var(--color-border);
   border-radius: 4px;
   padding: 4px;
@@ -1934,6 +1934,39 @@ code {
 .db-calendar__cell--empty {
   border: none;
   background: none;
+}
+
+.db-calendar__cell--clickable {
+  cursor: pointer;
+}
+
+.db-calendar__cell--clickable:hover {
+  background: var(--color-accent-bg);
+}
+
+.db-calendar__resize-handle {
+  height: 10px;
+  margin-top: 6px;
+  border-radius: 4px;
+  cursor: ns-resize;
+  touch-action: none;
+  position: relative;
+}
+
+.db-calendar__resize-handle::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 32px;
+  height: 3px;
+  transform: translate(-50%, -50%);
+  border-radius: 2px;
+  background: var(--color-border);
+}
+
+.db-calendar__resize-handle:hover::after {
+  background: var(--color-accent);
 }
 
 .db-calendar__day {

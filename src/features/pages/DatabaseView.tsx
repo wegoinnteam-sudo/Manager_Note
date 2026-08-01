@@ -257,6 +257,19 @@ export function DatabaseView({
     }
   };
 
+  const createItemOnDate = async (date: string) => {
+    if (!editable || creating) return;
+    setCreating(true);
+    try {
+      let page = await api.createPage({ parentId: sourceParentId, title: "제목 없음" });
+      page = await api.updatePageMeta(page.id, { expectedVersion: page.version, dueDate: date });
+      onPagesChanged();
+      onOpenPage(page.id);
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const saveTemplate = (draft: TemplateDraft) => {
     const template: DatabaseTemplate = {
       id: draft.id ?? crypto.randomUUID(),
@@ -515,7 +528,13 @@ export function DatabaseView({
       ) : view === "chart" ? (
         <SummaryChartView items={children} />
       ) : (
-        <CalendarGrid items={children} onOpenPage={onOpenPage} />
+        <CalendarGrid
+          items={children}
+          onOpenPage={onOpenPage}
+          size={block.calendarSize ?? 64}
+          onResize={(size) => onPatch({ calendarSize: size })}
+          onCreateOnDate={editable ? createItemOnDate : undefined}
+        />
       )}
     </div>
   );
@@ -1153,11 +1172,53 @@ function SummaryChartView({ items }: { items: PageSummaryDTO[] }) {
   );
 }
 
-function CalendarGrid({ items, onOpenPage }: { items: PageSummaryDTO[]; onOpenPage: (id: string) => void }) {
+function CalendarGrid({
+  items,
+  onOpenPage,
+  size,
+  onResize,
+  onCreateOnDate,
+}: {
+  items: PageSummaryDTO[];
+  onOpenPage: (id: string) => void;
+  size: number;
+  onResize: (size: number) => void;
+  onCreateOnDate?: (date: string) => void;
+}) {
   const [cursor, setCursor] = useState(() => {
     const d = new Date();
     return { year: d.getFullYear(), month: d.getMonth() };
   });
+
+  const resizing = useRef<{ pointerId: number } | null>(null);
+  const dragStart = useRef({ y: 0, size });
+
+  const startResize = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    dragStart.current = { y: e.clientY, size };
+    resizing.current = { pointerId: e.pointerId };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const stopResize = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (resizing.current?.pointerId !== e.pointerId) return;
+    resizing.current = null;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+  };
+
+  const doResize = (e: React.PointerEvent<HTMLDivElement>) => {
+    const current = resizing.current;
+    if (!current || current.pointerId !== e.pointerId) return;
+    if ((e.buttons & 1) === 0) {
+      stopResize(e);
+      return;
+    }
+    const delta = e.clientY - dragStart.current.y;
+    onResize(Math.min(240, Math.max(48, Math.round(dragStart.current.size + delta))));
+  };
 
   const byDate = useMemo(() => {
     const map = new Map<string, PageSummaryDTO[]>();
@@ -1190,7 +1251,7 @@ function CalendarGrid({ items, onOpenPage }: { items: PageSummaryDTO[]; onOpenPa
           ›
         </button>
       </div>
-      <div className="db-calendar__grid">
+      <div className="db-calendar__grid" style={{ "--db-calendar-cell-size": `${size}px` } as React.CSSProperties}>
         {["일", "월", "화", "수", "목", "금", "토"].map((d) => (
           <div key={d} className="db-calendar__weekday">
             {d}
@@ -1199,11 +1260,33 @@ function CalendarGrid({ items, onOpenPage }: { items: PageSummaryDTO[]; onOpenPa
         {cells.map((day, i) => {
           const dateKey = day ? `${cursor.year}-${pad(cursor.month + 1)}-${pad(day)}` : null;
           const dayItems = dateKey ? byDate.get(dateKey) ?? [] : [];
+          const clickable = !!(day && dateKey && onCreateOnDate);
           return (
-            <div key={i} className={`db-calendar__cell${day ? "" : " db-calendar__cell--empty"}`}>
+            <div
+              key={i}
+              className={`db-calendar__cell${day ? "" : " db-calendar__cell--empty"}${clickable ? " db-calendar__cell--clickable" : ""}`}
+              role={clickable ? "button" : undefined}
+              tabIndex={clickable ? 0 : undefined}
+              onClick={clickable ? () => onCreateOnDate!(dateKey!) : undefined}
+              onKeyDown={
+                clickable
+                  ? (e) => {
+                      if (e.key === "Enter" || e.key === " ") onCreateOnDate!(dateKey!);
+                    }
+                  : undefined
+              }
+            >
               {day && <div className="db-calendar__day">{day}</div>}
               {dayItems.map((c) => (
-                <button key={c.id} type="button" className="db-calendar__item" onClick={() => onOpenPage(c.id)}>
+                <button
+                  key={c.id}
+                  type="button"
+                  className="db-calendar__item"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenPage(c.id);
+                  }}
+                >
                   {c.title}
                 </button>
               ))}
@@ -1211,6 +1294,17 @@ function CalendarGrid({ items, onOpenPage }: { items: PageSummaryDTO[]; onOpenPa
           );
         })}
       </div>
+      <div
+        className="db-calendar__resize-handle"
+        onPointerDown={startResize}
+        onPointerMove={doResize}
+        onPointerUp={stopResize}
+        onPointerCancel={stopResize}
+        onLostPointerCapture={() => {
+          resizing.current = null;
+        }}
+        title="캘린더 크기 조정"
+      />
     </div>
   );
 }

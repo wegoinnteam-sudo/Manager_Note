@@ -100,6 +100,7 @@ export const pageBlockSchema = z.discriminatedUnion("type", [
       .max(30)
       .optional(),
     showSubItems: z.boolean().optional(),
+    calendarSize: z.number().min(48).max(240).optional(),
   }),
   z.object({ id: z.string(), type: z.literal("chart") }),
   z.object({

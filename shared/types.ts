@@ -172,6 +172,7 @@ type PageBlockVariant =
       locked?: boolean;
       templates?: DatabaseTemplate[];
       showSubItems?: boolean;
+      calendarSize?: number;
     }
   | { id: string; type: "chart" }
   | {
