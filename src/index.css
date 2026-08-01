@@ -2155,6 +2155,13 @@ code {
   pointer-events: auto;
   height: 18px;
   border: none;
+  /* A background-colored inset outline instead of a real border: it eats
+     into the bar's own fill rather than its layout box, so two same-color
+     events sitting in adjacent day columns on the same lane (e.g. a
+     same-author schedule right next to another) always show a visible
+     gap instead of visually fusing into one bar. */
+  outline: 2px solid var(--color-surface);
+  outline-offset: -2px;
   border-radius: 3px;
   padding: 1px 6px;
   margin: 0 2px;
