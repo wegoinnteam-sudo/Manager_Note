@@ -173,6 +173,7 @@ type PageBlockVariant =
       templates?: DatabaseTemplate[];
       showSubItems?: boolean;
       calendarSize?: number;
+      calendarWidth?: number;
     }
   | { id: string; type: "chart" }
   | {

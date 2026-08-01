@@ -108,6 +108,14 @@ function matchesFilter(c: PageSummaryDTO, f: DatabaseViewFilter): boolean {
   }
 }
 
+const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
+
+function dateLabel(dateKey: string): string {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const weekday = WEEKDAY_LABELS[new Date(year, month - 1, day).getDay()];
+  return `${year}년 ${month}월 ${day}일 (${weekday})`;
+}
+
 function daysUntil(date: string | null): number | null {
   if (!date) return null;
   const today = new Date();
@@ -138,6 +146,7 @@ export function DatabaseView({
   members,
   editable,
   onOpenPage,
+  onPeekPage,
   onPagesChanged,
   onPatch,
   onDuplicate,
@@ -149,6 +158,7 @@ export function DatabaseView({
   members: TeamMemberDTO[];
   editable: boolean;
   onOpenPage: (id: string) => void;
+  onPeekPage: (id: string, label?: string) => void;
   onPagesChanged: () => void;
   onPatch: (patch: Partial<DbViewBlock>) => void;
   onDuplicate: () => void;
@@ -264,7 +274,7 @@ export function DatabaseView({
       let page = await api.createPage({ parentId: sourceParentId, title: "제목 없음" });
       page = await api.updatePageMeta(page.id, { expectedVersion: page.version, dueDate: date });
       onPagesChanged();
-      onOpenPage(page.id);
+      onPeekPage(page.id, dateLabel(date));
     } finally {
       setCreating(false);
     }
@@ -530,9 +540,12 @@ export function DatabaseView({
       ) : (
         <CalendarGrid
           items={children}
-          onOpenPage={onOpenPage}
+          onPeekPage={onPeekPage}
+          editable={editable}
           size={block.calendarSize ?? 64}
           onResize={(size) => onPatch({ calendarSize: size })}
+          width={block.calendarWidth ?? 100}
+          onResizeWidth={(width) => onPatch({ calendarWidth: width })}
           onCreateOnDate={editable ? createItemOnDate : undefined}
         />
       )}
@@ -1174,15 +1187,21 @@ function SummaryChartView({ items }: { items: PageSummaryDTO[] }) {
 
 function CalendarGrid({
   items,
-  onOpenPage,
+  onPeekPage,
+  editable,
   size,
   onResize,
+  width,
+  onResizeWidth,
   onCreateOnDate,
 }: {
   items: PageSummaryDTO[];
-  onOpenPage: (id: string) => void;
+  onPeekPage: (id: string, label?: string) => void;
+  editable: boolean;
   size: number;
   onResize: (size: number) => void;
+  width: number;
+  onResizeWidth: (width: number) => void;
   onCreateOnDate?: (date: string) => void;
 }) {
   const [cursor, setCursor] = useState(() => {
@@ -1190,6 +1209,7 @@ function CalendarGrid({
     return { year: d.getFullYear(), month: d.getMonth() };
   });
 
+  const frameRef = useRef<HTMLDivElement | null>(null);
   const resizing = useRef<{ pointerId: number } | null>(null);
   const dragStart = useRef({ y: 0, size });
 
@@ -1220,6 +1240,40 @@ function CalendarGrid({
     onResize(Math.min(240, Math.max(48, Math.round(dragStart.current.size + delta))));
   };
 
+  const resizingWidth = useRef<{ side: "left" | "right"; pointerId: number } | null>(null);
+  const dragWidthStart = useRef({ x: 0, width });
+
+  const startWidthResize = (e: React.PointerEvent<HTMLSpanElement>, side: "left" | "right") => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    dragWidthStart.current = { x: e.clientX, width };
+    resizingWidth.current = { side, pointerId: e.pointerId };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const stopWidthResize = (e: React.PointerEvent<HTMLSpanElement>) => {
+    if (resizingWidth.current?.pointerId !== e.pointerId) return;
+    resizingWidth.current = null;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+  };
+
+  const doWidthResize = (e: React.PointerEvent<HTMLSpanElement>) => {
+    const current = resizingWidth.current;
+    if (!current || current.pointerId !== e.pointerId) return;
+    if ((e.buttons & 1) === 0) {
+      stopWidthResize(e);
+      return;
+    }
+    const containerWidth = frameRef.current?.parentElement?.getBoundingClientRect().width;
+    if (!containerWidth) return;
+    const deltaPct = ((e.clientX - dragWidthStart.current.x) / containerWidth) * 100;
+    const next = current.side === "right" ? dragWidthStart.current.width + deltaPct : dragWidthStart.current.width - deltaPct;
+    onResizeWidth(Math.min(100, Math.max(40, Math.round(next))));
+  };
+
   const byDate = useMemo(() => {
     const map = new Map<string, PageSummaryDTO[]>();
     items.forEach((c) => {
@@ -1239,7 +1293,7 @@ function CalendarGrid({
   while (cells.length % 7 !== 0) cells.push(null);
 
   return (
-    <div className="db-calendar">
+    <div className="db-calendar" ref={frameRef} style={{ width: `${width}%` }}>
       <div className="db-calendar__nav">
         <button type="button" onClick={() => setCursor((c) => (c.month === 0 ? { year: c.year - 1, month: 11 } : { year: c.year, month: c.month - 1 }))}>
           ‹
@@ -1284,7 +1338,7 @@ function CalendarGrid({
                   className="db-calendar__item"
                   onClick={(e) => {
                     e.stopPropagation();
-                    onOpenPage(c.id);
+                    onPeekPage(c.id, c.dueDate ? dateLabel(c.dueDate) : undefined);
                   }}
                 >
                   {c.title}
@@ -1294,17 +1348,43 @@ function CalendarGrid({
           );
         })}
       </div>
-      <div
-        className="db-calendar__resize-handle"
-        onPointerDown={startResize}
-        onPointerMove={doResize}
-        onPointerUp={stopResize}
-        onPointerCancel={stopResize}
-        onLostPointerCapture={() => {
-          resizing.current = null;
-        }}
-        title="캘린더 크기 조정"
-      />
+      {editable && (
+        <>
+          <span
+            className="db-calendar__width-handle db-calendar__width-handle--left"
+            onPointerDown={(e) => startWidthResize(e, "left")}
+            onPointerMove={doWidthResize}
+            onPointerUp={stopWidthResize}
+            onPointerCancel={stopWidthResize}
+            onLostPointerCapture={() => {
+              resizingWidth.current = null;
+            }}
+            title="캘린더 너비 조정"
+          />
+          <span
+            className="db-calendar__width-handle db-calendar__width-handle--right"
+            onPointerDown={(e) => startWidthResize(e, "right")}
+            onPointerMove={doWidthResize}
+            onPointerUp={stopWidthResize}
+            onPointerCancel={stopWidthResize}
+            onLostPointerCapture={() => {
+              resizingWidth.current = null;
+            }}
+            title="캘린더 너비 조정"
+          />
+          <div
+            className="db-calendar__resize-handle"
+            onPointerDown={startResize}
+            onPointerMove={doResize}
+            onPointerUp={stopResize}
+            onPointerCancel={stopResize}
+            onLostPointerCapture={() => {
+              resizing.current = null;
+            }}
+            title="캘린더 높이 조정"
+          />
+        </>
+      )}
     </div>
   );
 }

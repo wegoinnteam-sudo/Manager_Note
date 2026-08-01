@@ -29,7 +29,18 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [justCreatedPageId, setJustCreatedPageId] = useState<string | null>(null);
   const [peekPageId, setPeekPageId] = useState<string | null>(null);
+  const [peekLabel, setPeekLabel] = useState<string | null>(null);
   const dropHandlerRef = useRef<(files: FileList) => void>(() => {});
+
+  const peekPage = useCallback((id: string, label?: string) => {
+    setPeekPageId(id);
+    setPeekLabel(label ?? null);
+  }, []);
+
+  const closePeek = useCallback(() => {
+    setPeekPageId(null);
+    setPeekLabel(null);
+  }, []);
 
   const registerFileDropHandler = useCallback((fn: (files: FileList) => void) => {
     dropHandlerRef.current = fn;
@@ -80,11 +91,14 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
     reportCursor(activePageId, null, 0);
   }, [activePageId, reportCursor]);
 
-  // Opening a card from Wegoinn DB never leaves /db — it peeks the page in a
-  // side panel instead. Any other navigation away should close that panel.
+  // Opening a card (from Wegoinn DB, or a calendar date inside a page) peeks
+  // the page in a side panel instead of navigating away. Any actual route
+  // change — sidebar click, back button, etc. — should close that panel.
+  const prevPathRef = useRef(path);
   useEffect(() => {
-    if (path !== "/db") setPeekPageId(null);
-  }, [path]);
+    if (prevPathRef.current !== path) closePeek();
+    prevPathRef.current = path;
+  }, [path, closePeek]);
 
   // Escape closes the peek panel — but only when nothing inside it already
   // claimed the key (the editor itself preventDefaults Escape to select a
@@ -94,58 +108,27 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
     if (!peekPageId) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || event.defaultPrevented) return;
-      setPeekPageId(null);
+      closePeek();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [peekPageId]);
+  }, [peekPageId, closePeek]);
 
   let content: React.ReactNode;
   if (path === "/db") {
     content = (
-      <>
-        <WegoinnBoard
-          pages={pages}
-          members={members}
-          user={user}
-          canEdit={canEdit}
-          categories={categories}
-          onCategoriesChanged={refreshCategories}
-          onOpenPage={openPage}
-          onPeekPage={setPeekPageId}
-          onPagesChanged={refreshPages}
-          onNavigate={navigate}
-        />
-        {peekPageId && (
-          <div className="wdb-peek-overlay" onClick={() => setPeekPageId(null)}>
-            <div className="wdb-peek-panel" onClick={(e) => e.stopPropagation()}>
-              <button type="button" className="wdb-peek-panel__back" onClick={() => setPeekPageId(null)}>
-                🗂 Wegoinn DB
-              </button>
-              <div className="wdb-peek-panel__body">
-                <PageView
-                  key={peekPageId}
-                  pageId={peekPageId}
-                  canEdit={canEdit}
-                  canDelete={canDeleteAll}
-                  members={members}
-                  autoFocusTitle={false}
-                  onConsumedAutoFocus={() => {}}
-                  registerFileDropHandler={registerFileDropHandler}
-                  onDeleted={() => setPeekPageId(null)}
-                  onPagesChanged={refreshPages}
-                  onOpenPage={setPeekPageId}
-                  pages={pages}
-                  presenceUsers={presenceUsers}
-                  onCursorReport={(blockId, offset) => reportCursor(peekPageId, blockId, offset)}
-                  guestName={identity.name}
-                  canViewSensitive={canEdit}
-                />
-              </div>
-            </div>
-          </div>
-        )}
-      </>
+      <WegoinnBoard
+        pages={pages}
+        members={members}
+        user={user}
+        canEdit={canEdit}
+        categories={categories}
+        onCategoriesChanged={refreshCategories}
+        onOpenPage={openPage}
+        onPeekPage={peekPage}
+        onPagesChanged={refreshPages}
+        onNavigate={navigate}
+      />
     );
   } else if (path === "/trash") {
     content = <Trash canRestore={canEdit} onOpenPage={openPage} onRestored={refreshPages} />;
@@ -167,6 +150,7 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
         onDeleted={() => navigate("/")}
         onPagesChanged={refreshPages}
         onOpenPage={openPage}
+        onPeekPage={peekPage}
         pages={pages}
         presenceUsers={presenceUsers}
         onCursorReport={(blockId, offset) => reportCursor(activePageId, blockId, offset)}
@@ -219,6 +203,39 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
           </div>
           {content}
         </div>
+        {peekPageId && (
+          <div className="wdb-peek-overlay" onClick={closePeek}>
+            <div className="wdb-peek-panel" onClick={(e) => e.stopPropagation()}>
+              <div className="wdb-peek-panel__header">
+                <button type="button" className="wdb-peek-panel__back" onClick={closePeek}>
+                  {path === "/db" ? "🗂 Wegoinn DB" : "✕ 닫기"}
+                </button>
+                {peekLabel && <span className="wdb-peek-panel__label">{peekLabel}</span>}
+              </div>
+              <div className="wdb-peek-panel__body">
+                <PageView
+                  key={peekPageId}
+                  pageId={peekPageId}
+                  canEdit={canEdit}
+                  canDelete={canDeleteAll}
+                  members={members}
+                  autoFocusTitle={false}
+                  onConsumedAutoFocus={() => {}}
+                  registerFileDropHandler={registerFileDropHandler}
+                  onDeleted={closePeek}
+                  onPagesChanged={refreshPages}
+                  onOpenPage={peekPage}
+                  onPeekPage={peekPage}
+                  pages={pages}
+                  presenceUsers={presenceUsers}
+                  onCursorReport={(blockId, offset) => reportCursor(peekPageId, blockId, offset)}
+                  guestName={identity.name}
+                  canViewSensitive={canEdit}
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </GlobalDropzone>
   );

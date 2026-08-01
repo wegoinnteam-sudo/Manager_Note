@@ -71,6 +71,7 @@ export function Block({
   onDuplicateBlock,
   onPatch,
   onOpenPage,
+  onPeekPage,
   currentPageId,
   pages,
   members,
@@ -97,6 +98,7 @@ export function Block({
   onDuplicateBlock: () => void;
   onPatch: (patch: Partial<PageBlock>) => void;
   onOpenPage: (pageId: string) => void;
+  onPeekPage: (pageId: string, label?: string) => void;
   currentPageId: string;
   pages: PageSummaryDTO[];
   members: TeamMemberDTO[];
@@ -234,6 +236,7 @@ export function Block({
           members={members}
           editable={editable}
           onOpenPage={onOpenPage}
+          onPeekPage={onPeekPage}
           onPagesChanged={onPagesChanged}
           onPatch={onPatch}
           onDuplicate={onDuplicateBlock}

@@ -1891,6 +1891,36 @@ code {
   color: var(--color-text-muted);
 }
 
+.db-calendar {
+  position: relative;
+}
+
+.db-calendar__width-handle {
+  position: absolute;
+  top: 0;
+  bottom: 10px;
+  width: 10px;
+  cursor: ew-resize;
+  touch-action: none;
+  user-select: none;
+  opacity: 0;
+}
+
+.db-calendar:hover .db-calendar__width-handle {
+  opacity: 1;
+  background: rgba(37, 99, 235, 0.25);
+}
+
+.db-calendar__width-handle--left {
+  left: -10px;
+  border-radius: 4px 0 0 4px;
+}
+
+.db-calendar__width-handle--right {
+  right: -10px;
+  border-radius: 0 4px 4px 0;
+}
+
 .db-calendar__nav {
   display: flex;
   align-items: center;
@@ -3564,10 +3594,15 @@ button.breadcrumb-block__item:hover {
   }
 }
 
-.wdb-peek-panel__back {
+.wdb-peek-panel__header {
   flex-shrink: 0;
-  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin: 12px 16px 0;
+}
+
+.wdb-peek-panel__back {
   border: 1px solid var(--color-border);
   background: var(--color-surface);
   border-radius: var(--radius);
@@ -3575,6 +3610,15 @@ button.breadcrumb-block__item:hover {
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+}
+
+.wdb-peek-panel__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-accent);
+  background: var(--color-accent-bg);
+  border-radius: var(--radius);
+  padding: 4px 10px;
 }
 
 .wdb-peek-panel__body {
