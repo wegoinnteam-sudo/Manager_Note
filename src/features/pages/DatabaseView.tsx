@@ -301,10 +301,9 @@ export function DatabaseView({
     onPagesChanged();
   };
 
-  const updateSchedule = async (pageId: string, values: ScheduleFormValues) => {
-    const detail = await api.getPage(pageId);
-    await api.updatePageMeta(pageId, {
-      expectedVersion: detail.version,
+  const updateSchedule = async (page: PageSummaryDTO, values: ScheduleFormValues) => {
+    await api.updatePageMeta(page.id, {
+      expectedVersion: page.version,
       title: values.title.trim() || "제목 없음",
       description: values.description || null,
       category: values.category,
@@ -324,8 +323,7 @@ export function DatabaseView({
 
   const patch = async (child: PageSummaryDTO, fields: PatchFields) => {
     if (!editable) return;
-    const detail = await api.getPage(child.id);
-    await api.updatePageMeta(child.id, { expectedVersion: detail.version, ...fields });
+    await api.updatePageMeta(child.id, { expectedVersion: child.version, ...fields });
     onPagesChanged();
   };
 
@@ -587,7 +585,7 @@ export function DatabaseView({
           }
           authorName={selectedSchedule ? memberName(members, selectedSchedule.createdBy) : currentUser?.name ?? "-"}
           onSave={async (values) => {
-            if (selectedSchedule) await updateSchedule(selectedSchedule.id, values);
+            if (selectedSchedule) await updateSchedule(selectedSchedule, values);
             else await createSchedule(values);
             closeScheduleModal();
           }}

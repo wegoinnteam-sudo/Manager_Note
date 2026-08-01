@@ -432,16 +432,14 @@ export function Sidebar({
     setEditingPageId(null);
     const title = rawTitle.trim();
     if (!title || title === page.title) return;
-    const detail = await api.getPage(page.id);
-    await api.updatePageMeta(page.id, { expectedVersion: detail.version, title });
+    await api.updatePageMeta(page.id, { expectedVersion: page.version, title });
     await onPagesChanged();
   };
 
   const renamePage = async (page: PageSummaryDTO) => {
     const title = window.prompt("새 페이지 이름", page.title)?.trim();
     if (!title || title === page.title) return;
-    const detail = await api.getPage(page.id);
-    await api.updatePageMeta(page.id, { expectedVersion: detail.version, title });
+    await api.updatePageMeta(page.id, { expectedVersion: page.version, title });
     await onPagesChanged();
   };
 
@@ -449,8 +447,7 @@ export function Sidebar({
     page: PageSummaryDTO,
     patch: { textColor?: string | null; highlightColor?: string | null },
   ) => {
-    const detail = await api.getPage(page.id);
-    const updated = await api.updatePageMeta(page.id, { expectedVersion: detail.version, ...patch });
+    const updated = await api.updatePageMeta(page.id, { expectedVersion: page.version, ...patch });
     await onPagesChanged();
     setContextMenu((prev) =>
       prev && prev.page.id === page.id
@@ -460,8 +457,7 @@ export function Sidebar({
   };
 
   const movePage = async (page: PageSummaryDTO, parentId: string | null) => {
-    const detail = await api.getPage(page.id);
-    await api.updatePageMeta(page.id, { expectedVersion: detail.version, parentId });
+    await api.updatePageMeta(page.id, { expectedVersion: page.version, parentId });
     setMoving(false);
     setContextMenu(null);
     await onPagesChanged();

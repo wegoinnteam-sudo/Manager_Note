@@ -232,8 +232,7 @@ export function WegoinnBoard({
     const next = siblings[idx];
     const orderKey = prev && next ? (prev.orderKey + next.orderKey) / 2 : prev ? prev.orderKey + 1 : next ? next.orderKey - 1 : 0;
 
-    const detail = await api.getPage(page.id);
-    await api.updatePageMeta(page.id, { expectedVersion: detail.version, category, orderKey });
+    await api.updatePageMeta(page.id, { expectedVersion: page.version, category, orderKey });
     await onPagesChanged();
   };
 
@@ -260,12 +259,12 @@ export function WegoinnBoard({
   const bulkSetCategory = async (category: PageCategory | null) => {
     const ids = [...selected];
     setSelected(new Set());
-    for (const id of ids) {
-      const page = pages.find((p) => p.id === id);
-      if (!page) continue;
-      const detail = await api.getPage(id);
-      await api.updatePageMeta(id, { expectedVersion: detail.version, category });
-    }
+    await Promise.all(
+      ids.map((id) => {
+        const page = pages.find((p) => p.id === id);
+        return page ? api.updatePageMeta(id, { expectedVersion: page.version, category }) : Promise.resolve();
+      }),
+    );
     await onPagesChanged();
   };
 

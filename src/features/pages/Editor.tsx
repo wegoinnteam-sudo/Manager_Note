@@ -8,6 +8,7 @@ import { TEMPLATES, buildTemplateBlocks, type TemplateKey } from "./templates";
 import { FORM_LIST, type FormKey } from "./forms";
 import type { DatabaseViewType } from "./DatabaseView";
 import { api, uploadAttachment } from "@/lib/api";
+import { compressImageForUpload } from "@/lib/imageCompression";
 import type { PresenceUser } from "@/hooks/usePresence";
 
 const MAX_UPLOAD_MB = Number((import.meta as any).env?.VITE_MAX_UPLOAD_MB ?? 50);
@@ -447,7 +448,8 @@ export const Editor = forwardRef<EditorHandle, {
 
   const droppedFilesHandlerRef = useRef<(files: FileList) => void>(() => {});
 
-  const handleDroppedFiles = (files: FileList) => {
+  const handleDroppedFiles = async (files: FileList) => {
+    const maxBytes = MAX_UPLOAD_MB * 1024 * 1024;
     const valid: File[] = [];
     for (const file of Array.from(files)) {
       const ext = extensionOf(file.name);
@@ -455,11 +457,12 @@ export const Editor = forwardRef<EditorHandle, {
         alert(`허용되지 않은 파일 형식입니다: .${ext || "?"} (${file.name})`);
         continue;
       }
-      if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
+      const candidate = file.size > maxBytes ? await compressImageForUpload(file, maxBytes) : file;
+      if (candidate.size > maxBytes) {
         alert(`파일 크기는 ${MAX_UPLOAD_MB}MB를 초과할 수 없습니다: ${file.name}`);
         continue;
       }
-      valid.push(file);
+      valid.push(candidate);
     }
     if (valid.length === 0) return;
 
@@ -685,7 +688,10 @@ export const Editor = forwardRef<EditorHandle, {
     setPendingUploads((prev) => [...prev, { id: pendingId, previewUrl, afterId: block.id }]);
 
     try {
-      const attachment = await uploadAttachment(pageId, file, { idempotencyKey: pendingId });
+      const maxBytes = MAX_UPLOAD_MB * 1024 * 1024;
+      const upload = file.size > maxBytes ? await compressImageForUpload(file, maxBytes) : file;
+      if (upload.size > maxBytes) throw new Error(`파일 크기는 ${MAX_UPLOAD_MB}MB를 초과할 수 없습니다.`);
+      const attachment = await uploadAttachment(pageId, upload, { idempotencyKey: pendingId });
       onAttachmentUploaded(attachment);
       const idx = contentRef.current.blocks.findIndex((b) => b.id === block.id);
       const newBlock: PageBlock = { id: newBlockId(), type: "image", attachmentId: attachment.id };
