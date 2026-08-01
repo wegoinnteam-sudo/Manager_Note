@@ -546,6 +546,8 @@ export function DatabaseView({
           onResize={(size) => onPatch({ calendarSize: size })}
           width={block.calendarWidth ?? 0}
           onResizeWidth={(width) => onPatch({ calendarWidth: width })}
+          offset={block.calendarOffset ?? 0}
+          onResizeOffset={(offset) => onPatch({ calendarOffset: offset })}
           onCreateOnDate={editable ? createItemOnDate : undefined}
         />
       )}
@@ -1195,6 +1197,8 @@ function CalendarGrid({
   onResize,
   width,
   onResizeWidth,
+  offset,
+  onResizeOffset,
   onCreateOnDate,
 }: {
   items: PageSummaryDTO[];
@@ -1204,6 +1208,8 @@ function CalendarGrid({
   onResize: (size: number) => void;
   width: number;
   onResizeWidth: (width: number) => void;
+  offset: number;
+  onResizeOffset: (offset: number) => void;
   onCreateOnDate?: (date: string, anchorLeft?: number) => void;
 }) {
   const [cursor, setCursor] = useState(() => {
@@ -1243,14 +1249,14 @@ function CalendarGrid({
   };
 
   const resizingWidth = useRef<{ side: "left" | "right"; pointerId: number } | null>(null);
-  const dragWidthStart = useRef({ x: 0, width: 0 });
+  const dragWidthStart = useRef({ x: 0, left: 0, right: 0, offset: 0 });
 
   const startWidthResize = (e: React.PointerEvent<HTMLSpanElement>, side: "left" | "right") => {
     if (e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
-    const currentWidth = width >= MIN_CALENDAR_WIDTH ? width : frameRef.current?.getBoundingClientRect().width ?? 600;
-    dragWidthStart.current = { x: e.clientX, width: currentWidth };
+    const rect = frameRef.current?.getBoundingClientRect();
+    dragWidthStart.current = { x: e.clientX, left: rect?.left ?? 0, right: rect?.right ?? 0, offset };
     resizingWidth.current = { side, pointerId: e.pointerId };
     e.currentTarget.setPointerCapture(e.pointerId);
   };
@@ -1265,7 +1271,10 @@ function CalendarGrid({
 
   // The calendar is allowed to grow past its normal text-column width (up to
   // the edge of the .main scroll container) so it can fill the blank space
-  // next to it instead of being capped at the page's reading width.
+  // on either side of it instead of being capped at the page's reading width.
+  // The right handle only changes width (left edge stays put); the left
+  // handle changes width *and* a negative margin-left offset together, so
+  // the left edge actually moves instead of only the right edge growing.
   const doWidthResize = (e: React.PointerEvent<HTMLSpanElement>) => {
     const current = resizingWidth.current;
     if (!current || current.pointerId !== e.pointerId) return;
@@ -1273,15 +1282,21 @@ function CalendarGrid({
       stopWidthResize(e);
       return;
     }
-    const rect = frameRef.current?.getBoundingClientRect();
-    if (!rect) return;
     const mainRect = frameRef.current?.closest(".main")?.getBoundingClientRect();
+    const minLeftBound = (mainRect?.left ?? 0) + 24;
+    const maxRightBound = (mainRect?.right ?? window.innerWidth) - 24;
     const deltaPx = e.clientX - dragWidthStart.current.x;
-    const next =
-      current.side === "right"
-        ? Math.min(dragWidthStart.current.width + deltaPx, (mainRect?.right ?? window.innerWidth) - 24 - rect.left)
-        : Math.min(dragWidthStart.current.width - deltaPx, rect.right - ((mainRect?.left ?? 0) + 24));
-    onResizeWidth(Math.max(MIN_CALENDAR_WIDTH, Math.round(next)));
+    const start = dragWidthStart.current;
+
+    if (current.side === "right") {
+      const newRight = Math.min(Math.max(start.right + deltaPx, start.left + MIN_CALENDAR_WIDTH), maxRightBound);
+      onResizeWidth(Math.round(newRight - start.left));
+    } else {
+      const newLeft = Math.max(Math.min(start.left + deltaPx, start.right - MIN_CALENDAR_WIDTH), minLeftBound);
+      const naturalLeft = start.left - start.offset;
+      onResizeWidth(Math.round(start.right - newLeft));
+      onResizeOffset(Math.round(newLeft - naturalLeft));
+    }
   };
 
   const byDate = useMemo(() => {
@@ -1306,7 +1321,11 @@ function CalendarGrid({
     <div
       className="db-calendar"
       ref={frameRef}
-      style={width >= MIN_CALENDAR_WIDTH ? { width: `${width}px`, maxWidth: "none" } : undefined}
+      style={
+        width >= MIN_CALENDAR_WIDTH
+          ? { width: `${width}px`, maxWidth: "none", marginLeft: offset ? `${offset}px` : undefined }
+          : undefined
+      }
     >
       <div className="db-calendar__nav">
         <button type="button" onClick={() => setCursor((c) => (c.month === 0 ? { year: c.year - 1, month: 11 } : { year: c.year, month: c.month - 1 }))}>

@@ -174,6 +174,7 @@ type PageBlockVariant =
       showSubItems?: boolean;
       calendarSize?: number;
       calendarWidth?: number;
+      calendarOffset?: number;
     }
   | { id: string; type: "chart" }
   | {
