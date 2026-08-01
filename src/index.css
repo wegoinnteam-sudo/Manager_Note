@@ -354,6 +354,7 @@ code {
 .page-tree {
   padding: 0 6px 12px;
   flex: 1;
+  user-select: none;
 }
 
 .page-tree__row {
