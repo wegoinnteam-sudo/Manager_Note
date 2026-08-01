@@ -145,6 +145,35 @@ code {
   background: var(--color-hover);
 }
 
+.sidebar__my-color {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px 8px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.sidebar__my-color input[type="color"] {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+}
+
+.sidebar__my-color button {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  border-radius: var(--radius);
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
 .sidebar__theme-switch {
   display: flex;
   gap: 2px;
@@ -1975,6 +2004,7 @@ code {
 }
 
 .db-calendar__nav {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1998,6 +2028,16 @@ code {
   width: 24px;
   height: 24px;
   cursor: pointer;
+}
+
+.db-calendar__collapse {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .db-calendar__legend {
@@ -2047,6 +2087,10 @@ code {
   font-size: 11px;
   color: var(--color-text-muted);
   padding-bottom: 4px;
+}
+
+.db-calendar__weekday--weekend {
+  color: #DC2626;
 }
 
 .db-calendar__week {
@@ -2219,6 +2263,10 @@ code {
 .db-calendar__day {
   color: var(--color-text-muted);
   margin-bottom: 2px;
+}
+
+.db-calendar__cell--weekend .db-calendar__day {
+  color: #DC2626;
 }
 
 

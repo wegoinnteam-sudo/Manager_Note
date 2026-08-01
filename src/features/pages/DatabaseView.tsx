@@ -17,7 +17,7 @@ import { api } from "@/lib/api";
 import { StatusBadge, STATUS_LABELS, nextStatus } from "@/features/status/Status";
 import { memberName } from "@/hooks/useTeamMembers";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { getScheduleColor, SCHEDULE_LEGEND, SCHEDULE_UNASSIGNED_KEY } from "@/lib/scheduleColors";
+import { getAuthorColor } from "@/lib/authorColors";
 import { layoutWeekSegments } from "./calendarLayout";
 import { ScheduleModal, type ScheduleFormValues } from "./ScheduleModal";
 import { Modal } from "@/components/Modal";
@@ -42,6 +42,7 @@ const PROPERTY_LABELS: Record<DatabaseViewProperty, string> = {
   description: "설명",
   tags: "태그",
   assigneeId: "담당자",
+  createdBy: "작성자",
   dueDate: "마감일",
   updatedAt: "최근 수정",
   overdue: "기한 지남",
@@ -85,6 +86,8 @@ function fieldValue(c: PageSummaryDTO, field: DatabaseViewSort["field"]): string
       return c.tags.join(", ");
     case "assigneeId":
       return c.assigneeId ?? "";
+    case "createdBy":
+      return c.createdBy;
     case "dueDate":
       return c.dueDate ?? "";
     case "updatedAt":
@@ -116,10 +119,14 @@ function matchesFilter(c: PageSummaryDTO, f: DatabaseViewFilter): boolean {
 
 const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
-function dateLabel(dateKey: string): string {
-  const [year, month, day] = dateKey.split("-").map(Number);
-  const weekday = WEEKDAY_LABELS[new Date(year, month - 1, day).getDay()];
-  return `${year}년 ${month}월 ${day}일 (${weekday})`;
+// Compact "YYYY.MM.DD" form used for the peek panel's schedule-period label,
+// shown as a "start ~ end" range when the schedule spans more than one day.
+function compactDateLabel(dateKey: string): string {
+  return dateKey.replaceAll("-", ".");
+}
+
+function scheduleRangeLabel(startDate: string, endDate: string): string {
+  return startDate === endDate ? compactDateLabel(startDate) : `${compactDateLabel(startDate)} ~ ${compactDateLabel(endDate)}`;
 }
 
 function todayKey(): string {
@@ -247,22 +254,20 @@ export function DatabaseView({
     });
   }, [filteredChildren, sort]);
 
-  const presentCategories = useMemo(() => {
-    const seen = new Set<PageCategory | null>();
+  const presentAuthors = useMemo(() => {
+    const seen = new Set<string>();
     allChildren.forEach((child) => {
-      if (child.dueDate) seen.add(child.category);
+      if (child.dueDate) seen.add(child.createdBy);
     });
-    const result: (PageCategory | null)[] = PAGE_CATEGORIES.filter((c) => seen.has(c));
-    if (seen.has(null)) result.push(null);
-    return result;
+    return [...seen];
   }, [allChildren]);
 
-  const categoryFilter: PageCategory | "" | null =
-    filter && filter.field === "category" && filter.op === "eq" ? ((filter.value ?? "") as PageCategory | "") : null;
+  const authorFilter: string | null =
+    filter && filter.field === "createdBy" && filter.op === "eq" ? (filter.value ?? "") : null;
 
-  const onToggleCategoryFilter = (category: PageCategory | "") => {
-    if (categoryFilter === category) onPatch({ filter: null });
-    else onPatch({ filter: { field: "category", op: "eq", value: category } });
+  const onToggleAuthorFilter = (authorId: string) => {
+    if (authorFilter === authorId) onPatch({ filter: null });
+    else onPatch({ filter: { field: "createdBy", op: "eq", value: authorId } });
   };
 
   const openCreateModal = (start: string, end: string) => {
@@ -684,9 +689,9 @@ export function DatabaseView({
           onRequestCreate={editable ? openCreateModal : undefined}
           onRequestEdit={editable ? openEditModal : undefined}
           onDeleteSchedule={deleteSchedule}
-          presentCategories={presentCategories}
-          categoryFilter={categoryFilter}
-          onToggleCategoryFilter={onToggleCategoryFilter}
+          presentAuthors={presentAuthors}
+          authorFilter={authorFilter}
+          onToggleAuthorFilter={onToggleAuthorFilter}
         />
       )}
     </div>
@@ -1327,6 +1332,7 @@ function SummaryChartView({ items }: { items: PageSummaryDTO[] }) {
 
 const MIN_CALENDAR_WIDTH = 320;
 const CALENDAR_POSITION_KEY_PREFIX = "th_calendar_panel_position_";
+const CALENDAR_COLLAPSED_KEY_PREFIX = "th_calendar_panel_collapsed_";
 
 interface CalendarPanelPosition {
   x: number;
@@ -1362,9 +1368,9 @@ function CalendarGrid({
   onRequestCreate,
   onRequestEdit,
   onDeleteSchedule,
-  presentCategories,
-  categoryFilter,
-  onToggleCategoryFilter,
+  presentAuthors,
+  authorFilter,
+  onToggleAuthorFilter,
 }: {
   blockId: string;
   items: PageSummaryDTO[];
@@ -1380,13 +1386,23 @@ function CalendarGrid({
   onRequestCreate?: (start: string, end: string) => void;
   onRequestEdit?: (item: PageSummaryDTO) => void;
   onDeleteSchedule: (id: string) => Promise<void>;
-  presentCategories: (PageCategory | null)[];
-  categoryFilter: PageCategory | "" | null;
-  onToggleCategoryFilter: (category: PageCategory | "") => void;
+  presentAuthors: string[];
+  authorFilter: string | null;
+  onToggleAuthorFilter: (authorId: string) => void;
 }) {
   const [panelPosition, setPanelPosition] = useState<CalendarPanelPosition>(
     () => loadCalendarPanelPosition(blockId) ?? { x: 320, y: 96 },
   );
+  const [collapsed, setCollapsed] = useState(
+    () => localStorage.getItem(CALENDAR_COLLAPSED_KEY_PREFIX + blockId) === "1",
+  );
+  const toggleCollapsed = () => {
+    setCollapsed((current) => {
+      const next = !current;
+      localStorage.setItem(CALENDAR_COLLAPSED_KEY_PREFIX + blockId, next ? "1" : "0");
+      return next;
+    });
+  };
   const [cursor, setCursor] = useState(() => {
     const d = new Date();
     return { year: d.getFullYear(), month: d.getMonth() };
@@ -1717,8 +1733,7 @@ function CalendarGrid({
     [items],
   );
 
-  const presentKeys = useMemo(() => new Set(presentCategories.map((c) => getScheduleColor(c).key)), [presentCategories]);
-  const legendEntries = SCHEDULE_LEGEND.filter((entry) => presentKeys.has(entry.key));
+  const legendEntries = useMemo(() => presentAuthors.map((id) => getAuthorColor(id, members)), [presentAuthors, members]);
 
   const pad = (n: number) => String(n).padStart(2, "0");
   const firstOfMonth = new Date(cursor.year, cursor.month, 1);
@@ -1752,21 +1767,29 @@ function CalendarGrid({
         <button type="button" onClick={() => setCursor((c) => (c.month === 11 ? { year: c.year + 1, month: 0 } : { year: c.year, month: c.month + 1 }))}>
           ›
         </button>
+        <button
+          type="button"
+          className="db-calendar__collapse"
+          onClick={toggleCollapsed}
+          aria-label={collapsed ? "캘린더 펼치기" : "캘린더 접기"}
+          title={collapsed ? "펼치기" : "접기"}
+        >
+          {collapsed ? "+" : "−"}
+        </button>
       </div>
 
-      {legendEntries.length > 0 && (
-        <div className="db-calendar__legend" role="list" aria-label="카테고리별 일정 색상 범례">
+      {!collapsed && legendEntries.length > 0 && (
+        <div className="db-calendar__legend" role="list" aria-label="작성자별 일정 색상 범례">
           {legendEntries.map((entry) => {
-            const filterValue: PageCategory | "" = entry.key === SCHEDULE_UNASSIGNED_KEY ? "" : (entry.key as PageCategory);
-            const active = categoryFilter === filterValue;
+            const active = authorFilter === entry.key;
             return (
               <button
                 key={entry.key}
                 type="button"
                 role="listitem"
                 className={`db-calendar__legend-item${active ? " db-calendar__legend-item--active" : ""}`}
-                onClick={() => onToggleCategoryFilter(filterValue)}
-                title={`${entry.label} 일정만 보기 (다시 누르면 해제)`}
+                onClick={() => onToggleAuthorFilter(entry.key)}
+                title={`${entry.label}님 일정만 보기 (다시 누르면 해제)`}
                 aria-pressed={active}
               >
                 <span className="db-calendar__legend-dot" style={{ background: entry.background }} aria-hidden="true" />
@@ -1777,13 +1800,14 @@ function CalendarGrid({
         </div>
       )}
 
+      {!collapsed && (
       <div
         className={`db-calendar__weeks${dragRange ? " db-calendar__weeks--dragging" : ""}`}
         style={{ "--db-calendar-cell-size": `${size}px` } as React.CSSProperties}
       >
         <div className="db-calendar__weekday-row">
-          {WEEKDAY_LABELS.map((d) => (
-            <div key={d} className="db-calendar__weekday">
+          {WEEKDAY_LABELS.map((d, wi) => (
+            <div key={d} className={`db-calendar__weekday${wi === 0 || wi === 6 ? " db-calendar__weekday--weekend" : ""}`}>
               {d}
             </div>
           ))}
@@ -1802,7 +1826,7 @@ function CalendarGrid({
                     <div
                       key={di}
                       data-date-key={dateKey ?? undefined}
-                      className={`db-calendar__cell${day ? "" : " db-calendar__cell--empty"}${day && editable ? " db-calendar__cell--clickable" : ""}${dragActive ? " db-calendar__cell--dragging" : ""}`}
+                      className={`db-calendar__cell${day ? "" : " db-calendar__cell--empty"}${day && editable ? " db-calendar__cell--clickable" : ""}${dragActive ? " db-calendar__cell--dragging" : ""}${di === 0 || di === 6 ? " db-calendar__cell--weekend" : ""}`}
                       role={day && editable ? "button" : undefined}
                       tabIndex={day && editable ? 0 : undefined}
                       onPointerDown={day && editable ? (e) => onCellPointerDown(e, dateKey!) : undefined}
@@ -1822,13 +1846,11 @@ function CalendarGrid({
               </div>
               <div className="db-calendar__week-bars">
                 {segments.map((seg) => {
-                  const color = getScheduleColor(seg.item.category);
-                  const authorName = memberName(members, seg.item.createdBy);
+                  const color = getAuthorColor(seg.item.createdBy, members);
                   const tooltip = [
                     seg.item.title,
-                    `${seg.item.startDate} ~ ${seg.item.endDate}`,
-                    `작성자: ${authorName}`,
-                    `소속: ${color.label}`,
+                    scheduleRangeLabel(seg.item.startDate, seg.item.endDate),
+                    `작성자: ${color.label}`,
                     seg.item.description || null,
                   ]
                     .filter(Boolean)
@@ -1853,11 +1875,11 @@ function CalendarGrid({
                           suppressNextBarClickRef.current = null;
                           return;
                         }
-                        onPeekPage(seg.item.id, dateLabel(seg.item.startDate), frameRef.current?.getBoundingClientRect().right);
+                        onPeekPage(seg.item.id, scheduleRangeLabel(seg.item.startDate, seg.item.endDate), frameRef.current?.getBoundingClientRect().right);
                       }}
                       onContextMenu={(e) => onBarContextMenu(e, seg.item)}
                     >
-                      {seg.item.title} · {authorName}
+                      {seg.item.title}
                     </button>
                   );
                 })}
@@ -1866,8 +1888,9 @@ function CalendarGrid({
           );
         })}
       </div>
+      )}
 
-      {editable && (
+      {!collapsed && editable && (
         <>
           <span
             className="db-calendar__width-handle db-calendar__width-handle--left"

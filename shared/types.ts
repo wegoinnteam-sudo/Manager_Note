@@ -60,6 +60,10 @@ export interface UserDTO {
   name: string;
   role: Role;
   avatarUrl: string | null;
+  // Self-chosen color used to color-code this person's calendar schedules.
+  // Null until they pick one in settings — callers fall back to a
+  // deterministic per-id color (see src/lib/authorColors.ts).
+  color: string | null;
 }
 
 export interface PageSummaryDTO {
@@ -104,6 +108,7 @@ export type DatabaseViewProperty =
   | "description"
   | "tags"
   | "assigneeId"
+  | "createdBy"
   | "dueDate"
   | "updatedAt"
   | "overdue"
@@ -254,6 +259,7 @@ export interface TeamMemberDTO {
   email: string;
   avatarUrl: string | null;
   role: Role;
+  color: string | null;
 }
 
 export interface ApiError {

@@ -54,6 +54,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export const api = {
   me: () => request<UserDTO>("/api/me"),
+  updateMyColor: (color: string | null) => request<UserDTO>("/api/me/color", { method: "PATCH", body: JSON.stringify({ color }) }),
   logout: () => request<{ ok: true }>("/api/auth/logout", { method: "POST" }),
 
   listPages: (opts: { trash?: boolean } = {}) =>

@@ -135,7 +135,11 @@ export const createPageSchema = z.object({
   orderKey: z.number().optional(),
 });
 
-const hexColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/);
+export const hexColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/);
+
+export const updateMyColorSchema = z.object({
+  color: hexColorSchema.nullable(),
+});
 
 export const updatePageMetaSchema = z.object({
   expectedVersion: z.number().int().nonnegative(),

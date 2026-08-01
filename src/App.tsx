@@ -21,7 +21,7 @@ import type { GuestIdentity } from "@/hooks/useGuestIdentity";
 
 function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }) {
   const { pages, setPages, refresh: refreshPages } = usePages();
-  const members = useTeamMembers();
+  const { members, refresh: refreshMembers } = useTeamMembers();
   const { path, navigate } = useRoute();
   const { users: presenceUsers, report: reportCursor } = usePresence(identity);
   const { preference: theme, setTheme } = useTheme();
@@ -198,6 +198,7 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
           presenceUsers={presenceUsers}
           onPagesChanged={refreshPages}
           members={members}
+          onMyColorChanged={refreshMembers}
           theme={theme}
           onThemeChange={setTheme}
         />

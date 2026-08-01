@@ -4,6 +4,7 @@ import { buildPageTree, type PageTreeNode } from "@/hooks/usePages";
 import type { PresenceUser } from "@/hooks/usePresence";
 import type { ThemePreference } from "@/hooks/useTheme";
 import { api } from "@/lib/api";
+import { defaultAuthorColor } from "@/lib/authorColors";
 
 const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
   { value: "light", label: "☀️ 라이트" },
@@ -209,6 +210,7 @@ function PageTreeRow({
 
 export function Sidebar({
   teamName,
+  user,
   pages,
   categories,
   activePageId,
@@ -222,6 +224,7 @@ export function Sidebar({
   presenceUsers,
   onPagesChanged,
   members,
+  onMyColorChanged,
   theme,
   onThemeChange,
 }: {
@@ -240,10 +243,12 @@ export function Sidebar({
   presenceUsers: PresenceUser[];
   onPagesChanged: () => void;
   members: TeamMemberDTO[];
+  onMyColorChanged: () => void;
   theme: ThemePreference;
   onThemeChange: (theme: ThemePreference) => void;
 }) {
   const [query, setQuery] = useState("");
+  const [colorSaving, setColorSaving] = useState(false);
   const [draggedPageId, setDraggedPageId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<{ pageId: string; position: "before" | "after" | "inside" } | null>(null);
   const [favorites, setFavorites] = useState<string[]>(() => readStoredIds(FAVORITES_KEY));
@@ -399,6 +404,18 @@ export function Sidebar({
   const toggleFavorite = (pageId: string) => {
     const next = favorites.includes(pageId) ? favorites.filter((id) => id !== pageId) : [...favorites, pageId];
     saveIds(FAVORITES_KEY, next, setFavorites);
+  };
+
+  const myColor = members.find((m) => m.id === user.id)?.color ?? null;
+
+  const changeMyColor = async (color: string | null) => {
+    setColorSaving(true);
+    try {
+      await api.updateMyColor(color);
+      onMyColorChanged();
+    } finally {
+      setColorSaving(false);
+    }
   };
 
   const toggleOffline = async (page: PageSummaryDTO) => {
@@ -685,6 +702,21 @@ export function Sidebar({
       </div>
 
       <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 8, marginTop: "auto" }}>
+        <div className="sidebar__my-color">
+          <span>내 캘린더 색상</span>
+          <input
+            type="color"
+            value={myColor ?? defaultAuthorColor(user.id)}
+            disabled={colorSaving}
+            onChange={(e) => changeMyColor(e.target.value)}
+            title="캘린더 일정 색상 (내가 만든 일정에 적용됩니다)"
+          />
+          {myColor && (
+            <button type="button" onClick={() => changeMyColor(null)} disabled={colorSaving} title="기본 색상으로 되돌리기">
+              기본값
+            </button>
+          )}
+        </div>
         <div className="sidebar__theme-switch" role="radiogroup" aria-label="화면 테마">
           {THEME_OPTIONS.map((option) => (
             <button

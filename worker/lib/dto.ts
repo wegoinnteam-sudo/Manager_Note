@@ -16,7 +16,7 @@ import type {
 import { IMAGE_EXTENSIONS } from "../../shared/types";
 
 export function toUserDTO(row: UserRow): UserDTO {
-  return { id: row.id, email: row.email, name: row.name, role: row.role, avatarUrl: row.avatar_url };
+  return { id: row.id, email: row.email, name: row.name, role: row.role, avatarUrl: row.avatar_url, color: row.color };
 }
 
 export function toPageSummaryDTO(row: PageRow): PageSummaryDTO {

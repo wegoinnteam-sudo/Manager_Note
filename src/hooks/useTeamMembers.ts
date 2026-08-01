@@ -1,13 +1,17 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { TeamMemberDTO } from "@shared/types";
 import { api } from "@/lib/api";
 
 export function useTeamMembers() {
   const [members, setMembers] = useState<TeamMemberDTO[]>([]);
-  useEffect(() => {
-    api.listTeamMembers().then((r) => setMembers(r.members));
+  const refresh = useCallback(async () => {
+    const { members: rows } = await api.listTeamMembers();
+    setMembers(rows);
   }, []);
-  return members;
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+  return { members, refresh };
 }
 
 export function memberName(members: TeamMemberDTO[], id: string | null): string {
