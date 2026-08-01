@@ -11,6 +11,7 @@ import type { PresenceUser } from "@/hooks/usePresence";
 type SaveState = "idle" | "saving" | "saved" | "error" | "conflict";
 const REFERENCE_WIDTH_KEY = "th_reference_panel_width";
 const REFERENCE_POSITION_KEY = "th_reference_panel_position";
+const REFERENCE_COLLAPSED_KEY = "th_reference_panel_collapsed";
 const OFFLINE_KEY_PREFIX = "th_offline_page_";
 
 interface ReferencePosition {
@@ -74,6 +75,9 @@ export function PageView({
     }
     return { x: Math.max(16, window.innerWidth - 300), y: 64 };
   });
+  const [referenceCollapsed, setReferenceCollapsed] = useState(
+    () => localStorage.getItem(REFERENCE_COLLAPSED_KEY) === "1",
+  );
   const titleRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<EditorHandle>(null);
   const referencePanelRef = useRef<HTMLElement>(null);
@@ -199,6 +203,7 @@ export function PageView({
   }, [referenceWidth]);
 
   const startReferenceDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if ((event.target as HTMLElement).closest("button")) return;
     event.preventDefault();
     const startX = event.clientX;
     const startY = event.clientY;
@@ -247,6 +252,14 @@ export function PageView({
     return () => window.removeEventListener("resize", keepReferenceOnScreen);
   }, [clampReferencePosition]);
 
+  const toggleReferenceCollapsed = () => {
+    setReferenceCollapsed((current) => {
+      const next = !current;
+      localStorage.setItem(REFERENCE_COLLAPSED_KEY, next ? "1" : "0");
+      return next;
+    });
+  };
+
   const handleDelete = async () => {
     if (!page) return;
     if (!confirm("이 페이지를 휴지통으로 이동할까요?")) return;
@@ -258,6 +271,11 @@ export function PageView({
   if (!page) {
     return <div className="page-view">불러오는 중…</div>;
   }
+
+  // The calendar already floats as its own draggable panel, so the 참고
+  // reference panel would just clutter the screen on top of it — skip it
+  // for pages that embed a calendar view.
+  const hasCalendarBlock = page.contentJson.blocks.some((b) => b.type === "database_view" && b.view === "calendar");
 
   return (
     <div className="page-shell">
@@ -347,28 +365,43 @@ export function PageView({
         )}
       </div>
 
-      <aside
-        ref={referencePanelRef}
-        className="page-side"
-        style={{ width: referenceWidth, left: referencePosition.x, top: referencePosition.y }}
-        onPointerDown={(event) => event.currentTarget.focus()}
-        tabIndex={-1}
-      >
-        <button
-          type="button"
-          className="page-side__resize"
-          onPointerDown={startReferenceResize}
-          aria-label="참고 패널 너비 조절"
-          title="드래그해서 너비 조절"
-        />
-        <div className="page-side__header" onPointerDown={startReferenceDrag} title="드래그해서 참고 창 이동">
-          <div className="page-side__label">참고</div>
-          <span className="page-side__drag-hint">이동</span>
-        </div>
-        <div className="page-side__content">
-          <HandoffTools pageId={page.id} content={page.contentJson} onQuestionsChanged={onPagesChanged} />
-        </div>
-      </aside>
+      {!hasCalendarBlock && (
+        <aside
+          ref={referencePanelRef}
+          className="page-side"
+          style={{ width: referenceWidth, left: referencePosition.x, top: referencePosition.y }}
+          onPointerDown={(event) => event.currentTarget.focus()}
+          tabIndex={-1}
+        >
+          {!referenceCollapsed && (
+            <button
+              type="button"
+              className="page-side__resize"
+              onPointerDown={startReferenceResize}
+              aria-label="참고 패널 너비 조절"
+              title="드래그해서 너비 조절"
+            />
+          )}
+          <div className="page-side__header" onPointerDown={startReferenceDrag} title="드래그해서 참고 창 이동">
+            <div className="page-side__label">참고</div>
+            {!referenceCollapsed && <span className="page-side__drag-hint">이동</span>}
+            <button
+              type="button"
+              className="page-side__collapse"
+              onClick={toggleReferenceCollapsed}
+              aria-label={referenceCollapsed ? "참고 패널 펼치기" : "참고 패널 접기"}
+              title={referenceCollapsed ? "펼치기" : "접기"}
+            >
+              {referenceCollapsed ? "+" : "−"}
+            </button>
+          </div>
+          {!referenceCollapsed && (
+            <div className="page-side__content">
+              <HandoffTools pageId={page.id} content={page.contentJson} onQuestionsChanged={onPagesChanged} />
+            </div>
+          )}
+        </aside>
+      )}
     </div>
   );
 }
