@@ -1920,7 +1920,17 @@ code {
 }
 
 .db-calendar {
-  position: relative;
+  position: fixed;
+  z-index: 60;
+  width: 420px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  box-shadow: 0 16px 42px var(--color-shadow);
+  padding: 12px;
+  max-height: calc(100vh - 32px);
+  max-width: calc(100vw - 16px);
+  overflow-y: auto;
 }
 
 .db-calendar__width-handle {
@@ -1957,6 +1967,13 @@ code {
   margin-bottom: 8px;
   font-size: 13px;
   font-weight: 600;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.db-calendar__nav:active {
+  cursor: grabbing;
 }
 
 .db-calendar__nav button {

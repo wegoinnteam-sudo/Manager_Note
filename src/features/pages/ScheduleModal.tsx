@@ -80,6 +80,17 @@ export function ScheduleModal({
     }
   };
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.key.toLowerCase() !== "s") return;
+      e.preventDefault();
+      void submit();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [values, saving]);
+
   return (
     <Modal title={mode === "create" ? "일정 추가" : "일정 수정"} onClose={onCancel}>
       <div ref={containerRef} className="schedule-modal">

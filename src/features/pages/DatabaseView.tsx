@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   DatabaseViewFilter,
   DatabaseViewGroupBy,
@@ -365,19 +365,6 @@ export function DatabaseView({
     }
   };
 
-  const createItemOnDate = async (date: string, anchorLeft?: number) => {
-    if (!editable || creating) return;
-    setCreating(true);
-    try {
-      let page = await api.createPage({ parentId: sourceParentId, title: "제목 없음" });
-      page = await api.updatePageMeta(page.id, { expectedVersion: page.version, dueDate: date });
-      onPagesChanged();
-      onPeekPage(page.id, dateLabel(date), anchorLeft);
-    } finally {
-      setCreating(false);
-    }
-  };
-
   const saveTemplate = (draft: TemplateDraft) => {
     const template: DatabaseTemplate = {
       id: draft.id ?? crypto.randomUUID(),
@@ -685,6 +672,7 @@ export function DatabaseView({
         <SummaryChartView items={children} />
       ) : (
         <CalendarGrid
+          blockId={block.id}
           items={children}
           members={members}
           currentUser={currentUser}
@@ -694,9 +682,7 @@ export function DatabaseView({
           onResize={(size) => onPatch({ calendarSize: size })}
           width={block.calendarWidth ?? 0}
           onResizeWidth={(width) => onPatch({ calendarWidth: width })}
-          offset={block.calendarOffset ?? 0}
-          onResizeOffset={(offset) => onPatch({ calendarOffset: offset })}
-          onCreateOnDate={editable ? createItemOnDate : undefined}
+          onCreateOnDate={editable ? (date) => openCreateModal(date, date) : undefined}
           onRequestCreate={editable ? openCreateModal : undefined}
           onRequestEdit={editable ? openEditModal : undefined}
           onDeleteSchedule={deleteSchedule}
@@ -1342,12 +1328,29 @@ function SummaryChartView({ items }: { items: PageSummaryDTO[] }) {
 }
 
 const MIN_CALENDAR_WIDTH = 320;
+const CALENDAR_POSITION_KEY_PREFIX = "th_calendar_panel_position_";
+
+interface CalendarPanelPosition {
+  x: number;
+  y: number;
+}
+
+function loadCalendarPanelPosition(blockId: string): CalendarPanelPosition | null {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(CALENDAR_POSITION_KEY_PREFIX + blockId) ?? "") as CalendarPanelPosition;
+    if (Number.isFinite(parsed.x) && Number.isFinite(parsed.y)) return parsed;
+  } catch {
+    // No saved position yet — fall back to the default.
+  }
+  return null;
+}
 
 type CalendarContextMenuState =
   | { type: "date"; date: string; x: number; y: number }
   | { type: "schedule"; item: PageSummaryDTO; x: number; y: number };
 
 function CalendarGrid({
+  blockId,
   items,
   members,
   currentUser,
@@ -1357,8 +1360,6 @@ function CalendarGrid({
   onResize,
   width,
   onResizeWidth,
-  offset,
-  onResizeOffset,
   onCreateOnDate,
   onRequestCreate,
   onRequestEdit,
@@ -1367,6 +1368,7 @@ function CalendarGrid({
   categoryFilter,
   onToggleCategoryFilter,
 }: {
+  blockId: string;
   items: PageSummaryDTO[];
   members: TeamMemberDTO[];
   currentUser: UserDTO | null;
@@ -1376,8 +1378,6 @@ function CalendarGrid({
   onResize: (size: number) => void;
   width: number;
   onResizeWidth: (width: number) => void;
-  offset: number;
-  onResizeOffset: (offset: number) => void;
   onCreateOnDate?: (date: string, anchorLeft?: number) => void;
   onRequestCreate?: (start: string, end: string) => void;
   onRequestEdit?: (item: PageSummaryDTO) => void;
@@ -1386,6 +1386,9 @@ function CalendarGrid({
   categoryFilter: PageCategory | "" | null;
   onToggleCategoryFilter: (category: PageCategory | "") => void;
 }) {
+  const [panelPosition, setPanelPosition] = useState<CalendarPanelPosition>(
+    () => loadCalendarPanelPosition(blockId) ?? { x: 320, y: 96 },
+  );
   const [cursor, setCursor] = useState(() => {
     const d = new Date();
     return { year: d.getFullYear(), month: d.getMonth() };
@@ -1601,32 +1604,39 @@ function CalendarGrid({
   };
 
   const resizingWidth = useRef<{ side: "left" | "right"; pointerId: number } | null>(null);
-  const dragWidthStart = useRef({ x: 0, left: 0, right: 0, offset: 0 });
+  const dragWidthStart = useRef({ x: 0, left: 0, right: 0 });
 
   const startWidthResize = (e: React.PointerEvent<HTMLSpanElement>, side: "left" | "right") => {
     if (e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
     const rect = frameRef.current?.getBoundingClientRect();
-    dragWidthStart.current = { x: e.clientX, left: rect?.left ?? 0, right: rect?.right ?? 0, offset };
+    dragWidthStart.current = { x: e.clientX, left: rect?.left ?? 0, right: rect?.right ?? 0 };
     resizingWidth.current = { side, pointerId: e.pointerId };
     e.currentTarget.setPointerCapture(e.pointerId);
   };
 
   const stopWidthResize = (e: React.PointerEvent<HTMLSpanElement>) => {
     if (resizingWidth.current?.pointerId !== e.pointerId) return;
+    const wasLeft = resizingWidth.current.side === "left";
     resizingWidth.current = null;
     if (e.currentTarget.hasPointerCapture(e.pointerId)) {
       e.currentTarget.releasePointerCapture(e.pointerId);
     }
+    if (wasLeft) {
+      try {
+        localStorage.setItem(CALENDAR_POSITION_KEY_PREFIX + blockId, JSON.stringify(panelPosition));
+      } catch {
+        // Ignore storage failures (e.g. private browsing quota).
+      }
+    }
   };
 
-  // The calendar is allowed to grow past its normal text-column width (up to
-  // the edge of the .main scroll container) so it can fill the blank space
-  // on either side of it instead of being capped at the page's reading width.
-  // The right handle only changes width (left edge stays put); the left
-  // handle changes width *and* a negative margin-left offset together, so
-  // the left edge actually moves instead of only the right edge growing.
+  // The calendar floats freely (position: fixed), so its width can grow up
+  // to the viewport edges instead of being capped at the page's reading
+  // width. The right handle only changes width (left edge stays put); the
+  // left handle changes width *and* the panel's x position together, so the
+  // left edge actually moves instead of only the right edge growing.
   const doWidthResize = (e: React.PointerEvent<HTMLSpanElement>) => {
     const current = resizingWidth.current;
     if (!current || current.pointerId !== e.pointerId) return;
@@ -1634,9 +1644,8 @@ function CalendarGrid({
       stopWidthResize(e);
       return;
     }
-    const mainRect = frameRef.current?.closest(".main")?.getBoundingClientRect();
-    const minLeftBound = (mainRect?.left ?? 0) + 24;
-    const maxRightBound = (mainRect?.right ?? window.innerWidth) - 24;
+    const minLeftBound = 8;
+    const maxRightBound = window.innerWidth - 8;
     const deltaPx = e.clientX - dragWidthStart.current.x;
     const start = dragWidthStart.current;
 
@@ -1645,11 +1654,59 @@ function CalendarGrid({
       onResizeWidth(Math.round(newRight - start.left));
     } else {
       const newLeft = Math.max(Math.min(start.left + deltaPx, start.right - MIN_CALENDAR_WIDTH), minLeftBound);
-      const naturalLeft = start.left - start.offset;
       onResizeWidth(Math.round(start.right - newLeft));
-      onResizeOffset(Math.round(newLeft - naturalLeft));
+      setPanelPosition((prev) => ({ ...prev, x: Math.round(newLeft) }));
     }
   };
+
+  const clampPanelPosition = useCallback(
+    (position: CalendarPanelPosition): CalendarPanelPosition => {
+      const panel = frameRef.current;
+      const panelWidth = panel?.offsetWidth ?? (width >= MIN_CALENDAR_WIDTH ? width : MIN_CALENDAR_WIDTH);
+      const panelHeight = panel?.offsetHeight ?? 400;
+      return {
+        x: Math.max(0, Math.min(position.x, Math.max(0, window.innerWidth - Math.min(panelWidth, window.innerWidth)))),
+        y: Math.max(0, Math.min(position.y, Math.max(0, window.innerHeight - Math.min(44, panelHeight)))),
+      };
+    },
+    [width],
+  );
+
+  const startPanelDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 || (e.target as HTMLElement).closest("button")) return;
+    e.preventDefault();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startPosition = panelPosition;
+    const onMove = (moveEvent: PointerEvent) => {
+      setPanelPosition(
+        clampPanelPosition({
+          x: Math.round(startPosition.x + moveEvent.clientX - startX),
+          y: Math.round(startPosition.y + moveEvent.clientY - startY),
+        }),
+      );
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      setPanelPosition((current) => {
+        try {
+          localStorage.setItem(CALENDAR_POSITION_KEY_PREFIX + blockId, JSON.stringify(current));
+        } catch {
+          // Ignore storage failures (e.g. private browsing quota).
+        }
+        return current;
+      });
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
+  useEffect(() => {
+    const keepPanelOnScreen = () => setPanelPosition((current) => clampPanelPosition(current));
+    window.addEventListener("resize", keepPanelOnScreen);
+    return () => window.removeEventListener("resize", keepPanelOnScreen);
+  }, [clampPanelPosition]);
 
   // Every dueDate-bearing item becomes a range (endDate falls back to
   // dueDate for single-day / legacy items with no endDate yet), so bars and
@@ -1681,13 +1738,13 @@ function CalendarGrid({
     <div
       className="db-calendar"
       ref={frameRef}
-      style={
-        width >= MIN_CALENDAR_WIDTH
-          ? { width: `${width}px`, maxWidth: "none", marginLeft: offset ? `${offset}px` : undefined }
-          : undefined
-      }
+      style={{
+        left: panelPosition.x,
+        top: panelPosition.y,
+        ...(width >= MIN_CALENDAR_WIDTH ? { width: `${width}px` } : undefined),
+      }}
     >
-      <div className="db-calendar__nav">
+      <div className="db-calendar__nav" onPointerDown={startPanelDrag} title="드래그해서 캘린더 이동">
         <button type="button" onClick={() => setCursor((c) => (c.month === 0 ? { year: c.year - 1, month: 11 } : { year: c.year, month: c.month - 1 }))}>
           ‹
         </button>
