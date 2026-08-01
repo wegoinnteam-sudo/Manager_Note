@@ -70,6 +70,14 @@ export interface PageSummaryDTO {
   status: HandoffStatus;
   assigneeId: string | null;
   dueDate: string | null;
+  // Calendar date-range fields. endDate defaults to dueDate (single-day
+  // event) when unset — see CATEGORY_COLORS for how a page's category
+  // doubles as its calendar color since this app has only one real team.
+  endDate: string | null;
+  startTime: string | null;
+  endTime: string | null;
+  allDay: boolean;
+  createdBy: string;
   orderKey: number;
   version: number;
   openQuestionCount: number;
@@ -86,7 +94,6 @@ export interface PageSummaryDTO {
 export interface PageDetailDTO extends PageSummaryDTO {
   contentJson: PageContent;
   contentVersion: number;
-  createdBy: string;
   updatedBy: string;
   createdAt: string;
 }

@@ -81,6 +81,10 @@ export const api = {
       status?: HandoffStatus;
       assigneeId?: string | null;
       dueDate?: string | null;
+      endDate?: string | null;
+      startTime?: string | null;
+      endTime?: string | null;
+      allDay?: boolean;
       tags?: string[];
       parentId?: string | null;
       orderKey?: number;

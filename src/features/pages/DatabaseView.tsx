@@ -10,11 +10,17 @@ import type {
   PageBlock,
   PageSummaryDTO,
   TeamMemberDTO,
+  UserDTO,
 } from "@shared/types";
 import { CATEGORY_LABELS, PAGE_CATEGORIES, UNCATEGORIZED_LABEL } from "@shared/types";
 import { api } from "@/lib/api";
 import { StatusBadge, STATUS_LABELS, nextStatus } from "@/features/status/Status";
 import { memberName } from "@/hooks/useTeamMembers";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { getScheduleColor, SCHEDULE_LEGEND, SCHEDULE_UNASSIGNED_KEY } from "@/lib/scheduleColors";
+import { layoutWeekSegments } from "./calendarLayout";
+import { ScheduleModal, type ScheduleFormValues } from "./ScheduleModal";
+import { Modal } from "@/components/Modal";
 
 const STATUS_ORDER: HandoffStatus[] = ["in_progress", "handoff_pending", "done", "on_hold"];
 
@@ -116,6 +122,15 @@ function dateLabel(dateKey: string): string {
   return `${year}년 ${month}월 ${day}일 (${weekday})`;
 }
 
+function todayKey(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function canManageSchedule(item: PageSummaryDTO, user: UserDTO | null): boolean {
+  return !!user && (user.role === "admin" || item.createdBy === user.id);
+}
+
 function daysUntil(date: string | null): number | null {
   if (!date) return null;
   const today = new Date();
@@ -180,6 +195,14 @@ export function DatabaseView({
   const [searchQuery, setSearchQuery] = useState("");
   const [templateDraft, setTemplateDraft] = useState<TemplateDraft | null>(null);
   const menuWrapRef = useRef<HTMLDivElement | null>(null);
+  const currentUser = useCurrentUser();
+
+  // Calendar schedule modal target — kept as separate pieces (not one boolean
+  // + a combined draft object) so a stale range/schedule from a previous open
+  // can never leak into the next: closing always resets both to null.
+  const [selectedDateRange, setSelectedDateRange] = useState<{ start: string; end: string } | null>(null);
+  const [selectedSchedule, setSelectedSchedule] = useState<PageSummaryDTO | null>(null);
+  const [isScheduleModalOpen, setScheduleModalOpen] = useState(false);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -223,6 +246,81 @@ export function DatabaseView({
       return va < vb ? -dir : va > vb ? dir : 0;
     });
   }, [filteredChildren, sort]);
+
+  const presentCategories = useMemo(() => {
+    const seen = new Set<PageCategory | null>();
+    allChildren.forEach((child) => {
+      if (child.dueDate) seen.add(child.category);
+    });
+    const result: (PageCategory | null)[] = PAGE_CATEGORIES.filter((c) => seen.has(c));
+    if (seen.has(null)) result.push(null);
+    return result;
+  }, [allChildren]);
+
+  const categoryFilter: PageCategory | "" | null =
+    filter && filter.field === "category" && filter.op === "eq" ? ((filter.value ?? "") as PageCategory | "") : null;
+
+  const onToggleCategoryFilter = (category: PageCategory | "") => {
+    if (categoryFilter === category) onPatch({ filter: null });
+    else onPatch({ filter: { field: "category", op: "eq", value: category } });
+  };
+
+  const openCreateModal = (start: string, end: string) => {
+    setSelectedDateRange({ start, end });
+    setSelectedSchedule(null);
+    setScheduleModalOpen(true);
+  };
+
+  const openEditModal = (item: PageSummaryDTO) => {
+    setSelectedSchedule(item);
+    setSelectedDateRange(null);
+    setScheduleModalOpen(true);
+  };
+
+  const closeScheduleModal = () => {
+    setScheduleModalOpen(false);
+    setSelectedDateRange(null);
+    setSelectedSchedule(null);
+  };
+
+  const createSchedule = async (values: ScheduleFormValues) => {
+    let page = await api.createPage({
+      parentId: sourceParentId,
+      title: values.title.trim() || "제목 없음",
+      category: values.category,
+      description: values.description || null,
+    });
+    await api.updatePageMeta(page.id, {
+      expectedVersion: page.version,
+      dueDate: values.startDate,
+      endDate: values.endDate,
+      startTime: values.allDay ? null : values.startTime || null,
+      endTime: values.allDay ? null : values.endTime || null,
+      allDay: values.allDay,
+    });
+    onPagesChanged();
+  };
+
+  const updateSchedule = async (pageId: string, values: ScheduleFormValues) => {
+    const detail = await api.getPage(pageId);
+    await api.updatePageMeta(pageId, {
+      expectedVersion: detail.version,
+      title: values.title.trim() || "제목 없음",
+      description: values.description || null,
+      category: values.category,
+      dueDate: values.startDate,
+      endDate: values.endDate,
+      startTime: values.allDay ? null : values.startTime || null,
+      endTime: values.allDay ? null : values.endTime || null,
+      allDay: values.allDay,
+    });
+    onPagesChanged();
+  };
+
+  const deleteSchedule = async (pageId: string) => {
+    await api.deletePage(pageId);
+    onPagesChanged();
+  };
 
   const patch = async (child: PageSummaryDTO, fields: PatchFields) => {
     if (!editable) return;
@@ -338,8 +436,21 @@ export function DatabaseView({
         </div>
         {editable && (
           <>
-            <button type="button" className="db-view__new-btn" disabled={creating} onClick={() => createItem()}>
-              {creating ? "추가 중…" : "새로 만들기"}
+            <button
+              type="button"
+              className="db-view__new-btn"
+              disabled={creating}
+              aria-label={view === "calendar" ? "일정 추가" : "새로 만들기"}
+              onClick={() => {
+                if (view === "calendar") {
+                  const today = todayKey();
+                  openCreateModal(today, today);
+                } else {
+                  createItem();
+                }
+              }}
+            >
+              {view === "calendar" ? "+ 일정 추가" : creating ? "추가 중…" : "새로 만들기"}
             </button>
             <select
               className="db-view__template-select"
@@ -461,6 +572,41 @@ export function DatabaseView({
         />
         {searchQuery && <button type="button" onClick={() => setSearchQuery("")}>지우기</button>}
       </div>
+      {isScheduleModalOpen && (
+        <ScheduleModal
+          mode={selectedSchedule ? "edit" : "create"}
+          initial={
+            selectedSchedule
+              ? {
+                  title: selectedSchedule.title,
+                  description: selectedSchedule.description ?? "",
+                  startDate: selectedSchedule.dueDate ?? todayKey(),
+                  endDate: selectedSchedule.endDate ?? selectedSchedule.dueDate ?? todayKey(),
+                  startTime: selectedSchedule.startTime ?? "",
+                  endTime: selectedSchedule.endTime ?? "",
+                  allDay: selectedSchedule.allDay,
+                  category: selectedSchedule.category,
+                }
+              : {
+                  title: "",
+                  description: "",
+                  startDate: selectedDateRange?.start ?? todayKey(),
+                  endDate: selectedDateRange?.end ?? todayKey(),
+                  startTime: "",
+                  endTime: "",
+                  allDay: true,
+                  category: null,
+                }
+          }
+          authorName={selectedSchedule ? memberName(members, selectedSchedule.createdBy) : currentUser?.name ?? "-"}
+          onSave={async (values) => {
+            if (selectedSchedule) await updateSchedule(selectedSchedule.id, values);
+            else await createSchedule(values);
+            closeScheduleModal();
+          }}
+          onCancel={closeScheduleModal}
+        />
+      )}
       {templateDraft && (
         <DatabaseTemplateEditor
           draft={templateDraft}
@@ -516,7 +662,7 @@ export function DatabaseView({
         </div>
       )}
 
-      {children.length === 0 ? (
+      {children.length === 0 && view !== "calendar" ? (
         <div className="db-view--empty">
           <span>아직 항목이 없습니다.</span>
           {editable && (
@@ -540,6 +686,8 @@ export function DatabaseView({
       ) : (
         <CalendarGrid
           items={children}
+          members={members}
+          currentUser={currentUser}
           onPeekPage={onPeekPage}
           editable={editable}
           size={block.calendarSize ?? 64}
@@ -549,6 +697,12 @@ export function DatabaseView({
           offset={block.calendarOffset ?? 0}
           onResizeOffset={(offset) => onPatch({ calendarOffset: offset })}
           onCreateOnDate={editable ? createItemOnDate : undefined}
+          onRequestCreate={editable ? openCreateModal : undefined}
+          onRequestEdit={editable ? openEditModal : undefined}
+          onDeleteSchedule={deleteSchedule}
+          presentCategories={presentCategories}
+          categoryFilter={categoryFilter}
+          onToggleCategoryFilter={onToggleCategoryFilter}
         />
       )}
     </div>
@@ -1189,8 +1343,14 @@ function SummaryChartView({ items }: { items: PageSummaryDTO[] }) {
 
 const MIN_CALENDAR_WIDTH = 320;
 
+type CalendarContextMenuState =
+  | { type: "date"; date: string; x: number; y: number }
+  | { type: "schedule"; item: PageSummaryDTO; x: number; y: number };
+
 function CalendarGrid({
   items,
+  members,
+  currentUser,
   onPeekPage,
   editable,
   size,
@@ -1200,8 +1360,16 @@ function CalendarGrid({
   offset,
   onResizeOffset,
   onCreateOnDate,
+  onRequestCreate,
+  onRequestEdit,
+  onDeleteSchedule,
+  presentCategories,
+  categoryFilter,
+  onToggleCategoryFilter,
 }: {
   items: PageSummaryDTO[];
+  members: TeamMemberDTO[];
+  currentUser: UserDTO | null;
   onPeekPage: (id: string, label?: string, anchorLeft?: number) => void;
   editable: boolean;
   size: number;
@@ -1211,6 +1379,12 @@ function CalendarGrid({
   offset: number;
   onResizeOffset: (offset: number) => void;
   onCreateOnDate?: (date: string, anchorLeft?: number) => void;
+  onRequestCreate?: (start: string, end: string) => void;
+  onRequestEdit?: (item: PageSummaryDTO) => void;
+  onDeleteSchedule: (id: string) => Promise<void>;
+  presentCategories: (PageCategory | null)[];
+  categoryFilter: PageCategory | "" | null;
+  onToggleCategoryFilter: (category: PageCategory | "") => void;
 }) {
   const [cursor, setCursor] = useState(() => {
     const d = new Date();
@@ -1218,6 +1392,184 @@ function CalendarGrid({
   });
 
   const frameRef = useRef<HTMLDivElement | null>(null);
+
+  const [contextMenuState, setContextMenuState] = useState<CalendarContextMenuState | null>(null);
+  const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<PageSummaryDTO | null>(null);
+  const [isDeleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  // Live highlight while a date-range drag is in progress. Kept separate
+  // from the finalized range the parent DatabaseView uses to open the
+  // create modal, so an in-progress drag can never leak a stale value into
+  // it — it always resets to null the moment the pointer is released.
+  const [dragRange, setDragRange] = useState<{ start: string; end: string } | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement | null>(null);
+
+  // Month navigation should never leave a stale context menu on screen.
+  useEffect(() => {
+    setContextMenuState(null);
+  }, [cursor]);
+
+  useEffect(() => {
+    setMenuPos(contextMenuState ? { x: contextMenuState.x, y: contextMenuState.y } : null);
+  }, [contextMenuState]);
+
+  // Keep the menu on screen: after it mounts at the raw click position,
+  // nudge it back inside the viewport if it would overflow right/bottom,
+  // then focus its first item once the position has settled.
+  useEffect(() => {
+    if (!menuPos || !contextMenuRef.current) return;
+    const rect = contextMenuRef.current.getBoundingClientRect();
+    let { x, y } = menuPos;
+    let changed = false;
+    if (rect.right > window.innerWidth - 8) {
+      x = Math.max(8, window.innerWidth - rect.width - 8);
+      changed = true;
+    }
+    if (rect.bottom > window.innerHeight - 8) {
+      y = Math.max(8, window.innerHeight - rect.height - 8);
+      changed = true;
+    }
+    if (changed) setMenuPos({ x, y });
+    else contextMenuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
+  }, [menuPos]);
+
+  useEffect(() => {
+    if (!contextMenuState) return;
+    const onMouseDown = (e: MouseEvent) => {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
+        setContextMenuState(null);
+      }
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setContextMenuState(null);
+    };
+    const onScroll = () => setContextMenuState(null);
+    document.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("scroll", onScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+  }, [contextMenuState]);
+
+  const onMenuKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    e.preventDefault();
+    const menuItems = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'));
+    const idx = menuItems.indexOf(document.activeElement as HTMLButtonElement);
+    const next = e.key === "ArrowDown" ? (idx + 1) % menuItems.length : (idx - 1 + menuItems.length) % menuItems.length;
+    menuItems[next]?.focus();
+  };
+
+  const dateKeyAt = (x: number, y: number): string | null => {
+    const cell = document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-date-key]");
+    return cell?.dataset.dateKey || null;
+  };
+
+  const LONG_PRESS_MS = 550;
+  const LONG_PRESS_MOVE_TOLERANCE = 10;
+
+  // Unifies click-vs-drag detection: releasing on the same cell you pressed
+  // down on is treated as a plain click (existing quick-create behavior);
+  // releasing on a different cell opens the range-selection create modal.
+  // On touch/pen (no real right-click available), holding still for
+  // LONG_PRESS_MS opens the same date context menu a desktop right-click
+  // would, instead of starting a drag.
+  const onCellPointerDown = (e: React.PointerEvent, dateKey: string) => {
+    if (e.button !== 0 || !editable) return;
+    e.preventDefault();
+    const pointerId = e.pointerId;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let longPressFired = false;
+    const longPressTimer =
+      e.pointerType !== "mouse"
+        ? window.setTimeout(() => {
+            longPressFired = true;
+            window.removeEventListener("pointermove", onMove);
+            window.removeEventListener("pointerup", onUp);
+            setDragRange(null);
+            setContextMenuState({ type: "date", date: dateKey, x: startX, y: startY });
+          }, LONG_PRESS_MS)
+        : null;
+    setDragRange({ start: dateKey, end: dateKey });
+    const onMove = (moveEvent: PointerEvent) => {
+      if (moveEvent.pointerId !== pointerId) return;
+      if (longPressTimer !== null && Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) > LONG_PRESS_MOVE_TOLERANCE) {
+        window.clearTimeout(longPressTimer);
+      }
+      const hovered = dateKeyAt(moveEvent.clientX, moveEvent.clientY);
+      if (!hovered) return;
+      const [start, end] = dateKey <= hovered ? [dateKey, hovered] : [hovered, dateKey];
+      setDragRange({ start, end });
+    };
+    const onUp = (upEvent: PointerEvent) => {
+      if (upEvent.pointerId !== pointerId) return;
+      if (longPressTimer !== null) window.clearTimeout(longPressTimer);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      if (longPressFired) return; // the long-press timer already opened the menu
+      setDragRange(null);
+      const hovered = dateKeyAt(upEvent.clientX, upEvent.clientY) ?? dateKey;
+      if (hovered === dateKey) {
+        onCreateOnDate?.(dateKey, frameRef.current?.getBoundingClientRect().right);
+      } else {
+        const [start, end] = dateKey <= hovered ? [dateKey, hovered] : [hovered, dateKey];
+        onRequestCreate?.(start, end);
+      }
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
+  const onCellContextMenu = (e: React.MouseEvent, dateKey: string) => {
+    if (!editable) return;
+    e.preventDefault();
+    setContextMenuState({ type: "date", date: dateKey, x: e.clientX, y: e.clientY });
+  };
+
+  const onBarContextMenu = (e: React.MouseEvent, item: PageSummaryDTO) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenuState({ type: "schedule", item, x: e.clientX, y: e.clientY });
+  };
+
+  // Long-press equivalent of onBarContextMenu for touch/pen, where there is
+  // no right-click. suppressNextBarClickRef stops the click that mobile
+  // browsers still fire on pointerup from immediately opening the peek
+  // panel right after the long-press menu appears.
+  const suppressNextBarClickRef = useRef<string | null>(null);
+
+  const onBarPointerDown = (e: React.PointerEvent, item: PageSummaryDTO) => {
+    if (e.button !== 0 || e.pointerType === "mouse") return;
+    e.stopPropagation();
+    const pointerId = e.pointerId;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const timer = window.setTimeout(() => {
+      suppressNextBarClickRef.current = item.id;
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      setContextMenuState({ type: "schedule", item, x: startX, y: startY });
+    }, LONG_PRESS_MS);
+    const onMove = (moveEvent: PointerEvent) => {
+      if (moveEvent.pointerId !== pointerId) return;
+      if (Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) > LONG_PRESS_MOVE_TOLERANCE) {
+        window.clearTimeout(timer);
+      }
+    };
+    const onUp = (upEvent: PointerEvent) => {
+      if (upEvent.pointerId !== pointerId) return;
+      window.clearTimeout(timer);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
   const resizing = useRef<{ pointerId: number } | null>(null);
   const dragStart = useRef({ y: 0, size });
 
@@ -1299,16 +1651,19 @@ function CalendarGrid({
     }
   };
 
-  const byDate = useMemo(() => {
-    const map = new Map<string, PageSummaryDTO[]>();
-    items.forEach((c) => {
-      if (!c.dueDate) return;
-      const list = map.get(c.dueDate) ?? [];
-      list.push(c);
-      map.set(c.dueDate, list);
-    });
-    return map;
-  }, [items]);
+  // Every dueDate-bearing item becomes a range (endDate falls back to
+  // dueDate for single-day / legacy items with no endDate yet), so bars and
+  // the old single-day chips render through one unified code path.
+  const scheduleItems = useMemo(
+    () =>
+      items
+        .filter((i): i is PageSummaryDTO & { dueDate: string } => !!i.dueDate)
+        .map((i) => ({ ...i, startDate: i.dueDate, endDate: i.endDate && i.endDate >= i.dueDate ? i.endDate : i.dueDate })),
+    [items],
+  );
+
+  const presentKeys = useMemo(() => new Set(presentCategories.map((c) => getScheduleColor(c).key)), [presentCategories]);
+  const legendEntries = SCHEDULE_LEGEND.filter((entry) => presentKeys.has(entry.key));
 
   const pad = (n: number) => String(n).padStart(2, "0");
   const firstOfMonth = new Date(cursor.year, cursor.month, 1);
@@ -1316,6 +1671,11 @@ function CalendarGrid({
   const daysInMonth = new Date(cursor.year, cursor.month + 1, 0).getDate();
   const cells: (number | null)[] = [...Array(startWeekday).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
   while (cells.length % 7 !== 0) cells.push(null);
+  const weeks: (number | null)[][] = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+
+  const dateKeyOf = (day: number | null) => (day ? `${cursor.year}-${pad(cursor.month + 1)}-${pad(day)}` : null);
+  const LANE_HEIGHT = 20;
 
   return (
     <div
@@ -1338,49 +1698,120 @@ function CalendarGrid({
           ›
         </button>
       </div>
-      <div className="db-calendar__grid" style={{ "--db-calendar-cell-size": `${size}px` } as React.CSSProperties}>
-        {["일", "월", "화", "수", "목", "금", "토"].map((d) => (
-          <div key={d} className="db-calendar__weekday">
-            {d}
-          </div>
-        ))}
-        {cells.map((day, i) => {
-          const dateKey = day ? `${cursor.year}-${pad(cursor.month + 1)}-${pad(day)}` : null;
-          const dayItems = dateKey ? byDate.get(dateKey) ?? [] : [];
-          const clickable = !!(day && dateKey && onCreateOnDate);
+
+      {legendEntries.length > 0 && (
+        <div className="db-calendar__legend" role="list" aria-label="카테고리별 일정 색상 범례">
+          {legendEntries.map((entry) => {
+            const filterValue: PageCategory | "" = entry.key === SCHEDULE_UNASSIGNED_KEY ? "" : (entry.key as PageCategory);
+            const active = categoryFilter === filterValue;
+            return (
+              <button
+                key={entry.key}
+                type="button"
+                role="listitem"
+                className={`db-calendar__legend-item${active ? " db-calendar__legend-item--active" : ""}`}
+                onClick={() => onToggleCategoryFilter(filterValue)}
+                title={`${entry.label} 일정만 보기 (다시 누르면 해제)`}
+                aria-pressed={active}
+              >
+                <span className="db-calendar__legend-dot" style={{ background: entry.background }} aria-hidden="true" />
+                {entry.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <div
+        className={`db-calendar__weeks${dragRange ? " db-calendar__weeks--dragging" : ""}`}
+        style={{ "--db-calendar-cell-size": `${size}px` } as React.CSSProperties}
+      >
+        <div className="db-calendar__weekday-row">
+          {WEEKDAY_LABELS.map((d) => (
+            <div key={d} className="db-calendar__weekday">
+              {d}
+            </div>
+          ))}
+        </div>
+        {weeks.map((week, wi) => {
+          const weekDateKeys = week.map(dateKeyOf);
+          const segments = layoutWeekSegments(weekDateKeys, scheduleItems);
+          const maxLane = segments.reduce((m, s) => Math.max(m, s.lane), -1) + 1;
           return (
-            <div
-              key={i}
-              className={`db-calendar__cell${day ? "" : " db-calendar__cell--empty"}${clickable ? " db-calendar__cell--clickable" : ""}`}
-              role={clickable ? "button" : undefined}
-              tabIndex={clickable ? 0 : undefined}
-              onClick={clickable ? () => onCreateOnDate!(dateKey!, frameRef.current?.getBoundingClientRect().right) : undefined}
-              onKeyDown={
-                clickable
-                  ? (e) => {
-                      if (e.key === "Enter" || e.key === " ") onCreateOnDate!(dateKey!, frameRef.current?.getBoundingClientRect().right);
-                    }
-                  : undefined
-              }
-            >
-              {day && <div className="db-calendar__day">{day}</div>}
-              {dayItems.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  className="db-calendar__item"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onPeekPage(c.id, c.dueDate ? dateLabel(c.dueDate) : undefined, frameRef.current?.getBoundingClientRect().right);
-                  }}
-                >
-                  {c.title}
-                </button>
-              ))}
+            <div key={wi} className="db-calendar__week" style={{ minHeight: `calc(var(--db-calendar-cell-size) + ${maxLane * LANE_HEIGHT}px)` }}>
+              <div className="db-calendar__week-cells">
+                {week.map((day, di) => {
+                  const dateKey = weekDateKeys[di];
+                  const dragActive = !!(dragRange && dateKey && dateKey >= dragRange.start && dateKey <= dragRange.end);
+                  return (
+                    <div
+                      key={di}
+                      data-date-key={dateKey ?? undefined}
+                      className={`db-calendar__cell${day ? "" : " db-calendar__cell--empty"}${day && editable ? " db-calendar__cell--clickable" : ""}${dragActive ? " db-calendar__cell--dragging" : ""}`}
+                      role={day && editable ? "button" : undefined}
+                      tabIndex={day && editable ? 0 : undefined}
+                      onPointerDown={day && editable ? (e) => onCellPointerDown(e, dateKey!) : undefined}
+                      onContextMenu={day && editable ? (e) => onCellContextMenu(e, dateKey!) : undefined}
+                      onKeyDown={
+                        day && editable
+                          ? (e) => {
+                              if (e.key === "Enter" || e.key === " ") onCreateOnDate?.(dateKey!, frameRef.current?.getBoundingClientRect().right);
+                            }
+                          : undefined
+                      }
+                    >
+                      {day && <div className="db-calendar__day">{day}</div>}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="db-calendar__week-bars">
+                {segments.map((seg) => {
+                  const color = getScheduleColor(seg.item.category);
+                  const authorName = memberName(members, seg.item.createdBy);
+                  const tooltip = [
+                    seg.item.title,
+                    `${seg.item.startDate} ~ ${seg.item.endDate}`,
+                    `작성자: ${authorName}`,
+                    `소속: ${color.label}`,
+                    seg.item.description || null,
+                  ]
+                    .filter(Boolean)
+                    .join("\n");
+                  return (
+                    <button
+                      key={seg.item.id}
+                      type="button"
+                      className={`db-calendar__event${seg.continuesBefore ? " db-calendar__event--continues-before" : ""}${seg.continuesAfter ? " db-calendar__event--continues-after" : ""}`}
+                      style={{
+                        left: `${(seg.startCol / 7) * 100}%`,
+                        width: `${(seg.span / 7) * 100}%`,
+                        top: seg.lane * LANE_HEIGHT,
+                        background: color.background,
+                        color: color.text,
+                      }}
+                      title={tooltip}
+                      onPointerDown={(e) => onBarPointerDown(e, seg.item)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (suppressNextBarClickRef.current === seg.item.id) {
+                          suppressNextBarClickRef.current = null;
+                          return;
+                        }
+                        onPeekPage(seg.item.id, dateLabel(seg.item.startDate), frameRef.current?.getBoundingClientRect().right);
+                      }}
+                      onContextMenu={(e) => onBarContextMenu(e, seg.item)}
+                    >
+                      {seg.item.title} · {authorName}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           );
         })}
       </div>
+
       {editable && (
         <>
           <span
@@ -1417,6 +1848,103 @@ function CalendarGrid({
             title="캘린더 높이 조정"
           />
         </>
+      )}
+
+      {contextMenuState && menuPos && (
+        <div
+          ref={contextMenuRef}
+          className="db-calendar__context-menu"
+          role="menu"
+          aria-label={contextMenuState.type === "date" ? "날짜 메뉴" : "일정 메뉴"}
+          style={{ left: menuPos.x, top: menuPos.y }}
+          onKeyDown={onMenuKeyDown}
+        >
+          {contextMenuState.type === "date" ? (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  onRequestCreate?.(contextMenuState.date, contextMenuState.date);
+                  setContextMenuState(null);
+                }}
+              >
+                일정 추가
+              </button>
+              <button type="button" role="menuitem" onClick={() => setContextMenuState(null)}>
+                메뉴 닫기
+              </button>
+            </>
+          ) : (
+            <>
+              {canManageSchedule(contextMenuState.item, currentUser) && (
+                <>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      onRequestEdit?.(contextMenuState.item);
+                      setContextMenuState(null);
+                    }}
+                  >
+                    일정 수정
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setDeleteTarget(contextMenuState.item);
+                      setDeleteConfirmOpen(true);
+                      setContextMenuState(null);
+                    }}
+                  >
+                    일정 삭제
+                  </button>
+                </>
+              )}
+              <button type="button" role="menuitem" onClick={() => setContextMenuState(null)}>
+                메뉴 닫기
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {isDeleteConfirmOpen && deleteTarget && (
+        <Modal
+          title="일정 삭제"
+          onClose={() => {
+            setDeleteConfirmOpen(false);
+            setDeleteTarget(null);
+          }}
+        >
+          <div className="db-calendar__delete-confirm">
+            <p>이 일정을 삭제하시겠습니까? 삭제된 일정은 휴지통으로 이동됩니다.</p>
+            <div className="db-calendar__delete-confirm-actions">
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteConfirmOpen(false);
+                  setDeleteTarget(null);
+                }}
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                className="db-calendar__delete-confirm-danger"
+                onClick={async () => {
+                  const target = deleteTarget;
+                  setDeleteConfirmOpen(false);
+                  setDeleteTarget(null);
+                  if (target) await onDeleteSchedule(target.id);
+                }}
+              >
+                삭제
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );

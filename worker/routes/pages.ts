@@ -83,6 +83,13 @@ pagesRoute.patch("/:id", requireRole("editor"), async (c) => {
   const before = await getPageById(c.env.DB, c.var.teamId, id);
   if (!before) throw Errors.notFound();
 
+  // A page with a due date is being used as a calendar schedule — only its
+  // author or an admin may change it. Pages without a due date keep the
+  // normal shared-editor behavior used everywhere else in this workspace.
+  if (before.due_date && user.role !== "admin" && before.created_by !== user.id) {
+    throw Errors.forbidden("본인이 작성한 일정만 수정할 수 있습니다.");
+  }
+
   const updated = await updatePageMeta(c.env.DB, {
     teamId: c.var.teamId,
     id,
@@ -93,6 +100,10 @@ pagesRoute.patch("/:id", requireRole("editor"), async (c) => {
       status: body.status,
       assigneeId: body.assigneeId,
       dueDate: body.dueDate,
+      endDate: body.endDate,
+      startTime: body.startTime,
+      endTime: body.endTime,
+      allDay: body.allDay,
       tags: body.tags,
       parentId: body.parentId,
       orderKey: body.orderKey,
@@ -144,9 +155,13 @@ pagesRoute.patch("/:id/content", requireRole("editor"), async (c) => {
 
 pagesRoute.delete("/:id", requireRole("editor"), async (c) => {
   const id = c.req.param("id");
+  const user = c.var.user!;
   const page = await getPageById(c.env.DB, c.var.teamId, id);
   if (!page) throw Errors.notFound();
   if (page.is_system) throw Errors.forbidden("시스템 페이지는 삭제할 수 없습니다.");
+  if (page.due_date && user.role !== "admin" && page.created_by !== user.id) {
+    throw Errors.forbidden("본인이 작성한 일정만 삭제할 수 있습니다.");
+  }
   await softDeletePage(c.env.DB, c.var.teamId, id);
   await logActivity(c.env.DB, { teamId: c.var.teamId, pageId: id, actorId: c.var.user!.id, action: "page.deleted" });
   return c.json({ ok: true });

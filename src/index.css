@@ -1968,10 +1968,46 @@ code {
   cursor: pointer;
 }
 
-.db-calendar__grid {
+.db-calendar__legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.db-calendar__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: 999px;
+  padding: 3px 10px 3px 8px;
+  font-size: 11px;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.db-calendar__legend-item--active {
+  border-color: var(--color-accent);
+  background: var(--color-accent-bg);
+  font-weight: 600;
+}
+
+.db-calendar__legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.db-calendar__weekday-row {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
 }
 
 .db-calendar__weekday {
@@ -1979,6 +2015,18 @@ code {
   font-size: 11px;
   color: var(--color-text-muted);
   padding-bottom: 4px;
+}
+
+.db-calendar__week {
+  position: relative;
+  margin-bottom: 4px;
+}
+
+.db-calendar__week-cells {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  height: 100%;
 }
 
 .db-calendar__cell {
@@ -1996,10 +2044,119 @@ code {
 
 .db-calendar__cell--clickable {
   cursor: pointer;
+  touch-action: none;
+  user-select: none;
 }
 
 .db-calendar__cell--clickable:hover {
   background: var(--color-accent-bg);
+}
+
+.db-calendar__cell--dragging {
+  background: var(--color-accent-bg);
+  border-color: var(--color-accent);
+}
+
+.db-calendar__week-bars {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 20px;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.db-calendar__weeks--dragging .db-calendar__event {
+  /* While drag-selecting a date range, event bars must not intercept the
+     hit-test (document.elementFromPoint) used to find the cell under the
+     cursor — otherwise dragging across a day that already has an event
+     would get stuck on that bar instead of registering the day. */
+  pointer-events: none;
+}
+
+.db-calendar__event {
+  position: absolute;
+  pointer-events: auto;
+  height: 18px;
+  border: none;
+  border-radius: 3px;
+  padding: 1px 6px;
+  margin: 0 2px;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.db-calendar__event--continues-before {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  margin-left: 0;
+}
+
+.db-calendar__event--continues-after {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  margin-right: 0;
+}
+
+.db-calendar__context-menu {
+  position: fixed;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 28px var(--color-shadow);
+  padding: 4px;
+}
+
+.db-calendar__context-menu button[role="menuitem"] {
+  text-align: left;
+  border: none;
+  background: none;
+  padding: 8px 10px;
+  font-size: 13px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--color-text);
+}
+
+.db-calendar__context-menu button[role="menuitem"]:hover,
+.db-calendar__context-menu button[role="menuitem"]:focus-visible {
+  background: var(--color-accent-bg);
+  outline: none;
+}
+
+.db-calendar__delete-confirm p {
+  font-size: 13px;
+  margin: 0 0 16px;
+}
+
+.db-calendar__delete-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.db-calendar__delete-confirm-actions button {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.db-calendar__delete-confirm-danger {
+  border-color: var(--color-danger) !important;
+  background: var(--color-danger) !important;
+  color: #fff !important;
 }
 
 .db-calendar__resize-handle {
@@ -2032,22 +2189,6 @@ code {
   margin-bottom: 2px;
 }
 
-.db-calendar__item {
-  display: block;
-  width: 100%;
-  text-align: left;
-  border: none;
-  background: var(--color-accent-bg);
-  color: var(--color-accent);
-  border-radius: 3px;
-  padding: 2px 4px;
-  margin-bottom: 2px;
-  font-size: 11px;
-  cursor: pointer;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 .db-chart {
   display: flex;
@@ -3010,6 +3151,103 @@ button.breadcrumb-block__item:hover {
   display: flex;
   flex-direction: column;
   align-items: center;
+}
+
+.schedule-modal {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.schedule-modal__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.schedule-modal__field input,
+.schedule-modal__field select,
+.schedule-modal__field textarea {
+  font-weight: 400;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 13px;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.schedule-modal__row {
+  display: flex;
+  gap: 12px;
+}
+
+.schedule-modal__row .schedule-modal__field {
+  flex: 1;
+}
+
+.schedule-modal__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.schedule-modal__meta {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.schedule-modal__meta div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.schedule-modal__meta strong {
+  font-size: 13px;
+  color: var(--color-text);
+}
+
+.schedule-modal__error {
+  color: var(--color-danger);
+  font-size: 12px;
+}
+
+.schedule-modal__warning {
+  color: #b45309;
+  font-size: 12px;
+}
+
+.schedule-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.schedule-modal__actions button {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  padding: 7px 16px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.schedule-modal__save {
+  border-color: var(--color-accent) !important;
+  background: var(--color-accent) !important;
+  color: #fff !important;
+}
+
+.schedule-modal__save:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .attachment-picker__dropzone {

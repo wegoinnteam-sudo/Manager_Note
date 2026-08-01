@@ -12,6 +12,10 @@ export interface PageRow {
   status: HandoffStatus;
   assignee_id: string | null;
   due_date: string | null;
+  end_date: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  all_day: number;
   tags: string; // JSON
   order_key: number;
   text_color: string | null;
@@ -147,6 +151,10 @@ export async function updatePageMeta(
       status: HandoffStatus;
       assigneeId: string | null;
       dueDate: string | null;
+      endDate: string | null;
+      startTime: string | null;
+      endTime: string | null;
+      allDay: boolean;
       tags: string[];
       parentId: string | null;
       orderKey: number;
@@ -166,6 +174,10 @@ export async function updatePageMeta(
     status: params.patch.status ?? current.status,
     assignee_id: params.patch.assigneeId !== undefined ? params.patch.assigneeId : current.assignee_id,
     due_date: params.patch.dueDate !== undefined ? params.patch.dueDate : current.due_date,
+    end_date: params.patch.endDate !== undefined ? params.patch.endDate : current.end_date,
+    start_time: params.patch.startTime !== undefined ? params.patch.startTime : current.start_time,
+    end_time: params.patch.endTime !== undefined ? params.patch.endTime : current.end_time,
+    all_day: params.patch.allDay !== undefined ? (params.patch.allDay ? 1 : 0) : current.all_day,
     tags: params.patch.tags !== undefined ? JSON.stringify(params.patch.tags) : current.tags,
     parent_id: params.patch.parentId !== undefined ? params.patch.parentId : current.parent_id,
     order_key: params.patch.orderKey !== undefined ? params.patch.orderKey : current.order_key,
@@ -180,9 +192,9 @@ export async function updatePageMeta(
     .prepare(
       `UPDATE pages SET title = ?1, status = ?2, assignee_id = ?3, due_date = ?4, tags = ?5,
        parent_id = ?6, order_key = ?7, text_color = ?8, highlight_color = ?9,
-       category = ?10, description = ?11,
-       version = version + 1, updated_by = ?12, updated_at = ?13
-       WHERE id = ?14 AND team_id = ?15 AND version = ?16`,
+       category = ?10, description = ?11, end_date = ?12, start_time = ?13, end_time = ?14, all_day = ?15,
+       version = version + 1, updated_by = ?16, updated_at = ?17
+       WHERE id = ?18 AND team_id = ?19 AND version = ?20`,
     )
     .bind(
       next.title,
@@ -196,6 +208,10 @@ export async function updatePageMeta(
       next.highlight_color,
       next.category,
       next.description,
+      next.end_date,
+      next.start_time,
+      next.end_time,
+      next.all_day,
       params.updatedBy,
       now,
       params.id,
