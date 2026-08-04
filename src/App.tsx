@@ -30,24 +30,70 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
   const { categories, refresh: refreshCategories } = usePageCategories();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [justCreatedPageId, setJustCreatedPageId] = useState<string | null>(null);
-  const [peekPageId, setPeekPageId] = useState<string | null>(null);
-  const [peekLabel, setPeekLabel] = useState<string | null>(null);
-  // Set only when the peek was opened from a calendar date — docks the panel
-  // to the right of that calendar (instead of the viewport edge) and switches
-  // the peeked page to manual save instead of autosave.
-  const [peekAnchorLeft, setPeekAnchorLeft] = useState<number | null>(null);
+  // Each entry is one level of "peeked" page (opened from a Wegoinn DB card,
+  // a calendar date, or a link inside another peeked page) — the last entry
+  // is what's shown. Every push also adds a browser history entry (same URL,
+  // just a marker in its state) so the keyboard/mouse back button can step
+  // back through them one level at a time instead of losing the trail.
+  const [peekStack, setPeekStack] = useState<Array<{ id: string; label: string | null; anchorLeft: number | null }>>([]);
+  const peekDepthRef = useRef(0);
   const dropHandlerRef = useRef<(files: FileList) => void>(() => {});
 
   const peekPage = useCallback((id: string, label?: string, anchorLeft?: number) => {
-    setPeekPageId(id);
-    setPeekLabel(label ?? null);
-    setPeekAnchorLeft(anchorLeft ?? null);
+    peekDepthRef.current += 1;
+    window.history.pushState({ __peekLevel: peekDepthRef.current }, "", window.location.pathname);
+    setPeekStack((stack) => [...stack, { id, label: label ?? null, anchorLeft: anchorLeft ?? null }]);
   }, []);
 
+  // User-initiated full close (Escape, the panel's close button, page delete).
+  // Unwinds exactly as many history entries as were pushed while peeking, so
+  // the trail doesn't linger as dead entries the back button has to skip.
   const closePeek = useCallback(() => {
-    setPeekPageId(null);
-    setPeekLabel(null);
-    setPeekAnchorLeft(null);
+    if (peekDepthRef.current > 0) {
+      window.history.go(-peekDepthRef.current);
+    } else {
+      setPeekStack([]);
+    }
+  }, []);
+
+  // Silent reset used when a real route change makes the whole peek trail
+  // moot — no history unwinding, since the route change already pushed its
+  // own forward entry.
+  const resetPeekSilently = useCallback(() => {
+    peekDepthRef.current = 0;
+    setPeekStack([]);
+  }, []);
+
+  const peekPageId = peekStack.length > 0 ? peekStack[peekStack.length - 1].id : null;
+  const peekLabel = peekStack.length > 0 ? peekStack[peekStack.length - 1].label : null;
+  const peekAnchorLeft = peekStack.length > 0 ? peekStack[peekStack.length - 1].anchorLeft : null;
+
+  // Keyboard Backspace acts as "go back" (mirroring the mouse back button),
+  // but only when the user isn't actively editing text — typing must delete
+  // a character as normal, and existing selected-block/selected-page Backspace
+  // handlers (which call preventDefault) still take priority.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Backspace" || event.defaultPrevented) return;
+      const active = document.activeElement;
+      if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) return;
+      window.history.back();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  // Mirrors browser back/forward through the peek trail: each pushed peek
+  // entry carries how deep it is, so popping back (mouse back button or the
+  // Backspace handler above) truncates the stack to match.
+  useEffect(() => {
+    const onPopState = (event: PopStateEvent) => {
+      const level = (event.state as { __peekLevel?: number } | null)?.__peekLevel ?? 0;
+      peekDepthRef.current = level;
+      setPeekStack((stack) => stack.slice(0, level));
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
   const registerFileDropHandler = useCallback((fn: (files: FileList) => void) => {
@@ -104,9 +150,9 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
   // change — sidebar click, back button, etc. — should close that panel.
   const prevPathRef = useRef(path);
   useEffect(() => {
-    if (prevPathRef.current !== path) closePeek();
+    if (prevPathRef.current !== path) resetPeekSilently();
     prevPathRef.current = path;
-  }, [path, closePeek]);
+  }, [path, resetPeekSilently]);
 
   // Escape closes the peek panel — but only when nothing inside it already
   // claimed the key (the editor itself preventDefaults Escape to select a
