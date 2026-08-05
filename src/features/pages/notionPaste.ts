@@ -62,18 +62,24 @@ function tableBlock(rows: string[][]): PageBlock {
   return { id: newId(), type: "table", rows };
 }
 
+// Notion nests a list item's child blocks (sub-lists, but also tables,
+// quotes, code blocks, headings...) directly inside its <li>. Any of these
+// must become their own sibling block instead of being swept into the list
+// item's own inline text by the generic text accumulation below.
+const NESTED_BLOCK_TAGS = new Set(["UL", "OL", "TABLE", "BLOCKQUOTE", "PRE", "HR", "H1", "H2", "H3", "H4", "H5", "H6"]);
+
 function listItemsToBlocks(listEl: HTMLElement): PageBlock[] {
   const ordered = listEl.tagName === "OL";
   const blocks: PageBlock[] = [];
   for (const li of Array.from(listEl.children)) {
     if (li.tagName !== "LI") continue;
     const checkbox = li.querySelector("input[type=checkbox]") as HTMLInputElement | null;
-    const nestedLists: HTMLElement[] = [];
+    const nestedBlocks: HTMLElement[] = [];
     let text = "";
     for (const child of Array.from(li.childNodes)) {
       const tag = child.nodeType === Node.ELEMENT_NODE ? (child as HTMLElement).tagName : "";
-      if (tag === "UL" || tag === "OL") {
-        nestedLists.push(child as HTMLElement);
+      if (NESTED_BLOCK_TAGS.has(tag)) {
+        nestedBlocks.push(child as HTMLElement);
         continue;
       }
       if (tag === "INPUT") continue;
@@ -85,7 +91,10 @@ function listItemsToBlocks(listEl: HTMLElement): PageBlock[] {
     else blocks.push({ id: newId(), type: "bulleted_list_item", text });
     // Nested lists lose their indent level here (this editor's list blocks
     // are flat) but their items still come through as sibling blocks.
-    for (const nested of nestedLists) blocks.push(...listItemsToBlocks(nested));
+    for (const nested of nestedBlocks) {
+      if (nested.tagName === "UL" || nested.tagName === "OL") blocks.push(...listItemsToBlocks(nested));
+      else blocks.push(...elementToBlocks(nested));
+    }
   }
   return blocks;
 }

@@ -48,6 +48,31 @@ describe("htmlToBlocks", () => {
     ]);
   });
 
+  it("pulls a table nested inside a list item out as its own table block", () => {
+    const html = `
+      <ul>
+        <li>
+          <p>운영 관련 연락처</p>
+          <table>
+            <thead><tr><th>업무</th><th>연락처</th></tr></thead>
+            <tbody><tr><td>주차 시스템</td><td><strong>1588-5783</strong></td></tr></tbody>
+          </table>
+        </li>
+      </ul>
+    `;
+    const blocks = htmlToBlocks(html);
+    expect(blocks).toEqual([
+      expect.objectContaining({ type: "bulleted_list_item", text: "운영 관련 연락처" }),
+      expect.objectContaining({
+        type: "table",
+        rows: [
+          ["업무", "연락처"],
+          ["주차 시스템", "**1588-5783**"],
+        ],
+      }),
+    ]);
+  });
+
   it("recurses into wrapper divs instead of treating them as a block", () => {
     const html = "<div><div><p>안쪽 문단</p></div></div>";
     const blocks = htmlToBlocks(html);
