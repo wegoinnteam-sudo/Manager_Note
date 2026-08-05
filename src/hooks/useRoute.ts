@@ -10,9 +10,10 @@ export function useRoute() {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  const navigate = useCallback((to: string) => {
+  const navigate = useCallback((to: string, opts?: { replace?: boolean }) => {
     if (to !== window.location.pathname) {
-      window.history.pushState({}, "", to);
+      if (opts?.replace) window.history.replaceState({}, "", to);
+      else window.history.pushState({}, "", to);
       setPath(to);
     }
   }, []);

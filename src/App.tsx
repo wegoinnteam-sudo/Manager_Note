@@ -134,6 +134,11 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
     [pages, refreshPages, setPages],
   );
 
+  // The app always opens on the Wegoinn DB board — no bare landing page.
+  useEffect(() => {
+    if (path === "/") navigate("/db", { replace: true });
+  }, [path, navigate]);
+
   const activePageId = path.startsWith("/page/") ? path.slice("/page/".length) : null;
   const canEdit = user.role === "editor" || user.role === "admin";
   const canDeleteAll = canEdit;
