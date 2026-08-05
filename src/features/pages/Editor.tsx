@@ -1406,7 +1406,11 @@ export const Editor = forwardRef<EditorHandle, {
   };
 
   // Numbered lists restart at 1 for each contiguous run of numbered_list_item
-  // blocks, instead of counting every block's position on the page.
+  // blocks, instead of counting every block's position on the page. Bulleted/
+  // checklist items don't break a run — pasted Notion content flattens a
+  // numbered step's nested sub-bullets into plain sibling blocks right after
+  // that step (this editor's list blocks have no indent level), and those
+  // sub-bullets shouldn't reset the outer step count back to 1.
   const listNumbers = new Map<string, number>();
   {
     let run = 0;
@@ -1414,9 +1418,27 @@ export const Editor = forwardRef<EditorHandle, {
       if (b.type === "numbered_list_item") {
         run += 1;
         listNumbers.set(b.id, run);
-      } else {
+      } else if (b.type !== "bulleted_list_item" && b.type !== "checklist_item") {
         run = 0;
       }
+    }
+  }
+
+  // A collapsed toggle hides every block indented deeper than it, up to the
+  // next block back at its own indent level or shallower (its "children").
+  // Pasted Notion toggles rely on this: they aren't a separate container,
+  // just a toggle block followed by ordinary indented sibling blocks.
+  const hiddenBlockIds = new Set<string>();
+  {
+    let collapseFloor: number | null = null;
+    for (const b of content.blocks) {
+      const indent = b.indent ?? 0;
+      if (collapseFloor !== null && indent > collapseFloor) {
+        hiddenBlockIds.add(b.id);
+        continue;
+      }
+      collapseFloor = null;
+      if (b.type === "toggle" && !b.expanded) collapseFloor = indent;
     }
   }
 
@@ -1440,7 +1462,9 @@ export const Editor = forwardRef<EditorHandle, {
           }}
         />
       )}
-      {content.blocks.map((block, i) => (
+      {content.blocks.map((block, i) => {
+        if (hiddenBlockIds.has(block.id)) return null;
+        return (
         <div
           key={block.id}
           onSelectCapture={(event) => {
@@ -1621,7 +1645,8 @@ export const Editor = forwardRef<EditorHandle, {
               </div>
             ))}
         </div>
-      ))}
+        );
+      })}
 
       {pendingUploads
         .filter((p) => p.afterId === null)

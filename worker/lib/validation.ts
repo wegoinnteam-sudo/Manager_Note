@@ -8,6 +8,9 @@ export const pageContentSchema: z.ZodType<PageContent> = z.lazy(() =>
   }),
 );
 
+// Every block variant optionally carries an indent level (Tab/Shift+Tab, and
+// nested-toggle content pasted from Notion) — validated as a trailing
+// intersection instead of repeating it in all ~20 variants below.
 export const pageBlockSchema = z.discriminatedUnion("type", [
   z.object({ id: z.string(), type: z.enum(["heading1", "heading2", "heading3", "paragraph"]), text: z.string().max(20000) }),
   z.object({ id: z.string(), type: z.enum(["bulleted_list_item", "numbered_list_item"]), text: z.string().max(20000) }),
@@ -119,7 +122,7 @@ export const pageBlockSchema = z.discriminatedUnion("type", [
   // through the bulk page-content save path. See worker/routes/secrets.ts.
   z.object({ id: z.string(), type: z.literal("secret"), label: z.string().max(200) }),
   z.object({ id: z.string(), type: z.literal("breadcrumb") }),
-]);
+]).and(z.object({ indent: z.number().int().min(0).max(20).optional() }));
 
 export const secretValueSchema = z.object({ value: z.string().min(1).max(1000) });
 

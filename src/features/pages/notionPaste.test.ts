@@ -48,7 +48,7 @@ describe("htmlToBlocks", () => {
     ]);
   });
 
-  it("pulls a table nested inside a list item out as its own table block", () => {
+  it("turns a bullet with a nested table into a foldable toggle, with the table indented as its child", () => {
     const html = `
       <ul>
         <li>
@@ -62,14 +62,53 @@ describe("htmlToBlocks", () => {
     `;
     const blocks = htmlToBlocks(html);
     expect(blocks).toEqual([
-      expect.objectContaining({ type: "bulleted_list_item", text: "운영 관련 연락처" }),
+      expect.objectContaining({ type: "toggle", text: "운영 관련 연락처", expanded: true }),
       expect.objectContaining({
         type: "table",
+        indent: 1,
         rows: [
           ["업무", "연락처"],
           ["주차 시스템", "**1588-5783**"],
         ],
       }),
+    ]);
+  });
+
+  it("keeps a numbered step's own type when it has a nested clarifying sub-list, instead of folding it", () => {
+    const html = `
+      <ol>
+        <li>첫 단계</li>
+        <li>둘째 단계
+          <ul><li>세부 사항 A</li><li>세부 사항 B</li></ul>
+        </li>
+      </ol>
+    `;
+    const blocks = htmlToBlocks(html);
+    expect(blocks).toEqual([
+      expect.objectContaining({ type: "numbered_list_item", text: "첫 단계" }),
+      expect.objectContaining({ type: "numbered_list_item", text: "둘째 단계" }),
+      expect.objectContaining({ type: "bulleted_list_item", text: "세부 사항 A", indent: 1 }),
+      expect.objectContaining({ type: "bulleted_list_item", text: "세부 사항 B", indent: 1 }),
+    ]);
+  });
+
+  it("nests toggles-within-toggles at increasing indent levels", () => {
+    const html = `
+      <ul>
+        <li>바깥 토글
+          <ul>
+            <li>안쪽 토글
+              <ul><li>가장 안쪽 항목</li></ul>
+            </li>
+          </ul>
+        </li>
+      </ul>
+    `;
+    const blocks = htmlToBlocks(html);
+    expect(blocks).toEqual([
+      expect.objectContaining({ type: "toggle", text: "바깥 토글" }),
+      expect.objectContaining({ type: "toggle", text: "안쪽 토글", indent: 1 }),
+      expect.objectContaining({ type: "bulleted_list_item", text: "가장 안쪽 항목", indent: 2 }),
     ]);
   });
 

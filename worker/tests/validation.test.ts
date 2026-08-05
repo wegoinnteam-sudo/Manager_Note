@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { extensionOf, isAllowedExtension, createPageSchema, updatePageMetaSchema, attachmentInitSchema, pageContentSchema } from "../lib/validation";
+import { extensionOf, isAllowedExtension, createPageSchema, updatePageMetaSchema, attachmentInitSchema, pageContentSchema, pageBlockSchema } from "../lib/validation";
 
 describe("extensionOf / isAllowedExtension", () => {
   it("extracts the lowercase extension", () => {
@@ -53,5 +53,11 @@ describe("zod schemas", () => {
         ],
       }),
     ).not.toThrow();
+  });
+
+  it("round-trips a block's indent level instead of silently stripping it", () => {
+    const parsed = pageBlockSchema.parse({ id: "b-1", type: "bulleted_list_item", text: "하위 항목", indent: 2 });
+    expect(parsed).toMatchObject({ indent: 2 });
+    expect(() => pageBlockSchema.parse({ id: "b-2", type: "toggle", text: "제목", body: "", expanded: false, indent: -1 })).toThrow();
   });
 });

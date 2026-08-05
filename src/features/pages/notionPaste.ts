@@ -61,6 +61,16 @@ function dividerBlock(): PageBlock {
 function tableBlock(rows: string[][]): PageBlock {
   return { id: newId(), type: "table", rows };
 }
+function toggleBlock(text: string): PageBlock {
+  return { id: newId(), type: "toggle", text, body: "", expanded: true };
+}
+
+// This editor's list blocks are flat (no parent/child link) but every block
+// does carry an optional `indent` used elsewhere for Tab/Shift+Tab — reuse
+// that same field to preserve Notion's nesting depth on paste.
+function withIndent(block: PageBlock, indent: number): PageBlock {
+  return indent > 0 ? { ...block, indent } : block;
+}
 
 // Notion nests a list item's child blocks (sub-lists, but also tables,
 // quotes, code blocks, headings...) directly inside its <li>. Any of these
@@ -68,7 +78,7 @@ function tableBlock(rows: string[][]): PageBlock {
 // item's own inline text by the generic text accumulation below.
 const NESTED_BLOCK_TAGS = new Set(["UL", "OL", "TABLE", "BLOCKQUOTE", "PRE", "HR", "H1", "H2", "H3", "H4", "H5", "H6"]);
 
-function listItemsToBlocks(listEl: HTMLElement): PageBlock[] {
+function listItemsToBlocks(listEl: HTMLElement, indent = 0): PageBlock[] {
   const ordered = listEl.tagName === "OL";
   const blocks: PageBlock[] = [];
   for (const li of Array.from(listEl.children)) {
@@ -86,52 +96,60 @@ function listItemsToBlocks(listEl: HTMLElement): PageBlock[] {
       text += inlineText(child);
     }
     text = text.trim();
-    if (checkbox) blocks.push({ id: newId(), type: "checklist_item", text, checked: checkbox.checked });
-    else if (ordered) blocks.push({ id: newId(), type: "numbered_list_item", text });
-    else blocks.push({ id: newId(), type: "bulleted_list_item", text });
-    // Nested lists lose their indent level here (this editor's list blocks
-    // are flat) but their items still come through as sibling blocks.
+    // Notion's own toggle lists export identically to an ordinary nested
+    // bullet (a <li> with a nested block inside it) — there is no HTML
+    // marker distinguishing the two — so any plain bullet that has nested
+    // content becomes a toggle here, foldable the same way a real Notion
+    // toggle is. Numbered/checklist items keep their own type regardless,
+    // since folding would erase their ordering/checked-state meaning.
+    if (checkbox) blocks.push(withIndent({ id: newId(), type: "checklist_item", text, checked: checkbox.checked }, indent));
+    else if (ordered) blocks.push(withIndent({ id: newId(), type: "numbered_list_item", text }, indent));
+    else if (nestedBlocks.length > 0) blocks.push(withIndent(toggleBlock(text), indent));
+    else blocks.push(withIndent({ id: newId(), type: "bulleted_list_item", text }, indent));
+    // Nested content renders as ordinary sibling blocks one indent level
+    // deeper — a collapsed toggle above hides them by indent, not by
+    // containment (see Editor.tsx's hiddenBlockIds computation).
     for (const nested of nestedBlocks) {
-      if (nested.tagName === "UL" || nested.tagName === "OL") blocks.push(...listItemsToBlocks(nested));
-      else blocks.push(...elementToBlocks(nested));
+      if (nested.tagName === "UL" || nested.tagName === "OL") blocks.push(...listItemsToBlocks(nested, indent + 1));
+      else blocks.push(...elementToBlocks(nested, indent + 1));
     }
   }
   return blocks;
 }
 
-function elementToBlocks(el: HTMLElement): PageBlock[] {
+function elementToBlocks(el: HTMLElement, indent = 0): PageBlock[] {
   switch (el.tagName) {
     case "H1":
-      return [headingBlock(1, inlineText(el).trim())];
+      return [withIndent(headingBlock(1, inlineText(el).trim()), indent)];
     case "H2":
-      return [headingBlock(2, inlineText(el).trim())];
+      return [withIndent(headingBlock(2, inlineText(el).trim()), indent)];
     case "H3":
     case "H4":
     case "H5":
     case "H6":
-      return [headingBlock(3, inlineText(el).trim())];
+      return [withIndent(headingBlock(3, inlineText(el).trim()), indent)];
     case "P": {
       const text = inlineText(el).trim();
-      return text ? [paragraphBlock(text)] : [];
+      return text ? [withIndent(paragraphBlock(text), indent)] : [];
     }
     case "UL":
     case "OL":
-      return listItemsToBlocks(el);
+      return listItemsToBlocks(el, indent);
     case "BLOCKQUOTE": {
       const text = inlineText(el).trim();
-      return text ? [quoteBlock(text)] : [];
+      return text ? [withIndent(quoteBlock(text), indent)] : [];
     }
     case "HR":
-      return [dividerBlock()];
+      return [withIndent(dividerBlock(), indent)];
     case "PRE": {
       const text = (el.textContent ?? "").replace(/\n$/, "");
-      return text.trim() ? [codeBlock(text)] : [];
+      return text.trim() ? [withIndent(codeBlock(text), indent)] : [];
     }
     case "TABLE": {
       const rows = Array.from(el.querySelectorAll("tr")).map((tr) =>
         Array.from(tr.querySelectorAll("th,td")).map((cell) => inlineText(cell).trim()),
       );
-      return rows.length ? [tableBlock(rows)] : [];
+      return rows.length ? [withIndent(tableBlock(rows), indent)] : [];
     }
     // Notion (and most rich-text sources) wrap actual content in structural
     // containers — recurse into these rather than treating the wrapper
@@ -140,10 +158,10 @@ function elementToBlocks(el: HTMLElement): PageBlock[] {
     case "SECTION":
     case "ARTICLE":
     case "FIGURE":
-      return Array.from(el.children).flatMap((child) => elementToBlocks(child as HTMLElement));
+      return Array.from(el.children).flatMap((child) => elementToBlocks(child as HTMLElement, indent));
     default: {
       const text = inlineText(el).trim();
-      return text ? [paragraphBlock(text)] : [];
+      return text ? [withIndent(paragraphBlock(text), indent)] : [];
     }
   }
 }
