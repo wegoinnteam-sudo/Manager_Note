@@ -9,6 +9,7 @@ import { FORM_LIST, type FormKey } from "./forms";
 import type { DatabaseViewType } from "./DatabaseView";
 import { api, uploadAttachment } from "@/lib/api";
 import { compressImageForUpload } from "@/lib/imageCompression";
+import { htmlToBlocks } from "./notionPaste";
 import type { PresenceUser } from "@/hooks/usePresence";
 
 const MAX_UPLOAD_MB = Number((import.meta as any).env?.VITE_MAX_UPLOAD_MB ?? 50);
@@ -680,9 +681,35 @@ export const Editor = forwardRef<EditorHandle, {
     updateBlock(targetId, { attachmentId: attachment.id, url: undefined } as Partial<PageBlock>);
   };
 
+  // Rich paste from Notion (or any other HTML source): re-parse the
+  // clipboard's HTML into this editor's own block types so headings, lists,
+  // quotes, tables and bold/italic/etc. survive as structure, not just flat
+  // text. A single plain paragraph is left to the browser's native paste so
+  // caret-position splicing still works normally for everyday text pasting.
+  const handleHtmlPaste = (block: PageBlock, e: React.ClipboardEvent<HTMLTextAreaElement>): boolean => {
+    const html = e.clipboardData?.getData("text/html");
+    if (!html) return false;
+    const pastedBlocks = htmlToBlocks(html);
+    const isSinglePlainParagraph = pastedBlocks.length === 1 && pastedBlocks[0].type === "paragraph";
+    if (pastedBlocks.length === 0 || isSinglePlainParagraph) return false;
+
+    e.preventDefault();
+    const blocks = [...contentRef.current.blocks];
+    const idx = blocks.findIndex((b) => b.id === block.id);
+    if (idx === -1) return true;
+    const replaceCurrent = TYPABLE_BLOCK_TYPES.has(block.type) && "text" in block && block.text === "";
+    if (replaceCurrent) blocks.splice(idx, 1, ...pastedBlocks);
+    else blocks.splice(idx + 1, 0, ...pastedBlocks);
+    setBlocks(blocks);
+    return true;
+  };
+
   const handlePasteImage = async (block: PageBlock, e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const file = Array.from(e.clipboardData?.files ?? []).find((f) => f.type.startsWith("image/"));
-    if (!file) return;
+    if (!file) {
+      handleHtmlPaste(block, e);
+      return;
+    }
     e.preventDefault();
 
     const pendingId = crypto.randomUUID();
@@ -1378,6 +1405,21 @@ export const Editor = forwardRef<EditorHandle, {
     }
   };
 
+  // Numbered lists restart at 1 for each contiguous run of numbered_list_item
+  // blocks, instead of counting every block's position on the page.
+  const listNumbers = new Map<string, number>();
+  {
+    let run = 0;
+    for (const b of content.blocks) {
+      if (b.type === "numbered_list_item") {
+        run += 1;
+        listNumbers.set(b.id, run);
+      } else {
+        run = 0;
+      }
+    }
+  }
+
   return (
     <div
       className="editor"
@@ -1490,6 +1532,7 @@ export const Editor = forwardRef<EditorHandle, {
               <Block
                 block={block}
                 index={i}
+                listNumber={listNumbers.get(block.id) ?? 1}
                 active={activeId === block.id}
                 attachmentsById={attachmentsById}
                 headings={headings}
