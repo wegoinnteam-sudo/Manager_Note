@@ -408,7 +408,7 @@ export const Editor = forwardRef<EditorHandle, {
 
         const paragraph = emptyBlockOfType("paragraph");
         pendingFocusIdRef.current = paragraph.id;
-        setBlocks([paragraph]);
+        setBlocks([...contentRef.current.blocks, paragraph]);
         setActiveId(paragraph.id);
         return;
       }
