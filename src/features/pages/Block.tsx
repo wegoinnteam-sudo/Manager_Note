@@ -398,7 +398,7 @@ export function Block({
                   registerRef(el);
                   fitTextareaToContent(el);
                 }}
-                className="block-input"
+                className="block-input block-input--toggle-title"
                 rows={1}
                 value={block.text}
                 placeholder="토글 제목"
@@ -409,7 +409,7 @@ export function Block({
                 autoFocus={active}
               />
             ) : (
-              <div className="block-input" onClick={editable ? onFocus : undefined} style={{ minHeight: 24, cursor: editable ? "text" : "default", fontWeight: 600 }}>
+              <div className="block-input block-input--toggle-title" onClick={editable ? onFocus : undefined} style={{ minHeight: 24, cursor: editable ? "text" : "default", fontWeight: 600 }}>
                 {block.text ? renderInline(block.text) : <span style={{ opacity: 0.35 }}>{editable ? "토글 제목" : ""}</span>}
               </div>
             )}

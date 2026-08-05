@@ -1028,11 +1028,15 @@ code {
   border: none;
   background: none;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 18px;
   color: var(--color-text-muted);
-  padding-top: 8px;
-  width: 16px;
+  padding-top: 6px;
+  width: 22px;
   flex-shrink: 0;
+}
+
+.block-input--toggle-title {
+  font-size: 17px;
 }
 
 .toggle-block__body-wrap {
