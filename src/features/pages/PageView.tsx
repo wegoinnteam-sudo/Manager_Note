@@ -119,9 +119,22 @@ export function PageView({
     }
   }, [page, autoFocusTitle, onConsumedAutoFocus]);
 
+  // Guards against overlapping in-flight requests: if a save is already in
+  // the air when the next one is triggered, the latest patch/content is
+  // queued and re-sent right after the current request settles instead of
+  // firing a second concurrent request (which could race and spuriously
+  // conflict on `expectedVersion`).
+  const savingMetaRef = useRef(false);
+  const pendingMetaRef = useRef<Omit<Parameters<typeof api.updatePageMeta>[1], "expectedVersion"> | null>(null);
+
   const saveMeta = useCallback(
     async (patch: Omit<Parameters<typeof api.updatePageMeta>[1], "expectedVersion">) => {
       if (!page) return;
+      if (savingMetaRef.current) {
+        pendingMetaRef.current = { ...pendingMetaRef.current, ...patch };
+        return;
+      }
+      savingMetaRef.current = true;
       setSaveState("saving");
       try {
         const updated = await api.updatePageMeta(page.id, { expectedVersion: page.version, ...patch });
@@ -142,16 +155,31 @@ export function PageView({
         } else {
           setSaveState("error");
         }
+      } finally {
+        savingMetaRef.current = false;
+        if (pendingMetaRef.current) {
+          const next = pendingMetaRef.current;
+          pendingMetaRef.current = null;
+          void saveMeta(next);
+        }
       }
     },
     [page, onPagesChanged],
   );
 
-  const debouncedSaveTitle = useDebouncedCallback((title: string) => saveMeta({ title }), 800);
+  const debouncedSaveTitle = useDebouncedCallback((title: string) => saveMeta({ title }), 400);
+
+  const savingContentRef = useRef(false);
+  const pendingContentRef = useRef<PageDetailDTO["contentJson"] | null>(null);
 
   const saveContent = useCallback(
     async (content: PageDetailDTO["contentJson"]) => {
       if (!page) return;
+      if (savingContentRef.current) {
+        pendingContentRef.current = content;
+        return;
+      }
+      savingContentRef.current = true;
       setSaveState("saving");
       try {
         const updated = await api.updatePageContent(page.id, page.contentVersion, content);
@@ -170,11 +198,18 @@ export function PageView({
         } else {
           setSaveState("error");
         }
+      } finally {
+        savingContentRef.current = false;
+        if (pendingContentRef.current !== null) {
+          const next = pendingContentRef.current;
+          pendingContentRef.current = null;
+          void saveContent(next);
+        }
       }
     },
     [page],
   );
-  const debouncedSaveContent = useDebouncedCallback(saveContent, 1000);
+  const debouncedSaveContent = useDebouncedCallback(saveContent, 500);
 
   const saveNow = useCallback(() => {
     if (!page) return;
@@ -193,6 +228,32 @@ export function PageView({
     window.addEventListener("keydown", saveImmediately);
     return () => window.removeEventListener("keydown", saveImmediately);
   }, [canEdit, page, saveNow]);
+
+  // Flush any still-debouncing title/content save the moment this page is
+  // left (switching pages remounts PageView via its `key` prop) so a pending
+  // edit isn't silently discarded when only the debounce timer, not the
+  // save itself, was cancelled.
+  useEffect(() => {
+    if (!autoSave) return;
+    return () => {
+      debouncedSaveTitle.flush();
+      debouncedSaveContent.flush();
+    };
+  }, [autoSave, debouncedSaveTitle, debouncedSaveContent]);
+
+  // Warn on tab close/refresh while a save is still pending or in flight —
+  // there's no reliable way to force the request through on real unload, so
+  // the best we can do is stop the user from leaving accidentally.
+  useEffect(() => {
+    if (!autoSave) return;
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!debouncedSaveTitle.isPending() && !debouncedSaveContent.isPending() && saveState !== "saving") return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [autoSave, debouncedSaveTitle, debouncedSaveContent, saveState]);
 
   const clampReferencePosition = useCallback((position: ReferencePosition): ReferencePosition => {
     const panel = referencePanelRef.current;

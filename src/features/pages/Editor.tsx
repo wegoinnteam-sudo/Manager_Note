@@ -449,6 +449,16 @@ export const Editor = forwardRef<EditorHandle, {
     return () => window.removeEventListener("keydown", handleUndoRedo, true);
   }, [editable, redo, undo]);
 
+  useEffect(() => {
+    if (pendingUploads.length === 0) return;
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [pendingUploads.length]);
+
   const droppedFilesHandlerRef = useRef<(files: FileList) => void>(() => {});
 
   const handleDroppedFiles = async (files: FileList) => {

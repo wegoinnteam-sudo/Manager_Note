@@ -45,6 +45,18 @@ export function AttachmentPicker({
     }
   }, [items, filterImagesOnly, onPick]);
 
+  const isUploading = items.some((it) => it.status === "uploading");
+
+  useEffect(() => {
+    if (!isUploading) return;
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [isUploading]);
+
   const rejected = items.some((it) => it.status === "success" && it.attachment && filterImagesOnly && !it.attachment.isImage);
 
   const visible = filterImagesOnly ? attachments.filter((a) => a.isImage) : attachments;
