@@ -616,7 +616,7 @@ export function Block({
   }
 
   if (TEXTAREA_TYPES.has(block.type)) {
-    const prefix = block.type === "bulleted_list_item" ? "• " : block.type === "numbered_list_item" ? `${listNumber}. ` : "";
+    const prefix = block.type === "bulleted_list_item" ? "● " : block.type === "numbered_list_item" ? `${listNumber}. ` : "";
     const cls =
       block.type === "heading1" ? "block-input block-input--h1" : block.type === "heading2" ? "block-input block-input--h2" : block.type === "heading3" ? "block-input block-input--h3" : "block-input";
 

@@ -236,18 +236,12 @@ function detectMarkdownAutoFormat(text: string): { type: PageBlock["type"]; rest
   return null;
 }
 
-// "--" followed by any other character becomes an em dash, and "-->" becomes
-// an arrow — both fire as soon as the closing character is typed, so typing
-// "-", "-", ">" in sequence still lands on the arrow rather than "—>".
+// "-->" becomes an arrow, firing as soon as the closing ">" is typed.
+// Plain "--" is left as literal text.
 function applyInlineDashShortcuts(text: string, caret: number): { text: string; caret: number } | null {
   const head = text.slice(0, caret);
   if (head.endsWith("-->")) {
     const next = head.slice(0, -3) + "→";
-    return { text: next + text.slice(caret), caret: next.length };
-  }
-  const m = head.match(/--([^->])$/);
-  if (m) {
-    const next = head.slice(0, -3) + "—" + m[1];
     return { text: next + text.slice(caret), caret: next.length };
   }
   return null;
