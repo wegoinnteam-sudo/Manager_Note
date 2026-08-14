@@ -18,6 +18,7 @@ import { AdminSettings } from "@/features/admin/AdminSettings";
 import { SearchResults } from "@/features/search/SearchResults";
 import { GlobalDropzone } from "@/features/files/GlobalDropzone";
 import { LoginScreen } from "@/features/identity/LoginScreen";
+import { DriveSyncBanner } from "@/features/drive/DriveSyncBanner";
 import type { GuestIdentity } from "@/hooks/useGuestIdentity";
 
 function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }) {
@@ -231,8 +232,10 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
   }
 
   return (
-    <GlobalDropzone active={(!!activePageId || !!peekPageId) && canEdit} onFiles={(files) => dropHandlerRef.current(files)}>
-      <div className="app-shell">
+    <div className="app-root">
+      <DriveSyncBanner />
+      <GlobalDropzone active={(!!activePageId || !!peekPageId) && canEdit} onFiles={(files) => dropHandlerRef.current(files)}>
+        <div className="app-shell">
         <Sidebar
           className={sidebarOpen ? "sidebar--open" : ""}
           teamName="팀 인수인계 노트"
@@ -312,8 +315,9 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
             </div>
           );
         })()}
-      </div>
-    </GlobalDropzone>
+        </div>
+      </GlobalDropzone>
+    </div>
   );
 }
 

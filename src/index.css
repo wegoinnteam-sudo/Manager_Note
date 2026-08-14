@@ -83,10 +83,38 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
 }
 
+.app-root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
 .app-shell {
   display: flex;
-  height: 100vh;
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
+}
+
+.drive-sync-banner {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  border-bottom: 1px solid var(--color-danger);
+  font-size: 13px;
+  text-align: center;
+}
+
+.drive-sync-banner a {
+  color: var(--color-danger);
+  font-weight: 600;
+  text-decoration: underline;
+  white-space: nowrap;
 }
 
 .sidebar {
