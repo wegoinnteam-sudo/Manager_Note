@@ -56,9 +56,10 @@ export function PageView({
   onCursorReport: (blockId: string | null, offset: number) => void;
   guestName?: string;
   canViewSensitive: boolean;
-  // When false, edits are held locally and only sent to the server when the
-  // user presses the Save button — used for the calendar date peek panel,
-  // where clicking elsewhere should not silently persist changes.
+  // When false, shows an explicit Save button (used for the calendar date
+  // peek panel) in addition to the autosave-on-change/on-leave behavior that
+  // now always runs — edits used to be held purely locally in this mode and
+  // silently dropped if the panel was closed before the button was pressed.
   autoSave?: boolean;
 }) {
   const [page, setPage] = useState<PageDetailDTO | null>(null);
@@ -230,22 +231,22 @@ export function PageView({
   }, [canEdit, page, saveNow]);
 
   // Flush any still-debouncing title/content save the moment this page is
-  // left (switching pages remounts PageView via its `key` prop) so a pending
-  // edit isn't silently discarded when only the debounce timer, not the
-  // save itself, was cancelled.
+  // left (switching pages remounts PageView via its `key` prop, and closing
+  // the peek panel unmounts it too) so a pending edit isn't silently
+  // discarded when only the debounce timer, not the save itself, was
+  // cancelled. Applies in every mode — the peek panel used to skip this and
+  // rely solely on its manual Save button, which dropped edits on close.
   useEffect(() => {
-    if (!autoSave) return;
     return () => {
       debouncedSaveTitle.flush();
       debouncedSaveContent.flush();
     };
-  }, [autoSave, debouncedSaveTitle, debouncedSaveContent]);
+  }, [debouncedSaveTitle, debouncedSaveContent]);
 
   // Warn on tab close/refresh while a save is still pending or in flight —
   // there's no reliable way to force the request through on real unload, so
   // the best we can do is stop the user from leaving accidentally.
   useEffect(() => {
-    if (!autoSave) return;
     const warnBeforeUnload = (event: BeforeUnloadEvent) => {
       if (!debouncedSaveTitle.isPending() && !debouncedSaveContent.isPending() && saveState !== "saving") return;
       event.preventDefault();
@@ -253,7 +254,7 @@ export function PageView({
     };
     window.addEventListener("beforeunload", warnBeforeUnload);
     return () => window.removeEventListener("beforeunload", warnBeforeUnload);
-  }, [autoSave, debouncedSaveTitle, debouncedSaveContent, saveState]);
+  }, [debouncedSaveTitle, debouncedSaveContent, saveState]);
 
   const clampReferencePosition = useCallback((position: ReferencePosition): ReferencePosition => {
     const panel = referencePanelRef.current;
@@ -348,7 +349,7 @@ export function PageView({
             <button type="button" onClick={saveNow} disabled={saveState === "saving"}>
               {saveState === "saving" ? "저장 중…" : "저장"}
             </button>
-            <span className="page-view__manual-save-hint">저장 버튼을 눌러야 저장됩니다</span>
+            <span className="page-view__manual-save-hint">자동 저장됩니다 — 즉시 저장하려면 누르세요</span>
           </div>
         )}
 
@@ -368,7 +369,7 @@ export function PageView({
           disabled={!canEdit}
           onChange={(e) => {
             setPage({ ...page, title: e.target.value });
-            if (autoSave) debouncedSaveTitle(e.target.value);
+            debouncedSaveTitle(e.target.value);
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
@@ -402,7 +403,7 @@ export function PageView({
           editable={canEdit}
           onChange={(content) => {
             setPage({ ...page, contentJson: content });
-            if (autoSave) debouncedSaveContent(content);
+            debouncedSaveContent(content);
           }}
           onOpenPage={onOpenPage}
           onPeekPage={onPeekPage}
