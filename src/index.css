@@ -19,6 +19,12 @@
   --radius: 6px;
   --sidebar-width: 280px;
   color-scheme: light;
+  /* Per-device display preferences (see useDisplaySettings.ts / AdminSettings
+     "글꼴 설정"). JS overrides these on :root via style.setProperty on load;
+     these are just the defaults for the first paint before that runs. */
+  --user-font-scale: 1;
+  --user-font-weight: 400;
+  --user-font-family: var(--font-sans);
 }
 
 /* Theme choices are explicit and stored per browser. */
@@ -87,6 +93,27 @@ code {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  /* "글씨 크기" preference. Most rules below set font-size in fixed px, so
+     scaling body font-size alone wouldn't cascade — zoom scales the whole
+     rendered app (text, icons, spacing) together, proportionally. */
+  zoom: var(--user-font-scale, 1);
+}
+
+/* "글씨 굵기" / "글씨체" preferences — forced with !important since they
+   need to win over the ~250 explicit font-weight/font-family rules below
+   without rewriting each one. Code/monospace content re-asserts its own
+   family+weight right after so code blocks don't inherit a serif/gothic
+   pick or an artificially bolded weight. */
+.app-root * {
+  font-weight: var(--user-font-weight, 400) !important;
+  font-family: var(--user-font-family, var(--font-sans)) !important;
+}
+
+.app-root code,
+.app-root pre,
+.app-root kbd {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace !important;
+  font-weight: 400 !important;
 }
 
 .app-shell {
@@ -3165,6 +3192,54 @@ button.breadcrumb-block__item:hover {
   color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.03em;
+}
+
+.display-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.display-settings__row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.display-settings__label {
+  width: 72px;
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.display-settings__options {
+  display: flex;
+  gap: 2px;
+}
+
+.display-settings__btn {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  border-radius: var(--radius);
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.display-settings__btn:not(:first-child) {
+  margin-left: -1px;
+}
+
+.display-settings__btn--active {
+  background: var(--color-accent-bg);
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+  font-weight: 600;
+  position: relative;
+  z-index: 1;
 }
 
 .drop-overlay {

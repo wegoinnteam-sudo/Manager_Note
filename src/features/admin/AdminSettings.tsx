@@ -1,8 +1,98 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Role, UserDTO } from "@shared/types";
 import { api, ApiClientError } from "@/lib/api";
+import type { FontFamily, FontSize, FontWeight } from "@/hooks/useDisplaySettings";
 
-export function AdminSettings() {
+interface DisplaySettings {
+  fontSize: FontSize;
+  fontWeight: FontWeight;
+  fontFamily: FontFamily;
+  setFontSize: (size: FontSize) => void;
+  setFontWeight: (weight: FontWeight) => void;
+  setFontFamily: (family: FontFamily) => void;
+}
+
+const FONT_SIZE_OPTIONS: { value: FontSize; label: string }[] = [
+  { value: "sm", label: "작게" },
+  { value: "md", label: "보통" },
+  { value: "lg", label: "크게" },
+  { value: "xl", label: "아주 크게" },
+];
+
+const FONT_WEIGHT_OPTIONS: { value: FontWeight; label: string }[] = [
+  { value: "normal", label: "보통" },
+  { value: "bold", label: "굵게" },
+];
+
+const FONT_FAMILY_OPTIONS: { value: FontFamily; label: string }[] = [
+  { value: "sans", label: "기본" },
+  { value: "gothic", label: "고딕" },
+  { value: "serif", label: "명조" },
+  { value: "mono", label: "고정폭" },
+];
+
+function DisplaySettingsSection({ settings }: { settings: DisplaySettings }) {
+  return (
+    <div className="section">
+      <div className="section__title">글꼴 설정 (이 기기에만 저장됨)</div>
+      <div className="display-settings">
+        <div className="display-settings__row">
+          <span className="display-settings__label">글씨 크기</span>
+          <div className="display-settings__options" role="radiogroup" aria-label="글씨 크기">
+            {FONT_SIZE_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                role="radio"
+                aria-checked={settings.fontSize === option.value}
+                className={settings.fontSize === option.value ? "display-settings__btn display-settings__btn--active" : "display-settings__btn"}
+                onClick={() => settings.setFontSize(option.value)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="display-settings__row">
+          <span className="display-settings__label">글씨 굵기</span>
+          <div className="display-settings__options" role="radiogroup" aria-label="글씨 굵기">
+            {FONT_WEIGHT_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                role="radio"
+                aria-checked={settings.fontWeight === option.value}
+                className={settings.fontWeight === option.value ? "display-settings__btn display-settings__btn--active" : "display-settings__btn"}
+                onClick={() => settings.setFontWeight(option.value)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="display-settings__row">
+          <span className="display-settings__label">글씨체</span>
+          <div className="display-settings__options" role="radiogroup" aria-label="글씨체">
+            {FONT_FAMILY_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                role="radio"
+                aria-checked={settings.fontFamily === option.value}
+                className={settings.fontFamily === option.value ? "display-settings__btn display-settings__btn--active" : "display-settings__btn"}
+                onClick={() => settings.setFontFamily(option.value)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function AdminSettings({ displaySettings }: { displaySettings: DisplaySettings }) {
   const [users, setUsers] = useState<UserDTO[]>([]);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<Role>("viewer");
@@ -52,6 +142,8 @@ export function AdminSettings() {
   return (
     <div className="page-view">
       <h2>설정</h2>
+
+      <DisplaySettingsSection settings={displaySettings} />
 
       <div className="section">
         <div className="section__title">Google Drive 동기화</div>

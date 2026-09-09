@@ -8,6 +8,7 @@ import { useRoute } from "@/hooks/useRoute";
 import { useGuestIdentity } from "@/hooks/useGuestIdentity";
 import { usePresence } from "@/hooks/usePresence";
 import { useTheme } from "@/hooks/useTheme";
+import { useDisplaySettings } from "@/hooks/useDisplaySettings";
 import { usePageCategories } from "@/hooks/usePageCategories";
 import { api } from "@/lib/api";
 import { Sidebar } from "@/features/sidebar/Sidebar";
@@ -28,6 +29,7 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
   const { path, navigate } = useRoute();
   const { users: presenceUsers, report: reportCursor } = usePresence(identity);
   const { preference: theme, setTheme } = useTheme();
+  const displaySettings = useDisplaySettings();
   const { categories, refresh: refreshCategories } = usePageCategories();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [justCreatedPageId, setJustCreatedPageId] = useState<string | null>(null);
@@ -194,7 +196,7 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
   } else if (path === "/trash") {
     content = <Trash canRestore={canEdit} onOpenPage={openPage} onRestored={refreshPages} />;
   } else if (path === "/admin") {
-    content = <AdminSettings />;
+    content = <AdminSettings displaySettings={displaySettings} />;
   } else if (path.startsWith("/search/")) {
     content = <SearchResults query={decodeURIComponent(path.slice("/search/".length))} onOpenPage={openPage} />;
   } else if (activePageId) {
