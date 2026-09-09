@@ -14,7 +14,9 @@ export interface UploadItem {
   attachment?: AttachmentDTO;
 }
 
-const MAX_UPLOAD_MB = Number((import.meta as any).env?.VITE_MAX_UPLOAD_MB ?? 50);
+// Must match the server's MAX_UPLOAD_MB (wrangler.toml) — otherwise the
+// client can reject uploads the server would have happily accepted.
+const MAX_UPLOAD_MB = Number((import.meta as any).env?.VITE_MAX_UPLOAD_MB ?? 100);
 
 function extensionOf(name: string): string {
   const idx = name.lastIndexOf(".");
@@ -45,7 +47,7 @@ export function useUploadQueue(pageId: string, onUploaded: () => void) {
       const maxBytes = MAX_UPLOAD_MB * 1024 * 1024;
       setItems((prev) => [...prev, { id, fileName: file.name, sizeBytes: file.size, progress: 0, status: "uploading" }]);
 
-      const upload = file.size > maxBytes ? await compressImageForUpload(file, maxBytes) : file;
+      const upload = await compressImageForUpload(file, maxBytes);
       if (upload.size > maxBytes) {
         updateItem(id, { status: "error", errorMessage: `파일 크기는 ${MAX_UPLOAD_MB}MB를 초과할 수 없습니다.` });
         return;

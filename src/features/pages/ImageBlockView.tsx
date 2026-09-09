@@ -84,7 +84,7 @@ export function ImageBlockView({
             marginRight: block.align === "left" || !block.align ? "auto" : block.align === "center" ? "auto" : 0,
           }}
         >
-          <img src={src} alt={att?.fileName ?? "이미지"} draggable={false} />
+          <img src={src} alt={att?.fileName ?? "이미지"} draggable={false} loading="lazy" decoding="async" />
           {editable && (
             <>
               <span

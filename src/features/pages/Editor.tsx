@@ -12,7 +12,9 @@ import { compressImageForUpload } from "@/lib/imageCompression";
 import { htmlToBlocks } from "./notionPaste";
 import type { PresenceUser } from "@/hooks/usePresence";
 
-const MAX_UPLOAD_MB = Number((import.meta as any).env?.VITE_MAX_UPLOAD_MB ?? 50);
+// Must match the server's MAX_UPLOAD_MB (wrangler.toml) — otherwise the
+// client can reject uploads the server would have happily accepted.
+const MAX_UPLOAD_MB = Number((import.meta as any).env?.VITE_MAX_UPLOAD_MB ?? 100);
 const INTERNAL_BLOCK_DRAG_TYPE = "application/x-team-note-block";
 
 function extensionOf(name: string): string {
@@ -464,7 +466,7 @@ export const Editor = forwardRef<EditorHandle, {
         alert(`허용되지 않은 파일 형식입니다: .${ext || "?"} (${file.name})`);
         continue;
       }
-      const candidate = file.size > maxBytes ? await compressImageForUpload(file, maxBytes) : file;
+      const candidate = await compressImageForUpload(file, maxBytes);
       if (candidate.size > maxBytes) {
         alert(`파일 크기는 ${MAX_UPLOAD_MB}MB를 초과할 수 없습니다: ${file.name}`);
         continue;
@@ -722,7 +724,7 @@ export const Editor = forwardRef<EditorHandle, {
 
     try {
       const maxBytes = MAX_UPLOAD_MB * 1024 * 1024;
-      const upload = file.size > maxBytes ? await compressImageForUpload(file, maxBytes) : file;
+      const upload = await compressImageForUpload(file, maxBytes);
       if (upload.size > maxBytes) throw new Error(`파일 크기는 ${MAX_UPLOAD_MB}MB를 초과할 수 없습니다.`);
       const attachment = await uploadAttachment(pageId, upload, { idempotencyKey: pendingId });
       onAttachmentUploaded(attachment);

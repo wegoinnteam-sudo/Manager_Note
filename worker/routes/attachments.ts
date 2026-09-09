@@ -28,6 +28,14 @@ async function loadAuthorizedAttachment(c: Context<AppBindings>) {
   return attachment;
 }
 
+// Attachment bytes never change in place for a given id — uploads only ever
+// create a new attachment or soft-delete one, there's no "replace" endpoint
+// — so it's safe (and the main fix for "재열람이 느리다") to let the browser
+// cache preview/download/thumbnail responses indefinitely instead of
+// re-fetching the full file from Drive on every open. `private` keeps it
+// out of any shared/proxy cache since these routes are auth-gated per team.
+const IMMUTABLE_CACHE = "private, max-age=31536000, immutable";
+
 async function streamFromDrive(c: Context<AppBindings>, disposition: "inline" | "attachment") {
   const attachment = await loadAuthorizedAttachment(c);
   const driveRes = await getFileMediaStream(c.env, attachment.drive_file_id!);
@@ -36,7 +44,7 @@ async function streamFromDrive(c: Context<AppBindings>, disposition: "inline" | 
   headers.set("Content-Length", String(attachment.size_bytes));
   const safeName = attachment.file_name.replace(/["\r\n]/g, "");
   headers.set("Content-Disposition", `${disposition}; filename="${encodeURIComponent(safeName)}"`);
-  headers.set("Cache-Control", "private, max-age=0, no-cache");
+  headers.set("Cache-Control", IMMUTABLE_CACHE);
   return new Response(driveRes.body, { status: 200, headers });
 }
 
@@ -47,7 +55,7 @@ attachmentsRoute.get("/:id/thumbnail", async (c) => {
   const thumbnailRes = await getFileThumbnailStream(c.env, attachment.drive_file_id!);
   const headers = new Headers();
   headers.set("Content-Type", thumbnailRes.headers.get("Content-Type") || "image/jpeg");
-  headers.set("Cache-Control", "private, max-age=300");
+  headers.set("Cache-Control", IMMUTABLE_CACHE);
   return new Response(thumbnailRes.body, { status: 200, headers });
 });
 

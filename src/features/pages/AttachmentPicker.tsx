@@ -3,6 +3,22 @@ import type { AttachmentDTO } from "@shared/types";
 import { api } from "@/lib/api";
 import { useUploadQueue } from "@/features/files/useUploadQueue";
 
+// Drive's generated thumbnail is far smaller than the original image, but it
+// can briefly 404 right after upload before Drive finishes generating it —
+// fall back to the full preview so the picker never shows a broken icon.
+function PickerThumb({ attachment }: { attachment: AttachmentDTO }) {
+  const [failed, setFailed] = useState(false);
+  return (
+    <img
+      src={`/api/attachments/${attachment.id}/${failed ? "preview" : "thumbnail"}`}
+      alt=""
+      loading="lazy"
+      onError={() => setFailed(true)}
+      style={{ width: 32, height: 32, objectFit: "cover", borderRadius: 4, flexShrink: 0 }}
+    />
+  );
+}
+
 export function AttachmentPicker({
   pageId,
   filterImagesOnly,
@@ -143,7 +159,7 @@ export function AttachmentPicker({
                   style={{ display: "flex", alignItems: "center", gap: 8, padding: 8, border: "1px solid var(--color-border)", borderRadius: 6, marginBottom: 6, background: "var(--color-surface)", cursor: "pointer", textAlign: "left" }}
                 >
                   {a.isImage ? (
-                    <img src={`/api/attachments/${a.id}/preview`} alt="" style={{ width: 32, height: 32, objectFit: "cover", borderRadius: 4, flexShrink: 0 }} />
+                    <PickerThumb attachment={a} />
                   ) : (
                     <span>📎</span>
                   )}
