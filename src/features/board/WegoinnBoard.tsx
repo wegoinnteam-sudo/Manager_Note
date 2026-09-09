@@ -113,7 +113,7 @@ export function WegoinnBoard({
   const [categoryBusy, setCategoryBusy] = useState(false);
   const [draggedCategoryKey, setDraggedCategoryKey] = useState<string | null>(null);
   const [dragOverCategoryKey, setDragOverCategoryKey] = useState<string | null>(null);
-  const { items: activityItems, ack: ackActivity } = useActivityFeed();
+  const { items: activityItems, ack: ackActivityItem, ackAll: ackAllActivity } = useActivityFeed();
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -604,7 +604,8 @@ export function WegoinnBoard({
       pages={pages}
       members={members}
       categories={categories}
-      onAck={ackActivity}
+      onAck={ackActivityItem}
+      onAckAll={ackAllActivity}
       onOpenPage={onPeekPage}
     />
     </>
@@ -662,6 +663,7 @@ function ActivityFeedBar({
   members,
   categories,
   onAck,
+  onAckAll,
   onOpenPage,
 }: {
   items: ActivityFeedItemDTO[];
@@ -669,11 +671,19 @@ function ActivityFeedBar({
   members: TeamMemberDTO[];
   categories: PageCategoryDTO[];
   onAck: (id: string) => void;
+  onAckAll: () => void;
   onOpenPage: (id: string) => void;
 }) {
   if (items.length === 0) return null;
   return (
     <div className="wdb-activity-bar" role="region" aria-label="최근 수정 알림">
+      <div className="wdb-activity-bar__header">
+        <span className="wdb-activity-bar__title">최근 수정 {items.length}건</span>
+        <button type="button" className="wdb-activity-bar__ack-all" onClick={onAckAll}>
+          ✓ 전체 확인
+        </button>
+      </div>
+      <div className="wdb-activity-bar__rows">
       {items.map((item) => {
         const page = item.pageId ? pages.find((p) => p.id === item.pageId) : undefined;
         const categoryDef = categories.find((c) => c.key === page?.category);
@@ -706,6 +716,7 @@ function ActivityFeedBar({
           </div>
         );
       })}
+      </div>
     </div>
   );
 }

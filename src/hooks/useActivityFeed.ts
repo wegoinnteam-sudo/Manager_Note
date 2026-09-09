@@ -37,5 +37,18 @@ export function useActivityFeed() {
     }
   }, [refresh]);
 
-  return { items, ack };
+  const ackAll = useCallback(async () => {
+    const ids = items.map((item) => item.id);
+    if (ids.length === 0) return;
+    ids.forEach((id) => dismissedRef.current.add(id));
+    setItems([]);
+    try {
+      await api.ackAllActivity();
+    } catch {
+      ids.forEach((id) => dismissedRef.current.delete(id));
+      await refresh();
+    }
+  }, [items, refresh]);
+
+  return { items, ack, ackAll };
 }

@@ -3923,13 +3923,50 @@ button.breadcrumb-block__item:hover {
   right: 0;
   bottom: 0;
   z-index: 60;
-  max-height: 220px;
-  overflow-y: auto;
   display: flex;
-  flex-direction: column-reverse;
+  flex-direction: column;
+  max-height: 260px;
   background: var(--color-surface);
   border-top: 1px solid var(--color-border);
   box-shadow: 0 -4px 12px var(--color-shadow);
+}
+
+.wdb-activity-bar__header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.wdb-activity-bar__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.wdb-activity-bar__ack-all {
+  flex-shrink: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.wdb-activity-bar__ack-all:hover {
+  background: var(--color-success-bg);
+  color: #16a34a;
+  border-color: #16a34a;
+}
+
+.wdb-activity-bar__rows {
+  overflow-y: auto;
 }
 
 .wdb-activity-bar__row {

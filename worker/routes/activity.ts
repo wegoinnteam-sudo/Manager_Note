@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { AppBindings } from "../types";
 import { requireAuth } from "../middleware/rbac";
 import { Errors } from "../lib/errors";
-import { ackActivity, listActivityFeed } from "../db/activityLog";
+import { ackActivity, ackAllActivity, listActivityFeed } from "../db/activityLog";
 import { toActivityFeedItemDTO } from "../lib/dto";
 
 export const activityRoute = new Hono<AppBindings>();
@@ -14,6 +14,11 @@ activityRoute.use("*", requireAuth);
 activityRoute.get("/", async (c) => {
   const rows = await listActivityFeed(c.env.DB, c.var.teamId, c.var.user!.id);
   return c.json({ items: rows.map(toActivityFeedItemDTO) });
+});
+
+activityRoute.post("/ack-all", async (c) => {
+  await ackAllActivity(c.env.DB, c.var.teamId, c.var.user!.id);
+  return c.json({ ok: true });
 });
 
 activityRoute.post("/:id/ack", async (c) => {

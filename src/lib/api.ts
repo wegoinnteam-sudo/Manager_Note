@@ -139,6 +139,7 @@ export const api = {
 
   listActivityFeed: () => request<{ items: ActivityFeedItemDTO[] }>("/api/activity"),
   ackActivity: (id: string) => request<{ ok: true }>(`/api/activity/${id}/ack`, { method: "POST" }),
+  ackAllActivity: () => request<{ ok: true }>("/api/activity/ack-all", { method: "POST" }),
 
   listGuestColors: () => request<{ colors: { name: string; color: string }[] }>("/api/guest-colors"),
   setGuestColor: (name: string, color: string | null) =>

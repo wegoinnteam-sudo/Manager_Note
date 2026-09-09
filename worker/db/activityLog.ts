@@ -73,3 +73,21 @@ export async function ackActivity(db: Env["DB"], params: { activityId: string; t
     .run();
   return true;
 }
+
+/** "전체 확인": acks every feed entry currently unacked by this user, not just the ones the client has fetched (limit-capped) so nothing is left dangling. */
+export async function ackAllActivity(db: Env["DB"], teamId: string, userId: string): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO activity_acks (activity_id, user_id)
+       SELECT a.id, ?1
+       FROM activity_logs a
+       WHERE a.team_id = ?2
+         AND a.page_id IS NOT NULL
+         AND a.actor_id IS NOT NULL
+         AND a.actor_id != ?1
+         AND a.action IN (?3, ?4, ?5, ?6, ?7)
+       ON CONFLICT(activity_id, user_id) DO NOTHING`,
+    )
+    .bind(userId, teamId, ...FEED_ACTIONS)
+    .run();
+}
