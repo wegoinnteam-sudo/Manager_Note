@@ -67,6 +67,7 @@ npm run dev          # React 개발 서버 — http://localhost:3000 (내부적�
 | `GOOGLE_INITIAL_ADMIN_EMAILS` | **secret**\* | 최초 로그인 시 관리자로 지정될 이메일 |
 | `OAUTH_REDIRECT_BASE_URL` | 변수 | 예: `https://your-worker.example.workers.dev` (뒤에 `/api/auth/google/callback`이 붙음) |
 | `SESSION_SECRET` | **secret** | 세션 쿠키 서명용 무작위 문자열 |
+| `GEMINI_API_KEY` | **secret** | 전체 노트 질의 기능의 서버 전용 Gemini API 키 |
 | `MAX_UPLOAD_MB` | 변수 | 업로드 파일 크기 제한 (기본 100). Cloudflare Workers는 플랜에 따라 요청 본문 크기 한도가 있어(Free/Pro 대략 100MB) 이 값을 한도 이상으로 올려도 실제로는 실패합니다. GB 단위 대용량 파일이 꼭 필요하면 브라우저→Drive 직접 업로드 구조로 바꿔야 하며 현재는 지원하지 않습니다. |
 | `ENABLE_R2_BACKUP` | 변수 | R2 비공개 백업 사용 여부 (기본 true, R2 미연결 시 false로) |
 
@@ -80,6 +81,7 @@ npx wrangler secret put GOOGLE_OAUTH_CLIENT_SECRET
 npx wrangler secret put SESSION_SECRET
 npx wrangler secret put GOOGLE_ALLOWED_EMAILS
 npx wrangler secret put GOOGLE_INITIAL_ADMIN_EMAILS
+npx wrangler secret put GEMINI_API_KEY
 ```
 
 ## Google Cloud / Drive 설정
@@ -154,3 +156,4 @@ npm run lint
 - [`docs/known-issues.md`](docs/known-issues.md) — 이 Codespace에서 로컬 build/test가 막힐 때
 - [`docs/backup.md`](docs/backup.md) — Drive만으로는 완전한 백업이 아닌 이유와 권장 백업 계층
 - [`docs/ops.md`](docs/ops.md) — 무료 한도 모니터링, 비용을 낮게 유지하는 설계 포인트
+- [`docs/ai.md`](docs/ai.md) — 전체 자료 질의의 설정, 처리 흐름, 예산 정책

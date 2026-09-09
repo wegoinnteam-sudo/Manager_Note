@@ -1,3 +1,4 @@
+import { AiQuestions } from "@/features/ai/AiQuestions";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { UserDTO } from "@shared/types";
 import { useAuth } from "@/hooks/useAuth";
@@ -177,7 +178,9 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
   }, [peekPageId, closePeek]);
 
   let content: React.ReactNode;
-  if (path === "/db") {
+  if (path === "/ai") {
+    content = <AiQuestions />;
+  } else if (path === "/db") {
     content = (
       <WegoinnBoard
         pages={pages}
@@ -266,6 +269,7 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
         />
         <div className="main">
           <div className="topbar">
+            <button type="button" className="ai-nav" onClick={() => navigate("/ai")}>✦ 전체 노트에 질문하기</button>
             <button type="button" className="sidebar-toggle" onClick={() => setSidebarOpen((v) => !v)} aria-label="메뉴">
               ☰
             </button>

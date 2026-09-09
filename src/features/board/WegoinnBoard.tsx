@@ -10,6 +10,7 @@ import { api } from "@/lib/api";
 import { memberName } from "@/hooks/useTeamMembers";
 import { useActivityFeed } from "@/hooks/useActivityFeed";
 import { STATUS_LABELS } from "@/features/status/Status";
+import { WegoinnAiPanel } from "@/features/ai/WegoinnAiPanel";
 
 type ViewMode = "board" | "list";
 type CategoryFilter = PageCategory | "all" | "none";
@@ -115,6 +116,7 @@ export function WegoinnBoard({
   const [categoryBusy, setCategoryBusy] = useState(false);
   const [draggedCategoryKey, setDraggedCategoryKey] = useState<string | null>(null);
   const [dragOverCategoryKey, setDragOverCategoryKey] = useState<string | null>(null);
+  const [aiOpen, setAiOpen] = useState(false);
   const { items: activityItems, ack: ackActivityItem, ackAll: ackAllActivity } = useActivityFeed(guestName);
 
   useEffect(() => {
@@ -373,7 +375,18 @@ export function WegoinnBoard({
             </button>
           </>
         )}
+        <button
+          type="button"
+          className="wdb__ai-toggle"
+          aria-expanded={aiOpen}
+          aria-controls="wdb-ai-panel"
+          onClick={() => setAiOpen((current) => !current)}
+        >
+          ✦ DB에 질문 {aiOpen ? "접기" : "펼치기"}
+        </button>
       </div>
+
+      <WegoinnAiPanel open={aiOpen} />
 
       {addingCategory && (
         <div className="wdb-category-create" role="dialog" aria-label="DB 대분류 추가">

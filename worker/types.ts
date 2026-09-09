@@ -3,6 +3,7 @@
 // `wrangler secret put <NAME>` and never committed.
 
 export interface Env {
+  GEMINI_API_KEY?: string;
   // Bindings
   DB: D1Database;
   ASSETS: Fetcher;

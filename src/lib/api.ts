@@ -14,6 +14,7 @@ import type {
   PageCategoryDTO,
   ActivityFeedItemDTO,
 } from "@shared/types";
+import type { AiAnswer, AiStatus } from "@shared/ai";
 
 export class ApiClientError extends Error {
   status: number;
@@ -150,6 +151,11 @@ export const api = {
     request<{ colors: { name: string; color: string }[] }>("/api/guest-colors", { method: "PUT", body: JSON.stringify({ name, color }) }),
 
   search: (q: string) => request<{ pages: PageSummaryDTO[]; attachments: AttachmentDTO[] }>(`/api/search?q=${encodeURIComponent(q)}`),
+
+  aiStatus: (offset = 0) => request<AiStatus>(`/api/ai/status?offset=${offset}`),
+  aiAsk: (question: string) => request<AiAnswer>("/api/ai/ask", { method: "POST", body: JSON.stringify({ question }) }),
+  aiProcess: () => request<{ worked: boolean }>("/api/ai/process", { method: "POST" }),
+  aiRetry: (id: string) => request<{ ok: true }>(`/api/ai/sources/${encodeURIComponent(id)}/retry`, { method: "POST" }),
 
   driveSync: () => request<{ status: string; filesAdded: number; filesUpdated: number; filesSkipped: number; errorMessage: string | null }>(
     "/api/drive/sync",

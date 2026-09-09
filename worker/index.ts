@@ -1,3 +1,5 @@
+import { aiRoute } from "./routes/ai";
+import { indexTick } from "./ai/indexer";
 import { Hono } from "hono";
 import { ZodError } from "zod";
 import type { AppBindings, Env } from "./types";
@@ -30,6 +32,7 @@ app.use("/api/*", sessionMiddleware);
 app.use("/api/*", rateLimit(120));
 app.use("/api/*", csrfMiddleware);
 
+app.route("/api/ai", aiRoute);
 app.route("/api/auth", authRoute);
 app.route("/api/me", meRoute);
 app.route("/api/pages", pagesRoute);
@@ -65,6 +68,10 @@ export default {
 
   async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext) {
     const team = await ensureDefaultTeam(env.DB, env);
-    ctx.waitUntil(runDriveSync(env, team.id, "cron"));
+    ctx.waitUntil((async () => {
+      await runDriveSync(env, team.id, "cron");
+      try { for (let i = 0; i < 3; i++) if (!await indexTick(env)) break; }
+      catch { console.warn("AI background processing deferred"); }
+    })());
   },
 } satisfies ExportedHandler<Env>;
