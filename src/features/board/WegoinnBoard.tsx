@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type DragEvent, type ReactNode } from "react";
-import type { PageCategory, PageCategoryDTO, PageSummaryDTO, TeamMemberDTO, UserDTO } from "@shared/types";
+import type { ActivityFeedItemDTO, PageCategory, PageCategoryDTO, PageSummaryDTO, TeamMemberDTO, UserDTO } from "@shared/types";
 import {
   DEFAULT_TAG_COLOR,
   TAG_COLORS,
@@ -8,6 +8,8 @@ import {
 } from "@shared/types";
 import { api } from "@/lib/api";
 import { memberName } from "@/hooks/useTeamMembers";
+import { useActivityFeed } from "@/hooks/useActivityFeed";
+import { STATUS_LABELS } from "@/features/status/Status";
 
 type ViewMode = "board" | "list";
 type CategoryFilter = PageCategory | "all" | "none";
@@ -111,6 +113,7 @@ export function WegoinnBoard({
   const [categoryBusy, setCategoryBusy] = useState(false);
   const [draggedCategoryKey, setDraggedCategoryKey] = useState<string | null>(null);
   const [dragOverCategoryKey, setDragOverCategoryKey] = useState<string | null>(null);
+  const { items: activityItems, ack: ackActivity } = useActivityFeed();
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -294,6 +297,7 @@ export function WegoinnBoard({
   };
 
   return (
+    <>
     <div className="wdb">
       <div className="wdb__admin-tools">
         <button type="button" disabled={seeding} onClick={runSeed}>
@@ -594,6 +598,114 @@ export function WegoinnBoard({
           </table>
         </div>
       )}
+    </div>
+    <ActivityFeedBar
+      items={activityItems}
+      pages={pages}
+      members={members}
+      categories={categories}
+      onAck={ackActivity}
+      onOpenPage={onPeekPage}
+    />
+    </>
+  );
+}
+
+const ACTIVITY_FIELD_LABELS: Record<string, string> = {
+  title: "제목",
+  category: "카테고리",
+  description: "설명",
+  assigneeId: "담당자",
+  dueDate: "마감일",
+  endDate: "종료일",
+  startTime: "시작 시간",
+  endTime: "종료 시간",
+  allDay: "종일 여부",
+  tags: "태그",
+  textColor: "글자색",
+  highlightColor: "강조색",
+};
+
+function describeActivity(item: ActivityFeedItemDTO): string {
+  switch (item.action) {
+    case "page.created":
+      return "페이지 생성";
+    case "content.updated":
+      return "본문 내용 수정";
+    case "status.changed": {
+      const from = item.metadata.from as string | undefined;
+      const to = item.metadata.to as string | undefined;
+      if (!from || !to) return "상태 변경";
+      return `상태 변경: ${STATUS_LABELS[from as keyof typeof STATUS_LABELS] ?? from} → ${STATUS_LABELS[to as keyof typeof STATUS_LABELS] ?? to}`;
+    }
+    case "attachment.uploaded": {
+      const fileName = item.metadata.fileName as string | undefined;
+      return fileName ? `파일 첨부: ${fileName}` : "파일 첨부";
+    }
+    case "page.updated": {
+      const fields = Array.isArray(item.metadata.fields) ? (item.metadata.fields as string[]) : [];
+      const labels = fields.map((field) => ACTIVITY_FIELD_LABELS[field] ?? field);
+      return labels.length > 0 ? `${labels.join(", ")} 수정` : "정보 수정";
+    }
+    default:
+      return "수정";
+  }
+}
+
+// Pinned to the very bottom of the Wegoinn DB view. Shared team-wide feed of
+// recent edits, but each entry's "V" only dismisses it for the user who
+// clicked it (see useActivityFeed) — teammates who haven't acked it yet
+// keep seeing it.
+function ActivityFeedBar({
+  items,
+  pages,
+  members,
+  categories,
+  onAck,
+  onOpenPage,
+}: {
+  items: ActivityFeedItemDTO[];
+  pages: PageSummaryDTO[];
+  members: TeamMemberDTO[];
+  categories: PageCategoryDTO[];
+  onAck: (id: string) => void;
+  onOpenPage: (id: string) => void;
+}) {
+  if (items.length === 0) return null;
+  return (
+    <div className="wdb-activity-bar" role="region" aria-label="최근 수정 알림">
+      {items.map((item) => {
+        const page = item.pageId ? pages.find((p) => p.id === item.pageId) : undefined;
+        const categoryDef = categories.find((c) => c.key === page?.category);
+        const categoryLabel = categoryDef?.label ?? (page?.category ? page.category : UNCATEGORIZED_LABEL);
+        const categoryColor = categoryDef?.color ?? UNCATEGORIZED_COLOR;
+        return (
+          <div key={item.id} className="wdb-activity-bar__row">
+            <button
+              type="button"
+              className="wdb-activity-bar__ack"
+              aria-label="확인 (목록에서 지우기)"
+              title="확인"
+              onClick={() => onAck(item.id)}
+            >
+              ✓
+            </button>
+            <button
+              type="button"
+              className="wdb-activity-bar__body"
+              disabled={!page}
+              onClick={() => page && onOpenPage(page.id)}
+            >
+              <span className="wdb-activity-bar__category" style={{ color: categoryColor, background: `${categoryColor}1f` }}>
+                {categoryLabel}
+              </span>
+              <span className="wdb-activity-bar__page">{page?.title ?? "삭제된 페이지"}</span>
+              <span className="wdb-activity-bar__desc">{describeActivity(item)}</span>
+              <span className="wdb-activity-bar__actor">{item.actorId ? memberName(members, item.actorId) : "알 수 없음"}</span>
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 }

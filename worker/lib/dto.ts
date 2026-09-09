@@ -3,6 +3,7 @@ import type { AttachmentRow } from "../db/attachments";
 import type { CommentRow } from "../db/comments";
 import type { StatusHistoryRow } from "../db/statusHistory";
 import type { UserRow } from "../db/users";
+import type { ActivityFeedRow } from "../db/activityLog";
 import type {
   PageSummaryDTO,
   PageDetailDTO,
@@ -12,6 +13,7 @@ import type {
   UserDTO,
   PageContent,
   PageCategory,
+  ActivityFeedItemDTO,
 } from "../../shared/types";
 import { IMAGE_EXTENSIONS } from "../../shared/types";
 
@@ -99,6 +101,25 @@ export function toCommentDTO(row: CommentRow): CommentDTO {
     authorName: row.author_name,
     body: row.body,
     createdAt: row.created_at,
+  };
+}
+
+export function toActivityFeedItemDTO(row: ActivityFeedRow): ActivityFeedItemDTO {
+  let metadata: Record<string, unknown> = {};
+  try {
+    const parsed = JSON.parse(row.metadata_json);
+    if (parsed && typeof parsed === "object") metadata = parsed;
+  } catch {
+    /* ignore malformed metadata */
+  }
+  return {
+    id: row.id,
+    pageId: row.page_id,
+    actorId: row.actor_id,
+    action: row.action as ActivityFeedItemDTO["action"],
+    metadata,
+    createdAt: row.created_at,
+    acked: !!row.acked,
   };
 }
 

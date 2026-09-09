@@ -131,6 +131,22 @@ pagesRoute.patch("/:id", requireRole("editor"), async (c) => {
     });
   }
 
+  // Reorders (orderKey/parentId only, from drag-and-drop) are excluded from
+  // the activity feed as noise — only fields someone would actually want a
+  // notification about are logged here.
+  const notifiableFields = (
+    ["title", "assigneeId", "dueDate", "endDate", "startTime", "endTime", "allDay", "tags", "textColor", "highlightColor", "category", "description"] as const
+  ).filter((field) => body[field] !== undefined);
+  if (notifiableFields.length > 0) {
+    await logActivity(c.env.DB, {
+      teamId: c.var.teamId,
+      pageId: id,
+      actorId: user.id,
+      action: "page.updated",
+      metadata: { fields: notifiableFields },
+    });
+  }
+
   const content = await getPageContent(c.env.DB, id);
   if (!content) throw Errors.internal();
   return c.json(toPageDetailDTO(updated, content));
@@ -150,6 +166,8 @@ pagesRoute.patch("/:id/content", requireRole("editor"), async (c) => {
     content: body.content,
     updatedBy: user.id,
   });
+
+  await logActivity(c.env.DB, { teamId: c.var.teamId, pageId: id, actorId: user.id, action: "content.updated" });
 
   return c.json(toPageDetailDTO(page, content));
 });

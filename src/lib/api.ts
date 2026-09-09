@@ -12,6 +12,7 @@ import type {
   InlineQuestionDTO,
   PageCategory,
   PageCategoryDTO,
+  ActivityFeedItemDTO,
 } from "@shared/types";
 
 export class ApiClientError extends Error {
@@ -135,6 +136,9 @@ export const api = {
   listHistory: (pageId: string) => request<{ history: StatusHistoryDTO[] }>(`/api/pages/${pageId}/history`),
 
   listTeamMembers: () => request<{ members: TeamMemberDTO[] }>("/api/team/members"),
+
+  listActivityFeed: () => request<{ items: ActivityFeedItemDTO[] }>("/api/activity"),
+  ackActivity: (id: string) => request<{ ok: true }>(`/api/activity/${id}/ack`, { method: "POST" }),
 
   listGuestColors: () => request<{ colors: { name: string; color: string }[] }>("/api/guest-colors"),
   setGuestColor: (name: string, color: string | null) =>

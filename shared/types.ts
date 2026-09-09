@@ -253,6 +253,20 @@ export interface StatusHistoryDTO {
   changedAt: string;
 }
 
+// One entry in the "Wegoinn DB" bottom activity bar — a recent edit made by
+// someone else on the team. `acked` reflects the current logged-in user's
+// own dismissal state only; the same entry can be acked for one teammate
+// and still unacked (and visible) for another.
+export interface ActivityFeedItemDTO {
+  id: string;
+  pageId: string | null;
+  actorId: string | null;
+  action: "page.created" | "content.updated" | "page.updated" | "status.changed" | "attachment.uploaded";
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  acked: boolean;
+}
+
 export interface TeamMemberDTO {
   id: string;
   name: string;

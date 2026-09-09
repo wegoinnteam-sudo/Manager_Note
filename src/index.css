@@ -3493,7 +3493,7 @@ button.breadcrumb-block__item:hover {
 }
 
 .wdb {
-  padding: 20px 24px 60px;
+  padding: 20px 24px 140px;
   overflow-y: auto;
   height: 100%;
 }
@@ -3917,7 +3917,110 @@ button.breadcrumb-block__item:hover {
   font-size: 9px;
 }
 
+.wdb-activity-bar {
+  position: fixed;
+  left: var(--sidebar-width);
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column-reverse;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  box-shadow: 0 -4px 12px var(--color-shadow);
+}
+
+.wdb-activity-bar__row {
+  display: flex;
+  align-items: stretch;
+  border-top: 1px solid var(--color-border);
+}
+
+.wdb-activity-bar__row:first-child {
+  border-top: none;
+}
+
+.wdb-activity-bar__ack {
+  flex-shrink: 0;
+  width: 36px;
+  border: none;
+  border-right: 1px solid var(--color-border);
+  background: none;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.wdb-activity-bar__ack:hover {
+  background: var(--color-success-bg);
+  color: #16a34a;
+}
+
+.wdb-activity-bar__body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  border: none;
+  background: none;
+  padding: 7px 12px;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  color: var(--color-text);
+}
+
+.wdb-activity-bar__body:disabled {
+  cursor: default;
+  color: var(--color-text-muted);
+}
+
+.wdb-activity-bar__body:not(:disabled):hover {
+  background: var(--color-hover);
+}
+
+.wdb-activity-bar__category {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.wdb-activity-bar__page {
+  flex-shrink: 0;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.wdb-activity-bar__desc {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.wdb-activity-bar__actor {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
 @media (max-width: 860px) {
+  .wdb-activity-bar {
+    left: 0;
+  }
+
   .sidebar {
     position: fixed;
     z-index: 900;
@@ -3937,7 +4040,7 @@ button.breadcrumb-block__item:hover {
     padding: 24px 20px 100px;
   }
   .wdb {
-    padding: 16px 14px 60px;
+    padding: 16px 14px 140px;
   }
   .wdb-board {
     grid-auto-flow: row;
