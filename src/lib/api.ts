@@ -1,4 +1,3 @@
-import type { AiAnswer, AiStatus } from "@shared/ai";
 import type {
   UserDTO,
   PageSummaryDTO,
@@ -55,10 +54,6 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  aiStatus: (offset = 0) => request<AiStatus>(`/api/ai/status?offset=${offset}`),
-  aiAsk: (question: string) => request<AiAnswer>("/api/ai/ask", { method: "POST", body: JSON.stringify({ question }) }),
-  aiProcess: () => request<{ worked: boolean }>("/api/ai/process", { method: "POST" }),
-  aiRetry: (id: string) => request<{ ok: boolean }>(`/api/ai/sources/${encodeURIComponent(id)}/retry`, { method: "POST" }),
   me: () => request<UserDTO>("/api/me"),
   logout: () => request<{ ok: true }>("/api/auth/logout", { method: "POST" }),
 
