@@ -138,7 +138,7 @@ export function PageView({
       savingMetaRef.current = true;
       setSaveState("saving");
       try {
-        const updated = await api.updatePageMeta(page.id, { expectedVersion: page.version, ...patch });
+        const updated = await api.updatePageMeta(page.id, { expectedVersion: page.version, guestName, ...patch });
         // Local state already has whatever we just sent (applied optimistically
         // at input time), possibly plus even newer edits typed during this
         // request's round trip. Only take version/timestamp bookkeeping from the
@@ -165,7 +165,7 @@ export function PageView({
         }
       }
     },
-    [page, onPagesChanged],
+    [page, onPagesChanged, guestName],
   );
 
   const debouncedSaveTitle = useDebouncedCallback((title: string) => saveMeta({ title }), 400);
@@ -183,7 +183,7 @@ export function PageView({
       savingContentRef.current = true;
       setSaveState("saving");
       try {
-        const updated = await api.updatePageContent(page.id, page.contentVersion, content);
+        const updated = await api.updatePageContent(page.id, page.contentVersion, content, guestName);
         // Same reasoning as saveMeta: only take the version/timestamp bookkeeping
         // from the response, never overwrite contentJson with the (possibly
         // now-stale) echo — the user may have kept typing during the round trip.
@@ -208,7 +208,7 @@ export function PageView({
         }
       }
     },
-    [page],
+    [page, guestName],
   );
   const debouncedSaveContent = useDebouncedCallback(saveContent, 500);
 

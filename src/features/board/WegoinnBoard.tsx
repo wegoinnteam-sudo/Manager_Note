@@ -82,6 +82,7 @@ export function WegoinnBoard({
   onPeekPage,
   onPagesChanged,
   onNavigate,
+  guestName,
 }: {
   pages: PageSummaryDTO[];
   members: TeamMemberDTO[];
@@ -93,6 +94,7 @@ export function WegoinnBoard({
   onPeekPage: (id: string) => void;
   onPagesChanged: () => Promise<void> | void;
   onNavigate: (path: string) => void;
+  guestName: string;
 }) {
   const initial = useMemo(readQueryParams, []);
   const [view, setView] = useState<ViewMode>(initial.view);
@@ -113,7 +115,7 @@ export function WegoinnBoard({
   const [categoryBusy, setCategoryBusy] = useState(false);
   const [draggedCategoryKey, setDraggedCategoryKey] = useState<string | null>(null);
   const [dragOverCategoryKey, setDragOverCategoryKey] = useState<string | null>(null);
-  const { items: activityItems, ack: ackActivityItem, ackAll: ackAllActivity } = useActivityFeed();
+  const { items: activityItems, ack: ackActivityItem, ackAll: ackAllActivity } = useActivityFeed(guestName);
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -221,7 +223,7 @@ export function WegoinnBoard({
   };
 
   const createInCategory = async (category: PageCategory | null) => {
-    const page = await api.createPage({ parentId: null, category });
+    const page = await api.createPage({ parentId: null, category, authorName: guestName });
     await onPagesChanged();
     onOpenPage(page.id);
   };
@@ -711,7 +713,9 @@ function ActivityFeedBar({
               </span>
               <span className="wdb-activity-bar__page">{page?.title ?? "삭제된 페이지"}</span>
               <span className="wdb-activity-bar__desc">{describeActivity(item)}</span>
-              <span className="wdb-activity-bar__actor">{item.actorId ? memberName(members, item.actorId) : "알 수 없음"}</span>
+              <span className="wdb-activity-bar__actor">
+                {item.actorName || (item.actorId ? memberName(members, item.actorId) : "알 수 없음")}
+              </span>
             </button>
           </div>
         );

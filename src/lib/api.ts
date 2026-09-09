@@ -1,3 +1,4 @@
+import type { AiAnswer, AiStatus } from "@shared/ai";
 import type {
   UserDTO,
   PageSummaryDTO,
@@ -54,6 +55,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
+  aiStatus: (offset = 0) => request<AiStatus>(`/api/ai/status?offset=${offset}`),
+  aiAsk: (question: string) => request<AiAnswer>("/api/ai/ask", { method: "POST", body: JSON.stringify({ question }) }),
+  aiProcess: () => request<{ worked: boolean }>("/api/ai/process", { method: "POST" }),
+  aiRetry: (id: string) => request<{ ok: boolean }>(`/api/ai/sources/${encodeURIComponent(id)}/retry`, { method: "POST" }),
   me: () => request<UserDTO>("/api/me"),
   logout: () => request<{ ok: true }>("/api/auth/logout", { method: "POST" }),
 
@@ -79,6 +84,7 @@ export const api = {
     id: string,
     input: {
       expectedVersion: number;
+      guestName?: string;
       title?: string;
       status?: HandoffStatus;
       assigneeId?: string | null;
@@ -96,10 +102,10 @@ export const api = {
       description?: string | null;
     },
   ) => request<PageDetailDTO>(`/api/pages/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
-  updatePageContent: (id: string, expectedVersion: number, content: PageContent) =>
+  updatePageContent: (id: string, expectedVersion: number, content: PageContent, guestName?: string) =>
     request<PageDetailDTO>(`/api/pages/${id}/content`, {
       method: "PATCH",
-      body: JSON.stringify({ expectedVersion, content }),
+      body: JSON.stringify({ expectedVersion, content, guestName }),
     }),
   deletePage: (id: string) => request<{ ok: true }>(`/api/pages/${id}`, { method: "DELETE" }),
   restorePage: (id: string) => request<{ ok: true }>(`/api/pages/${id}/restore`, { method: "POST" }),
@@ -137,9 +143,12 @@ export const api = {
 
   listTeamMembers: () => request<{ members: TeamMemberDTO[] }>("/api/team/members"),
 
-  listActivityFeed: () => request<{ items: ActivityFeedItemDTO[] }>("/api/activity"),
-  ackActivity: (id: string) => request<{ ok: true }>(`/api/activity/${id}/ack`, { method: "POST" }),
-  ackAllActivity: () => request<{ ok: true }>("/api/activity/ack-all", { method: "POST" }),
+  listActivityFeed: (guestName: string) =>
+    request<{ items: ActivityFeedItemDTO[] }>(`/api/activity?guestName=${encodeURIComponent(guestName)}`),
+  ackActivity: (id: string, guestName: string) =>
+    request<{ ok: true }>(`/api/activity/${id}/ack`, { method: "POST", body: JSON.stringify({ guestName }) }),
+  ackAllActivity: (guestName: string) =>
+    request<{ ok: true }>("/api/activity/ack-all", { method: "POST", body: JSON.stringify({ guestName }) }),
 
   listGuestColors: () => request<{ colors: { name: string; color: string }[] }>("/api/guest-colors"),
   setGuestColor: (name: string, color: string | null) =>
@@ -174,7 +183,7 @@ export const api = {
 export function uploadAttachment(
   pageId: string,
   file: File,
-  opts: { idempotencyKey: string; onProgress?: (pct: number) => void; signal?: AbortSignal },
+  opts: { idempotencyKey: string; guestName?: string; onProgress?: (pct: number) => void; signal?: AbortSignal },
 ): Promise<AttachmentDTO> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -183,6 +192,7 @@ export function uploadAttachment(
     xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
     xhr.setRequestHeader("X-File-Name", encodeURIComponent(file.name));
     xhr.setRequestHeader("X-Idempotency-Key", opts.idempotencyKey);
+    if (opts.guestName) xhr.setRequestHeader("X-Guest-Name", encodeURIComponent(opts.guestName));
     const csrf = readCookie("th_csrf");
     if (csrf) xhr.setRequestHeader("X-CSRF-Token", csrf);
 

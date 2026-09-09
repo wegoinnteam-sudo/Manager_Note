@@ -261,6 +261,11 @@ export interface ActivityFeedItemDTO {
   id: string;
   pageId: string | null;
   actorId: string | null;
+  // The display name the editor typed locally (useGuestIdentity) — most
+  // visitors share one "공용 편집자" login, so this (not actorId) is what
+  // actually identifies who made the edit. Null for legacy rows logged
+  // before this existed.
+  actorName: string | null;
   action: "page.created" | "content.updated" | "page.updated" | "status.changed" | "attachment.uploaded";
   metadata: Record<string, unknown>;
   createdAt: string;

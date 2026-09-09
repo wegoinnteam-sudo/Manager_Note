@@ -479,7 +479,7 @@ export const Editor = forwardRef<EditorHandle, {
     const pending = valid.map((file) => ({ id: crypto.randomUUID(), file, previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : "" }));
     setPendingUploads((prev) => [...prev, ...pending.filter((p) => p.previewUrl).map(({ id, previewUrl }) => ({ id, previewUrl, afterId }))]);
 
-    Promise.allSettled(pending.map((p) => uploadAttachment(pageId, p.file, { idempotencyKey: p.id }))).then((results) => {
+    Promise.allSettled(pending.map((p) => uploadAttachment(pageId, p.file, { idempotencyKey: p.id, guestName }))).then((results) => {
       setPendingUploads((prev) => prev.filter((p) => !pending.some((done) => done.id === p.id)));
       pending.forEach((p) => p.previewUrl && URL.revokeObjectURL(p.previewUrl));
 
@@ -726,7 +726,7 @@ export const Editor = forwardRef<EditorHandle, {
       const maxBytes = MAX_UPLOAD_MB * 1024 * 1024;
       const upload = await compressImageForUpload(file, maxBytes);
       if (upload.size > maxBytes) throw new Error(`파일 크기는 ${MAX_UPLOAD_MB}MB를 초과할 수 없습니다.`);
-      const attachment = await uploadAttachment(pageId, upload, { idempotencyKey: pendingId });
+      const attachment = await uploadAttachment(pageId, upload, { idempotencyKey: pendingId, guestName });
       onAttachmentUploaded(attachment);
       const idx = contentRef.current.blocks.findIndex((b) => b.id === block.id);
       const newBlock: PageBlock = { id: newBlockId(), type: "image", attachmentId: attachment.id };
@@ -1672,11 +1672,12 @@ export const Editor = forwardRef<EditorHandle, {
           onPick={(atts) => insertReferenceBlocks(picker, atts)}
           onPickUrl={picker === "image" ? insertImageUrlBlock : undefined}
           onClose={() => setPicker(null)}
+          guestName={guestName}
         />
       )}
 
       {picker === "replace_image" && (
-        <AttachmentPicker pageId={pageId} filterImagesOnly onPick={applyImageReplace} onClose={() => setPicker(null)} />
+        <AttachmentPicker pageId={pageId} filterImagesOnly onPick={applyImageReplace} onClose={() => setPicker(null)} guestName={guestName} />
       )}
 
       {picker === "template" && (

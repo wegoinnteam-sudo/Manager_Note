@@ -116,6 +116,7 @@ export function toActivityFeedItemDTO(row: ActivityFeedRow): ActivityFeedItemDTO
     id: row.id,
     pageId: row.page_id,
     actorId: row.actor_id,
+    actorName: row.actor_name,
     action: row.action as ActivityFeedItemDTO["action"],
     metadata,
     createdAt: row.created_at,

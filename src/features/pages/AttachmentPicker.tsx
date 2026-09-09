@@ -25,12 +25,14 @@ export function AttachmentPicker({
   onPick,
   onPickUrl,
   onClose,
+  guestName,
 }: {
   pageId: string;
   filterImagesOnly: boolean;
   onPick: (attachments: AttachmentDTO[]) => void;
   onPickUrl?: (url: string) => void;
   onClose: () => void;
+  guestName?: string;
 }) {
   const [attachments, setAttachments] = useState<AttachmentDTO[]>([]);
   const [dragging, setDragging] = useState(false);
@@ -46,7 +48,7 @@ export function AttachmentPicker({
     refresh();
   }, [refresh]);
 
-  const { items, addFiles } = useUploadQueue(pageId, refresh);
+  const { items, addFiles } = useUploadQueue(pageId, refresh, guestName);
 
   useEffect(() => {
     if (pickedRef.current || items.length === 0) return;

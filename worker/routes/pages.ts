@@ -64,7 +64,7 @@ pagesRoute.post("/", requireRole("editor"), async (c) => {
     tags: body.tags,
     orderKey: body.orderKey,
   });
-  await logActivity(c.env.DB, { teamId: c.var.teamId, pageId: page.id, actorId: user.id, action: "page.created" });
+  await logActivity(c.env.DB, { teamId: c.var.teamId, pageId: page.id, actorId: user.id, action: "page.created", actorName: body.authorName });
   return c.json(toPageDetailDTO(page, content), 201);
 });
 
@@ -128,6 +128,7 @@ pagesRoute.patch("/:id", requireRole("editor"), async (c) => {
       actorId: user.id,
       action: "status.changed",
       metadata: { from: before.status, to: body.status },
+      actorName: body.guestName,
     });
   }
 
@@ -144,6 +145,7 @@ pagesRoute.patch("/:id", requireRole("editor"), async (c) => {
       actorId: user.id,
       action: "page.updated",
       metadata: { fields: notifiableFields },
+      actorName: body.guestName,
     });
   }
 
@@ -167,7 +169,7 @@ pagesRoute.patch("/:id/content", requireRole("editor"), async (c) => {
     updatedBy: user.id,
   });
 
-  await logActivity(c.env.DB, { teamId: c.var.teamId, pageId: id, actorId: user.id, action: "content.updated" });
+  await logActivity(c.env.DB, { teamId: c.var.teamId, pageId: id, actorId: user.id, action: "content.updated", actorName: body.guestName });
 
   return c.json(toPageDetailDTO(page, content));
 });
@@ -221,6 +223,8 @@ pagesRoute.post("/:id/attachments", requireRole("editor"), async (c) => {
 
   const mimeType = c.req.header("content-type") || "application/octet-stream";
   const idempotencyKey = c.req.header("x-idempotency-key") || null;
+  const guestNameHeader = c.req.header("x-guest-name");
+  const guestName = guestNameHeader ? decodeURIComponent(guestNameHeader).trim().slice(0, 60) || undefined : undefined;
   const body = c.req.raw.body;
   if (!body) throw Errors.badRequest("업로드할 파일 본문이 없습니다.");
 
@@ -243,6 +247,7 @@ pagesRoute.post("/:id/attachments", requireRole("editor"), async (c) => {
     actorId: user.id,
     action: "attachment.uploaded",
     metadata: { attachmentId: attachment.id, fileName },
+    actorName: guestName,
   });
 
   return c.json(toAttachmentDTO(attachment), attachment.status === "ready" ? 201 : 502);

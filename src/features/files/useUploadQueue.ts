@@ -23,7 +23,7 @@ function extensionOf(name: string): string {
   return idx === -1 ? "" : name.slice(idx + 1).toLowerCase();
 }
 
-export function useUploadQueue(pageId: string, onUploaded: () => void) {
+export function useUploadQueue(pageId: string, onUploaded: () => void, guestName?: string) {
   const [items, setItems] = useState<UploadItem[]>([]);
   const controllers = useRef(new Map<string, AbortController>());
 
@@ -59,6 +59,7 @@ export function useUploadQueue(pageId: string, onUploaded: () => void) {
 
       uploadAttachment(pageId, upload, {
         idempotencyKey: id,
+        guestName,
         signal: controller.signal,
         onProgress: (pct) => updateItem(id, { progress: pct }),
       })
@@ -72,7 +73,7 @@ export function useUploadQueue(pageId: string, onUploaded: () => void) {
         })
         .finally(() => controllers.current.delete(id));
     },
-    [pageId, onUploaded, updateItem],
+    [pageId, onUploaded, updateItem, guestName],
   );
 
   const addFiles = useCallback(

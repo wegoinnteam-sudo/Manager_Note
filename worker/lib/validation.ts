@@ -143,6 +143,7 @@ export const hexColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 
 export const updatePageMetaSchema = z.object({
   expectedVersion: z.number().int().nonnegative(),
+  guestName: z.string().trim().min(1).max(60).optional(),
   title: z.string().max(MAX_TITLE_LENGTH).optional(),
   status: z.enum(["in_progress", "handoff_pending", "done", "on_hold"]).optional(),
   assigneeId: z.string().nullable().optional(),
@@ -163,6 +164,7 @@ export const updatePageMetaSchema = z.object({
 export const updatePageContentSchema = z.object({
   expectedVersion: z.number().int().nonnegative(),
   content: pageContentSchema,
+  guestName: z.string().trim().min(1).max(60).optional(),
 });
 
 export const createCommentSchema = z.object({
@@ -181,6 +183,10 @@ export const resolveQuestionSchema = z.object({ resolved: z.boolean() });
 export const onboardingProgressSchema = z.object({
   blockId: z.string().min(1).max(100),
   completed: z.boolean(),
+});
+
+export const ackActivitySchema = z.object({
+  guestName: z.string().trim().min(1).max(60),
 });
 
 export const attachmentInitSchema = z.object({

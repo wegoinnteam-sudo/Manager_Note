@@ -188,6 +188,7 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
         onPeekPage={peekPage}
         onPagesChanged={refreshPages}
         onNavigate={navigate}
+        guestName={identity.name}
       />
     );
   } else if (path === "/trash") {
