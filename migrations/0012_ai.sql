@@ -15,8 +15,8 @@ CREATE TABLE ai_calls (
 CREATE INDEX ai_calls_month ON ai_calls(month);
 -- The SELECT and INSERT are one SQLite write statement. Concurrent requests cannot oversubscribe.
 CREATE TRIGGER ai_budget_guard BEFORE INSERT ON ai_calls BEGIN
- SELECT CASE WHEN NEW.charged + COALESCE((SELECT SUM(charged) FROM ai_calls WHERE month=NEW.month),0) > 30000000000
- THEN RAISE(ABORT,'ai_budget_exhausted') END;
+ SELECT RAISE(ABORT,'ai_budget_exhausted')
+ WHERE NEW.charged + COALESCE((SELECT SUM(charged) FROM ai_calls WHERE month=NEW.month),0) > 30000000000;
 END;
 CREATE TABLE ai_sources (
  id TEXT PRIMARY KEY, revision TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'pending'
@@ -60,6 +60,6 @@ END;
 -- Bound incremental persistent storage. Capacity failure is visible, never silently truncated.
 CREATE TRIGGER ai_chunk_capacity BEFORE INSERT ON ai_chunks
  WHEN NOT EXISTS (SELECT 1 FROM ai_chunks WHERE id=NEW.id) BEGIN
- SELECT CASE WHEN (SELECT COUNT(*) FROM ai_chunks)>=5000 THEN RAISE(ABORT,'ai_index_capacity') END;
- SELECT CASE WHEN length(NEW.text)>24000 THEN RAISE(ABORT,'ai_chunk_capacity') END;
+ SELECT RAISE(ABORT,'ai_index_capacity') WHERE (SELECT COUNT(*) FROM ai_chunks)>=5000;
+ SELECT RAISE(ABORT,'ai_chunk_capacity') WHERE length(NEW.text)>24000;
 END;
