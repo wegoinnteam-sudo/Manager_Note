@@ -4,6 +4,11 @@ compatibility_date = "2024-11-01"
 compatibility_flags = ["nodejs_compat"]
 account_id = "419923cdce967c667d26cdb9238fb5d8"
 
+# Prefer a Seoul-adjacent execution location for Gemini API requests.
+# Placement is a latency hint, not a strict country or egress-IP guarantee.
+[placement]
+region = "aws:ap-northeast-2"
+
 # Static frontend build output served by Workers Static Assets.
 [assets]
 directory = "./dist"

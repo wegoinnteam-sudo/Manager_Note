@@ -25,3 +25,11 @@
 가격 정책은 `ai_prices` 테이블에서 관리합니다. 만료되었거나 안전성 검증을 통과하지 못한 정책이면 호출은 보류됩니다. 운영자는 만료 전에 현재 모델 가격·환율 정책·안전 계수를 검토한 뒤 새 행을 추가하고 기존 행을 비활성화해야 합니다.
 
 처리 실패는 자료 처리 현황에 남습니다. 원본을 고치거나 지원 형식으로 변환한 뒤 “다시 대기열에 넣기”를 사용하세요. 예산 대기는 다음 달에 자동으로 다시 시도할 수 있습니다.
+
+## 서버 지역 오류
+
+Google이 `User location is not supported`를 반환하면 서버 요청의 지역 판정으로 거절된 것입니다. `wrangler.toml`의 `placement.region = "aws:ap-northeast-2"`로 서울 인근 실행 위치를 요청합니다. 이 설정을 지원하는 Wrangler 4로 배포해야 합니다.
+
+Placement는 국가나 외부 통신 IP를 보장하지 않는 위치 힌트입니다. 배포 후 실제 질문 성공 여부를 확인해야 하며, 예약 작업의 실행 위치까지 동일하다고 가정하지 않습니다. 자동 첨부 처리에서만 지역 오류가 나면 `/ai`의 수동 처리에서도 비교 확인합니다. 계속 거절되면 Google/Cloudflare에 서버 IP 지역 판정 문제를 확인하거나, Gemini 지원 지역에 고정 배치할 수 있는 별도 AI 서버가 필요합니다.
+
+공식 문서: [Cloudflare Placement](https://developers.cloudflare.com/workers/configuration/placement/), [Gemini 지원 지역](https://ai.google.dev/gemini-api/docs/available-regions).
