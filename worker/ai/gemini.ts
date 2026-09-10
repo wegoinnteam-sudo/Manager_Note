@@ -2,6 +2,40 @@ import type { Env } from '../types';
 import { AppError } from '../lib/errors';
 import { cost, MODEL, price, reserve, settle } from './budget';
 export type Part = {text:string} | {inlineData:{mimeType:string;data:string}};
+// Inspect provider diagnostics only to select fixed messages. Never return its raw body.
+async function requestError(response: Response): Promise<AppError> {
+  let message='';let reasons:string[]=[];
+  try {
+    const body:unknown=await response.json();
+    if(body && typeof body==='object' && 'error' in body) {
+      const error=body.error;
+      if(error && typeof error==='object') {
+        if('message' in error && typeof error.message==='string') message=error.message.toLowerCase();
+        if('details' in error && Array.isArray(error.details)) reasons=error.details.flatMap(d=>
+          d && typeof d==='object' && typeof d.reason==='string' ? [d.reason] : []);
+      }
+    }
+  } catch { /* Non-JSON errors retain the HTTP-specific fallback. */ }
+  if(reasons.includes('API_KEY_INVALID') || message.includes('api key not valid'))
+    return new AppError(503,'ai_key_invalid','Google이 운영 서버의 API 키를 유효하지 않은 키로 판단했습니다. Cloudflare GEMINI_API_KEY 값을 확인해주세요.');
+  if(reasons.includes('API_KEY_EXPIRED') || message.includes('api key expired'))
+    return new AppError(503,'ai_key_expired','Gemini API 키가 만료되었습니다. 새 키를 발급해 Cloudflare에 등록해주세요.');
+  if(message.includes('reported as leaked'))
+    return new AppError(503,'ai_key_blocked','Google이 노출된 키로 판단해 차단했습니다. 새 키를 발급해 Cloudflare에 등록해주세요.');
+  if(message.includes('user location is not supported'))
+    return new AppError(503,'ai_location_unsupported','Google이 요청 서버의 위치에서 Gemini API 사용을 허용하지 않았습니다. 서버 실행 지역과 Google 프로젝트 정책을 확인해야 합니다.');
+  if(message.includes('free tier is not available') || reasons.includes('BILLING_DISABLED'))
+    return new AppError(503,'ai_billing_required','Google 프로젝트의 결제 설정을 확인해야 합니다. 무료 사용 가능 여부와 결제 활성화 상태를 확인해주세요.');
+  if(reasons.includes('SERVICE_DISABLED'))
+    return new AppError(503,'ai_service_disabled','Google 프로젝트에서 Gemini API가 비활성화되어 있습니다. 해당 프로젝트의 API 활성화 상태를 확인해주세요.');
+  if(reasons.some(r=>['API_KEY_SERVICE_BLOCKED','API_KEY_HTTP_REFERRER_BLOCKED','API_KEY_IP_ADDRESS_BLOCKED'].includes(r)))
+    return new AppError(503,'ai_key_restricted','API 키의 서비스·웹사이트·IP 제한이 서버 요청을 차단했습니다. Google 프로젝트의 키 제한 설정을 확인해주세요.');
+  if(response.status===401 || response.status===403)
+    return new AppError(503,'ai_key_rejected','Gemini 키 또는 프로젝트 접근 권한을 확인해주세요.');
+  if(message.includes('invalid json payload') || message.includes('unknown name'))
+    return new AppError(502,'ai_request_format','Google이 서버에서 보낸 요청 형식을 거절했습니다 (400). 서버의 Gemini 요청 코드를 확인해야 합니다.');
+  return new AppError(502,'ai_request_rejected','Google이 요청을 거절했습니다 (400). API 키의 유효성과 프로젝트 설정, 요청 형식을 확인해야 합니다.');
+}
 /** The only generateContent transport. No SDK retries, tools, browsing, caching, or chat history. */
 export async function generate(env: Env, purpose: string, system: string, parts: Part[], outputLimit=4096): Promise<unknown> {
   if (!env.GEMINI_API_KEY) throw new AppError(503,'ai_key_missing','Gemini API 키가 설정되지 않았습니다.');
@@ -21,8 +55,7 @@ export async function generate(env: Env, purpose: string, system: string, parts:
       method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':env.GEMINI_API_KEY},
       body:serialized,signal:AbortSignal.timeout(50_000)});
     if(response.status===429) throw new AppError(503,'ai_rate_limit','Gemini 사용량 제한으로 요청이 거절되었습니다. 잠시 후 시도하거나 Google 프로젝트 한도를 확인해주세요.');
-    if(response.status===401 || response.status===403) throw new AppError(503,'ai_key_rejected','Gemini 키 또는 프로젝트 접근 권한을 확인해주세요.');
-    if(response.status===400) throw new AppError(502,'ai_request_rejected','Google이 요청을 거절했습니다 (400). API 키의 유효성과 프로젝트 설정, 요청 형식을 확인해야 합니다.');
+    if([400,401,403].includes(response.status)) throw await requestError(response);
     if(response.status===404) throw new AppError(502,'ai_model_unavailable','설정된 Gemini 모델을 찾을 수 없습니다 (404). 서버의 모델 설정을 확인해야 합니다.');
     if(response.status>=500) throw new AppError(502,'ai_provider_unavailable',`Google AI 서버 오류가 발생했습니다 (${response.status}). 잠시 후 다시 시도해주세요.`);
     if(!response.ok) throw new AppError(502,'ai_http_error',`Google AI 요청이 실패했습니다 (HTTP ${response.status}). 서버 설정을 확인해야 합니다.`);

@@ -174,3 +174,20 @@ describe('safe Gemini failure diagnostics',()=>{
   expect((await db.prepare('SELECT state FROM ai_calls').first()).state).toBe('settled');
  });
 });
+
+describe('Google request rejection details',()=>{
+ it.each([
+  ['API_KEY_INVALID','','ai_key_invalid'],
+  ['API_KEY_EXPIRED','','ai_key_expired'],
+  ['', 'Your API key was reported as leaked.', 'ai_key_blocked'],
+  ['', 'User location is not supported for the API use.', 'ai_location_unsupported'],
+  ['', 'Free tier is not available in your country.', 'ai_billing_required'],
+  ['SERVICE_DISABLED','','ai_service_disabled'],
+  ['API_KEY_HTTP_REFERRER_BLOCKED','','ai_key_restricted'],
+  ['', 'Invalid JSON payload received. Unknown name secret', 'ai_request_format'],
+ ])('classifies %s %s without leaking raw details',async(reason,message,code)=>{
+  vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response(JSON.stringify({error:{message:message+' PRIVATE_SOURCE',details:[{reason,metadata:{key:'PRIVATE_KEY'}}]}}),{status:400})));
+  const error=await generate(env,'test','s',[{text:'x'}]).catch(e=>e);
+  expect(error.code).toBe(code);expect(error.message).not.toContain('PRIVATE_');
+ });
+});
