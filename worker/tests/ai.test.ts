@@ -62,7 +62,7 @@ describe('global atomic budget',()=>{
  });
  it('keeps maximum charge on API failure and does not retry automatically',async()=>{
   const fetcher=vi.fn().mockResolvedValue(new Response('private upstream details',{status:500}));vi.stubGlobal('fetch',fetcher);
-  await expect(generate(env,'test','s',[{text:'x'}])).rejects.toMatchObject({code:'ai_api_error'});
+  await expect(generate(env,'test','s',[{text:'x'}])).rejects.toMatchObject({code:'ai_provider_unavailable'});
   expect(fetcher).toHaveBeenCalledTimes(1);const row=await db.prepare('SELECT * FROM ai_calls').first();expect(row.charged).toBe(row.reserved);expect(row.state).toBe('uncertain');
  });
  it('charges measured usage, with reasoning included, and sends no chat/tools',async()=>{
@@ -154,5 +154,23 @@ describe('grounded independent answers and global evidence access',()=>{
  });
  it('returns an explicit no-evidence response, not a factual negative',async()=>{
   expect((await answer(env,'없는 자료 질문')).message).toBe(NO_EVIDENCE);
+ });
+});
+
+describe('safe Gemini failure diagnostics',()=>{
+ it.each([[400,'ai_request_rejected'],[401,'ai_key_rejected'],[403,'ai_key_rejected'],[404,'ai_model_unavailable'],[429,'ai_rate_limit'],[503,'ai_provider_unavailable']])('classifies HTTP %s without exposing upstream text',async(status,code)=>{
+  vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response('PRIVATE_KEY_AND_SOURCE',{status})));
+  const error=await generate(env,'test','s',[{text:'x'}]).catch(e=>e);
+  expect(error.code).toBe(code);expect(error.message).not.toContain('PRIVATE_KEY_AND_SOURCE');
+ });
+ it.each(['TimeoutError','TypeError'])('distinguishes %s transport failures',async(name)=>{
+  const error=new Error('PRIVATE_KEY');error.name=name;
+  vi.stubGlobal('fetch',vi.fn().mockRejectedValue(error));
+  await expect(generate(env,'test','s',[{text:'x'}])).rejects.toMatchObject({code:name==='TimeoutError'?'ai_timeout':'ai_connection_failed'});
+ });
+ it('distinguishes invalid generated JSON while preserving measured usage',async()=>{
+  vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response(JSON.stringify({candidates:[{finishReason:'STOP',content:{parts:[{text:'invalid JSON'}]}}],usageMetadata:{promptTokenCount:100,candidatesTokenCount:50}}))));
+  await expect(generate(env,'test','s',[{text:'x'}])).rejects.toMatchObject({code:'ai_response_format'});
+  expect((await db.prepare('SELECT state FROM ai_calls').first()).state).toBe('settled');
  });
 });

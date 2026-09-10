@@ -15,23 +15,35 @@ export async function generate(env: Env, purpose: string, system: string, parts:
   if(inputBound>1_048_576 || outputLimit>8192) throw new AppError(413,'ai_capacity','요청 자료가 처리 한도를 초과했습니다.');
   const id=await reserve(env.DB,p,purpose,cost(p,inputBound,outputLimit));
   let settled=false;
+  let phase: 'transport' | 'response' | 'ledger' | 'content' = 'transport';
   try {
     const response=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`,{
       method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':env.GEMINI_API_KEY},
       body:serialized,signal:AbortSignal.timeout(50_000)});
     if(response.status===429) throw new AppError(503,'ai_rate_limit','Gemini 사용량 제한으로 요청이 거절되었습니다. 잠시 후 시도하거나 Google 프로젝트 한도를 확인해주세요.');
     if(response.status===401 || response.status===403) throw new AppError(503,'ai_key_rejected','Gemini 키 또는 프로젝트 접근 권한을 확인해주세요.');
-    if(!response.ok) throw new Error('upstream');
+    if(response.status===400) throw new AppError(502,'ai_request_rejected','Google이 요청을 거절했습니다 (400). API 키의 유효성과 프로젝트 설정, 요청 형식을 확인해야 합니다.');
+    if(response.status===404) throw new AppError(502,'ai_model_unavailable','설정된 Gemini 모델을 찾을 수 없습니다 (404). 서버의 모델 설정을 확인해야 합니다.');
+    if(response.status>=500) throw new AppError(502,'ai_provider_unavailable',`Google AI 서버 오류가 발생했습니다 (${response.status}). 잠시 후 다시 시도해주세요.`);
+    if(!response.ok) throw new AppError(502,'ai_http_error',`Google AI 요청이 실패했습니다 (HTTP ${response.status}). 서버 설정을 확인해야 합니다.`);
+    phase='response';
     const data=await response.json() as {usageMetadata?:{promptTokenCount?:number;candidatesTokenCount?:number;thoughtsTokenCount?:number};candidates?:{finishReason?:string;content?:{parts?:{text?:string}[]}}[]};
     const u=data.usageMetadata;
+    phase='ledger';
     await settle(env.DB,id,p,u?.promptTokenCount,u?.candidatesTokenCount === undefined?undefined:u.candidatesTokenCount+(u.thoughtsTokenCount??0));
     settled=true;
+    phase='content';
     const c=data.candidates?.[0];
     if(c?.finishReason!=='STOP') throw new AppError(502,'ai_incomplete','AI 응답이 완성되지 않았습니다. 자료를 확정하지 않았습니다.');
     return JSON.parse(c.content?.parts?.map(x=>x.text??'').join('')??'');
   } catch(e) {
     if(!settled) await settle(env.DB,id,p).catch(()=>{ /* reserved charge remains held */ });
     if(e instanceof AppError) throw e;
-    throw new AppError(502,'ai_api_error','Gemini 응답을 확인하지 못했습니다. 잠시 후 다시 시도해주세요.');
+    // Only fixed diagnostics leave the server; upstream bodies may contain secrets or source text.
+    if(e instanceof Error && (e.name==='TimeoutError' || e.name==='AbortError'))
+      throw new AppError(504,'ai_timeout','Gemini 응답 대기 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.');
+    if(phase==='ledger') throw new AppError(503,'ai_usage_record_failed','AI 사용량 기록에 실패했습니다. 서버 데이터베이스 상태를 확인해야 합니다.');
+    if(phase==='response' || phase==='content') throw new AppError(502,'ai_response_format','Gemini 응답 형식을 해석하지 못했습니다. 다시 질문해주세요.');
+    throw new AppError(502,'ai_connection_failed','Gemini 서버 연결에 실패했습니다. 잠시 후 다시 시도해주세요.');
   }
 }
