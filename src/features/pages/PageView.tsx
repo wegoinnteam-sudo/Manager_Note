@@ -31,7 +31,6 @@ export function PageView({
   onDeleted,
   onPagesChanged,
   onOpenPage,
-  onPeekPage,
   pages,
   presenceUsers,
   onCursorReport,
@@ -50,7 +49,6 @@ export function PageView({
   onDeleted: () => void;
   onPagesChanged: () => void;
   onOpenPage: (pageId: string) => void;
-  onPeekPage: (pageId: string, label?: string, anchorLeft?: number) => void;
   pages: PageSummaryDTO[];
   presenceUsers: PresenceUser[];
   onCursorReport: (blockId: string | null, offset: number) => void;
@@ -406,7 +404,6 @@ export function PageView({
             debouncedSaveContent(content);
           }}
           onOpenPage={onOpenPage}
-          onPeekPage={onPeekPage}
           onPagesChanged={onPagesChanged}
           onAttachmentUploaded={(a) => setAttachments((prev) => [...prev, a])}
           pages={pages}

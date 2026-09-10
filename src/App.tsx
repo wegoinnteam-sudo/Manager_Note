@@ -217,7 +217,6 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
         onDeleted={() => navigate("/")}
         onPagesChanged={refreshPages}
         onOpenPage={openPage}
-        onPeekPage={peekPage}
         pages={pages}
         presenceUsers={presenceUsers}
         onCursorReport={(blockId, offset) => reportCursor(activePageId, blockId, offset)}
@@ -303,7 +302,6 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
                   onDeleted={closePeek}
                   onPagesChanged={refreshPages}
                   onOpenPage={peekPage}
-                  onPeekPage={peekPage}
                   pages={pages}
                   presenceUsers={presenceUsers}
                   onCursorReport={(blockId, offset) => reportCursor(peekPageId, blockId, offset)}

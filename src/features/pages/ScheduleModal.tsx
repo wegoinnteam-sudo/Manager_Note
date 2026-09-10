@@ -18,12 +18,15 @@ export function ScheduleModal({
   mode,
   initial,
   authorName,
+  readOnly = false,
   onSave,
   onCancel,
 }: {
   mode: "create" | "edit";
   initial: ScheduleFormValues;
   authorName: string;
+  /** No edit rights on this schedule (not the author/admin): show details without a save action. */
+  readOnly?: boolean;
   onSave: (values: ScheduleFormValues) => Promise<void>;
   onCancel: () => void;
 }) {
@@ -65,7 +68,7 @@ export function ScheduleModal({
   const sameDayTimeWarning =
     !values.allDay && values.startDate === values.endDate && values.startTime && values.endTime && values.endTime < values.startTime;
 
-  const canSave = !titleMissing && !dateOutOfOrder && !saving;
+  const canSave = !readOnly && !titleMissing && !dateOutOfOrder && !saving;
 
   const submit = async () => {
     if (!canSave) return;
@@ -81,6 +84,7 @@ export function ScheduleModal({
   };
 
   useEffect(() => {
+    if (readOnly) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey) || e.altKey || e.key.toLowerCase() !== "s") return;
       e.preventDefault();
@@ -89,10 +93,10 @@ export function ScheduleModal({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [values, saving]);
+  }, [values, saving, readOnly]);
 
   return (
-    <Modal title={mode === "create" ? "일정 추가" : "일정 수정"} onClose={onCancel}>
+    <Modal title={readOnly ? "일정 보기" : mode === "create" ? "일정 추가" : "일정 수정"} onClose={onCancel}>
       <div ref={containerRef} className="schedule-modal">
         <label className="schedule-modal__field">
           <span>제목 *</span>
@@ -103,6 +107,8 @@ export function ScheduleModal({
             onChange={(e) => setValues({ ...values, title: e.target.value })}
             placeholder="일정 제목"
             maxLength={300}
+            disabled={readOnly}
+            readOnly={readOnly}
           />
         </label>
 
@@ -113,23 +119,25 @@ export function ScheduleModal({
             value={values.description}
             onChange={(e) => setValues({ ...values, description: e.target.value })}
             placeholder="선택 사항"
+            disabled={readOnly}
+            readOnly={readOnly}
           />
         </label>
 
         <div className="schedule-modal__row">
           <label className="schedule-modal__field">
             <span>시작일 *</span>
-            <input type="date" value={values.startDate} onChange={(e) => setValues({ ...values, startDate: e.target.value })} />
+            <input type="date" value={values.startDate} onChange={(e) => setValues({ ...values, startDate: e.target.value })} disabled={readOnly} />
           </label>
           <label className="schedule-modal__field">
             <span>종료일 *</span>
-            <input type="date" value={values.endDate} onChange={(e) => setValues({ ...values, endDate: e.target.value })} />
+            <input type="date" value={values.endDate} onChange={(e) => setValues({ ...values, endDate: e.target.value })} disabled={readOnly} />
           </label>
         </div>
         {dateOutOfOrder && <div className="schedule-modal__error">종료일은 시작일보다 빠를 수 없습니다.</div>}
 
         <label className="schedule-modal__checkbox">
-          <input type="checkbox" checked={values.allDay} onChange={(e) => setValues({ ...values, allDay: e.target.checked })} />
+          <input type="checkbox" checked={values.allDay} onChange={(e) => setValues({ ...values, allDay: e.target.checked })} disabled={readOnly} />
           종일 일정
         </label>
 
@@ -137,11 +145,11 @@ export function ScheduleModal({
           <div className="schedule-modal__row">
             <label className="schedule-modal__field">
               <span>시작 시간</span>
-              <input type="time" value={values.startTime} onChange={(e) => setValues({ ...values, startTime: e.target.value })} />
+              <input type="time" value={values.startTime} onChange={(e) => setValues({ ...values, startTime: e.target.value })} disabled={readOnly} />
             </label>
             <label className="schedule-modal__field">
               <span>종료 시간</span>
-              <input type="time" value={values.endTime} onChange={(e) => setValues({ ...values, endTime: e.target.value })} />
+              <input type="time" value={values.endTime} onChange={(e) => setValues({ ...values, endTime: e.target.value })} disabled={readOnly} />
             </label>
           </div>
         )}
@@ -152,6 +160,7 @@ export function ScheduleModal({
           <select
             value={values.category ?? ""}
             onChange={(e) => setValues({ ...values, category: (e.target.value || null) as PageCategory | null })}
+            disabled={readOnly}
           >
             <option value="">{UNCATEGORIZED_LABEL}</option>
             {PAGE_CATEGORIES.map((category) => (
@@ -173,11 +182,13 @@ export function ScheduleModal({
 
         <div className="schedule-modal__actions">
           <button type="button" onClick={onCancel} disabled={saving}>
-            취소
+            {readOnly ? "닫기" : "취소"}
           </button>
-          <button type="button" className="schedule-modal__save" onClick={submit} disabled={!canSave}>
-            {saving ? "저장 중…" : "저장"}
-          </button>
+          {!readOnly && (
+            <button type="button" className="schedule-modal__save" onClick={submit} disabled={!canSave}>
+              {saving ? "저장 중…" : "저장"}
+            </button>
+          )}
         </div>
       </div>
     </Modal>

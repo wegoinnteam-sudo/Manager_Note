@@ -284,7 +284,6 @@ export const Editor = forwardRef<EditorHandle, {
   editable: boolean;
   onChange: (next: PageContent) => void;
   onOpenPage: (pageId: string) => void;
-  onPeekPage: (pageId: string, label?: string, anchorLeft?: number) => void;
   onPagesChanged: () => void;
   onAttachmentUploaded: (attachment: AttachmentDTO) => void;
   pages: PageSummaryDTO[];
@@ -296,7 +295,7 @@ export const Editor = forwardRef<EditorHandle, {
   guestName?: string;
   guestColors: Record<string, string>;
 }>(function Editor(
-  { pageId, content, attachments, editable, onChange, onOpenPage, onPeekPage, onPagesChanged, onAttachmentUploaded, pages, members, registerFileDropHandler, presenceUsers, onCursorReport, canViewSensitive, guestName, guestColors },
+  { pageId, content, attachments, editable, onChange, onOpenPage, onPagesChanged, onAttachmentUploaded, pages, members, registerFileDropHandler, presenceUsers, onCursorReport, canViewSensitive, guestName, guestColors },
   ref,
 ) {
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -1581,7 +1580,6 @@ export const Editor = forwardRef<EditorHandle, {
                 onDuplicateBlock={() => duplicateBlock(block.id)}
                 onPatch={(patch) => updateBlock(block.id, patch)}
                 onOpenPage={onOpenPage}
-                onPeekPage={onPeekPage}
                 currentPageId={pageId}
                 pages={pages}
                 members={members}

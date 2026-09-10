@@ -168,7 +168,6 @@ export function DatabaseView({
   members,
   editable,
   onOpenPage,
-  onPeekPage,
   onPagesChanged,
   onPatch,
   onDuplicate,
@@ -182,7 +181,6 @@ export function DatabaseView({
   members: TeamMemberDTO[];
   editable: boolean;
   onOpenPage: (id: string) => void;
-  onPeekPage: (id: string, label?: string, anchorLeft?: number) => void;
   onPagesChanged: () => void;
   onPatch: (patch: Partial<DbViewBlock>) => void;
   onDuplicate: () => void;
@@ -214,6 +212,7 @@ export function DatabaseView({
   const [selectedDateRange, setSelectedDateRange] = useState<{ start: string; end: string } | null>(null);
   const [selectedSchedule, setSelectedSchedule] = useState<PageSummaryDTO | null>(null);
   const [isScheduleModalOpen, setScheduleModalOpen] = useState(false);
+  const [scheduleModalReadOnly, setScheduleModalReadOnly] = useState(false);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -277,12 +276,23 @@ export function DatabaseView({
   const openCreateModal = (start: string, end: string) => {
     setSelectedDateRange({ start, end });
     setSelectedSchedule(null);
+    setScheduleModalReadOnly(false);
     setScheduleModalOpen(true);
   };
 
   const openEditModal = (item: PageSummaryDTO) => {
     setSelectedSchedule(item);
     setSelectedDateRange(null);
+    setScheduleModalReadOnly(false);
+    setScheduleModalOpen(true);
+  };
+
+  // Clicking a schedule on the calendar: same form as "일정 추가", pre-filled and
+  // editable for the author/admin; view-only (no save) for everyone else.
+  const openScheduleModal = (item: PageSummaryDTO) => {
+    setSelectedSchedule(item);
+    setSelectedDateRange(null);
+    setScheduleModalReadOnly(!editable || !canManageSchedule(item, currentUser));
     setScheduleModalOpen(true);
   };
 
@@ -290,6 +300,7 @@ export function DatabaseView({
     setScheduleModalOpen(false);
     setSelectedDateRange(null);
     setSelectedSchedule(null);
+    setScheduleModalReadOnly(false);
   };
 
   const createSchedule = async (values: ScheduleFormValues) => {
@@ -598,6 +609,7 @@ export function DatabaseView({
               ? selectedSchedule.authorName || memberName(members, selectedSchedule.createdBy)
               : guestName ?? currentUser?.name ?? "-"
           }
+          readOnly={scheduleModalReadOnly}
           onSave={async (values) => {
             if (selectedSchedule) await updateSchedule(selectedSchedule, values);
             else await createSchedule(values);
@@ -688,7 +700,7 @@ export function DatabaseView({
           items={children}
           members={members}
           currentUser={currentUser}
-          onPeekPage={onPeekPage}
+          onRequestView={openScheduleModal}
           editable={editable}
           size={block.calendarSize ?? 64}
           onResize={(size) => onPatch({ calendarSize: size })}
@@ -1368,7 +1380,7 @@ function CalendarGrid({
   items,
   members,
   currentUser,
-  onPeekPage,
+  onRequestView,
   editable,
   size,
   onResize,
@@ -1387,7 +1399,8 @@ function CalendarGrid({
   items: PageSummaryDTO[];
   members: TeamMemberDTO[];
   currentUser: UserDTO | null;
-  onPeekPage: (id: string, label?: string, anchorLeft?: number) => void;
+  /** Clicking a schedule bar: same form as "일정 추가", editable for the author/admin, read-only otherwise. */
+  onRequestView: (item: PageSummaryDTO) => void;
   editable: boolean;
   size: number;
   onResize: (size: number) => void;
@@ -1890,7 +1903,7 @@ function CalendarGrid({
                           suppressNextBarClickRef.current = null;
                           return;
                         }
-                        onPeekPage(seg.item.id, scheduleRangeLabel(seg.item.startDate, seg.item.endDate), frameRef.current?.getBoundingClientRect().right);
+                        onRequestView(seg.item);
                       }}
                       onContextMenu={(e) => onBarContextMenu(e, seg.item)}
                     >
