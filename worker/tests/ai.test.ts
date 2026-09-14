@@ -16,6 +16,7 @@ import { getFileMediaStream } from '../drive/client';
 let db:ReturnType<typeof createTestDb>,env:Env;
 beforeEach(async()=>{
  db=createTestDb();env={DB:db,GEMINI_API_KEY:'fake-test-key'} as Env;
+ await db.prepare('DELETE FROM ai_monthly_budgets').run();
  await db.prepare("UPDATE ai_prices SET valid_until='2099-01-01T00:00:00.000Z'").run();
  await db.prepare("INSERT INTO teams(id,name) VALUES('t','Team')").run();
  await db.prepare("INSERT INTO users(id,email,name,role) VALUES('u','u@test','User','viewer')").run();
@@ -32,6 +33,18 @@ async function attachment(pageId:string,mime:string,name:string) {
  const id=crypto.randomUUID();await db.prepare("INSERT INTO attachments(id,page_id,file_name,extension,mime_type,size_bytes,status,drive_file_id,uploaded_by,checksum) VALUES(?1,?2,?3,'',?4,100,'ready','drive','u','checksum')").bind(id,pageId,name,mime).run();return id;
 }
 describe('global atomic budget',()=>{
+ it('adds September allowance atomically and resets in October without deleting history',async()=>{
+  await db.prepare("INSERT INTO ai_monthly_budgets VALUES('2026-09',40000000000)").run();
+  const p=await price(db),september=new Date('2026-09-30T14:59:59Z'),october=new Date('2026-09-30T15:00:00Z');
+  await reserve(db,p,'existing',LIMIT,september);
+  const attempts=await Promise.allSettled(Array.from({length:3},()=>reserve(db,p,'extra',5_000_000_000,september)));
+  expect(attempts.filter(r=>r.status==='fulfilled')).toHaveLength(2);
+  expect(await budgetStatus(db,september)).toMatchObject({limit:40000,estimated:40000,remaining:0});
+  expect(await budgetStatus(db,october)).toMatchObject({month:'2026-10',limit:30000,estimated:0,remaining:30000});
+  await reserve(db,p,'october',LIMIT,october);
+  await expect(reserve(db,p,'over',1,october)).rejects.toMatchObject({code:'ai_budget'});
+  expect(await budgetStatus(db,september)).toMatchObject({estimated:40000,held:40000});
+ });
  it('uses Seoul month boundaries, not UTC or a rolling month',()=>{
   expect(monthKey(new Date('2026-09-30T14:59:59.999Z'))).toBe('2026-09');
   expect(monthKey(new Date('2026-09-30T15:00:00Z'))).toBe('2026-10');

@@ -4,6 +4,10 @@ export const LIMIT = 30_000_000_000;
 export const MODEL = 'gemini-2.5-flash';
 export interface Price { id: string; model: string; input_usd: number; output_usd: number; krw_per_usd: number; safety_factor: number; valid_until: string; enabled: number }
 export const monthKey = (date = new Date()) => new Date(date.getTime() + 9 * 3600_000).toISOString().slice(0,7);
+async function monthlyLimit(db: Env['DB'], month: string): Promise<number> {
+  const row = await db.prepare('SELECT limit_micro_krw FROM ai_monthly_budgets WHERE month=?1').bind(month).first<{limit_micro_krw:number}>();
+  return row?.limit_micro_krw ?? LIMIT;
+}
 export function cost(p: Price, input: number, output: number) {
   return Math.ceil((input * p.input_usd + output * p.output_usd) * p.krw_per_usd * p.safety_factor);
 }
@@ -16,7 +20,7 @@ export async function price(db: Env['DB'], now = new Date()): Promise<Price> {
   return p;
 }
 export async function reserve(db: Env['DB'], p: Price, purpose: string, amount: number, now = new Date()) {
-  if (!Number.isSafeInteger(amount) || amount <= 0 || amount > LIMIT) throw new AppError(429,'ai_budget','요청에 필요한 예산이 부족합니다.');
+  if (!Number.isSafeInteger(amount) || amount <= 0 || amount > await monthlyLimit(db,monthKey(now))) throw new AppError(429,'ai_budget','요청에 필요한 예산이 부족합니다.');
   const id = crypto.randomUUID();
   try {
     await db.prepare(`INSERT INTO ai_calls(id,month,purpose,price_id,reserved,charged,state,created_at)
@@ -40,11 +44,11 @@ export async function settle(db: Env['DB'], id: string, p: Price, input?: number
   await db.prepare(`UPDATE ai_calls SET charged=?1,state=?2,input_tokens=?3,output_tokens=?4,settled_at=?5
      WHERE id=?6 AND state='reserved'`).bind(amount,valid?'settled':'uncertain',input??null,output??null,new Date().toISOString(),id).run();
 }
-export async function budgetStatus(db: Env['DB']) {
-  const month=monthKey();
+export async function budgetStatus(db: Env['DB'], now = new Date()) {
+  const month=monthKey(now),limit=await monthlyLimit(db,month);
   const r=await db.prepare(`SELECT COALESCE(SUM(charged),0) used,
     COALESCE(SUM(CASE WHEN state!='settled' THEN charged ELSE 0 END),0) held FROM ai_calls WHERE month=?1`).bind(month).first<{used:number;held:number}>();
-  return {month,limit:30000,estimated:(r?.used??0)/1e6,held:(r?.held??0)/1e6,remaining:Math.max(0,(LIMIT-(r?.used??0))/1e6)};
+  return {month,limit:limit/1e6,estimated:(r?.used??0)/1e6,held:(r?.held??0)/1e6,remaining:Math.max(0,(limit-(r?.used??0))/1e6)};
 }
 
 /** Conservative AI incremental compute/D1 allowance, separate from existing base hosting.

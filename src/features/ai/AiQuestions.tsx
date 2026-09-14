@@ -25,7 +25,7 @@ export function AiQuestions() {
   <p className="ai-muted">저장된 자료만 사용합니다. 질문마다 독립적으로 답변하며 이전 대화는 전달하지 않습니다.</p>
   {status&&<div className="ai-budget">
    <strong>{status.budget.month} 월 예상 사용액 {won(status.budget.estimated)}</strong>
-   <span>한도 30,000원 · 잔여 {won(status.budget.remaining)}</span>
+   <span>한도 {won(status.budget.limit)} · 잔여 {won(status.budget.remaining)}</span>
    <small>전체 사용자 합산 · 한국시간 기준 · 진행 중/과금 미확인 확보액 {won(status.budget.held)} 포함. 실제 청구액과 다를 수 있습니다.</small>
   </div>}
   {status&&!status.configured&&<p role="status" className="ai-warning">API 키 미설정: Cloudflare Secret에 GEMINI_API_KEY를 등록해주세요.</p>}
