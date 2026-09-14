@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import type { PageCategory } from "@shared/types";
-import { CATEGORY_LABELS, PAGE_CATEGORIES, UNCATEGORIZED_LABEL } from "@shared/types";
+import type { PageCategory, PageCategoryDTO } from "@shared/types";
+import { UNCATEGORIZED_LABEL } from "@shared/types";
 import { Modal } from "@/components/Modal";
 
 export interface ScheduleFormValues {
@@ -19,6 +19,7 @@ export function ScheduleModal({
   initial,
   authorName,
   readOnly = false,
+  categories,
   onSave,
   onCancel,
 }: {
@@ -27,6 +28,9 @@ export function ScheduleModal({
   authorName: string;
   /** No edit rights on this schedule (not the author/admin): show details without a save action. */
   readOnly?: boolean;
+  // Same category list Wegoinn DB cards use, so a schedule's category badge
+  // resolves consistently everywhere it's shown (calendar, activity feed).
+  categories: PageCategoryDTO[];
   onSave: (values: ScheduleFormValues) => Promise<void>;
   onCancel: () => void;
 }) {
@@ -163,9 +167,9 @@ export function ScheduleModal({
             disabled={readOnly}
           >
             <option value="">{UNCATEGORIZED_LABEL}</option>
-            {PAGE_CATEGORIES.map((category) => (
-              <option key={category} value={category}>
-                {CATEGORY_LABELS[category]}
+            {categories.map((category) => (
+              <option key={category.key} value={category.key}>
+                {category.label}
               </option>
             ))}
           </select>

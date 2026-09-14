@@ -11,6 +11,8 @@ import { memberName } from "@/hooks/useTeamMembers";
 import { useActivityFeed } from "@/hooks/useActivityFeed";
 import { STATUS_LABELS } from "@/features/status/Status";
 import { WegoinnAiPanel } from "@/features/ai/WegoinnAiPanel";
+import { canManageSchedule, todayKey } from "@/features/pages/DatabaseView";
+import { ScheduleModal, type ScheduleFormValues } from "@/features/pages/ScheduleModal";
 
 type ViewMode = "board" | "list";
 type CategoryFilter = PageCategory | "all" | "none";
@@ -76,6 +78,7 @@ function CategoryBadge({ category, categories }: { category: PageCategory | null
 export function WegoinnBoard({
   pages,
   members,
+  user,
   canEdit,
   categories,
   onCategoriesChanged,
@@ -118,6 +121,37 @@ export function WegoinnBoard({
   const [dragOverCategoryKey, setDragOverCategoryKey] = useState<string | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
   const { items: activityItems, ack: ackActivityItem, ackAll: ackAllActivity } = useActivityFeed(guestName);
+  // Activity feed rows for a calendar schedule open the same edit board as
+  // clicking that schedule on the calendar itself, instead of peeking the
+  // full page — schedules are pages that carry an endDate (only ScheduleModal
+  // ever sets it), so this check needs no extra parent/block lookup.
+  const [activitySchedule, setActivitySchedule] = useState<PageSummaryDTO | null>(null);
+  const [activityScheduleReadOnly, setActivityScheduleReadOnly] = useState(false);
+
+  const openActivitySchedule = (page: PageSummaryDTO) => {
+    setActivitySchedule(page);
+    setActivityScheduleReadOnly(!canEdit || !canManageSchedule(page, user));
+  };
+
+  const closeActivitySchedule = () => {
+    setActivitySchedule(null);
+    setActivityScheduleReadOnly(false);
+  };
+
+  const updateActivitySchedule = async (page: PageSummaryDTO, values: ScheduleFormValues) => {
+    await api.updatePageMeta(page.id, {
+      expectedVersion: page.version,
+      title: values.title.trim() || "제목 없음",
+      description: values.description || null,
+      category: values.category,
+      dueDate: values.startDate,
+      endDate: values.endDate,
+      startTime: values.allDay ? null : values.startTime || null,
+      endTime: values.allDay ? null : values.endTime || null,
+      allDay: values.allDay,
+    });
+    await onPagesChanged();
+  };
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -622,7 +656,31 @@ export function WegoinnBoard({
       onAck={ackActivityItem}
       onAckAll={ackAllActivity}
       onOpenPage={onPeekPage}
+      onOpenSchedule={openActivitySchedule}
     />
+    {activitySchedule && (
+      <ScheduleModal
+        mode="edit"
+        initial={{
+          title: activitySchedule.title,
+          description: activitySchedule.description ?? "",
+          startDate: activitySchedule.dueDate ?? todayKey(),
+          endDate: activitySchedule.endDate ?? activitySchedule.dueDate ?? todayKey(),
+          startTime: activitySchedule.startTime ?? "",
+          endTime: activitySchedule.endTime ?? "",
+          allDay: activitySchedule.allDay,
+          category: activitySchedule.category,
+        }}
+        authorName={activitySchedule.authorName || memberName(members, activitySchedule.createdBy)}
+        readOnly={activityScheduleReadOnly}
+        categories={categories}
+        onSave={async (values) => {
+          await updateActivitySchedule(activitySchedule, values);
+          closeActivitySchedule();
+        }}
+        onCancel={closeActivitySchedule}
+      />
+    )}
     </>
   );
 }
@@ -680,6 +738,7 @@ function ActivityFeedBar({
   onAck,
   onAckAll,
   onOpenPage,
+  onOpenSchedule,
 }: {
   items: ActivityFeedItemDTO[];
   pages: PageSummaryDTO[];
@@ -688,6 +747,7 @@ function ActivityFeedBar({
   onAck: (id: string) => void;
   onAckAll: () => void;
   onOpenPage: (id: string) => void;
+  onOpenSchedule: (page: PageSummaryDTO) => void;
 }) {
   if (items.length === 0) return null;
   return (
@@ -719,7 +779,14 @@ function ActivityFeedBar({
               type="button"
               className="wdb-activity-bar__body"
               disabled={!page}
-              onClick={() => page && onOpenPage(page.id)}
+              onClick={() => {
+                if (!page) return;
+                // A schedule (calendar-view page) always carries an endDate;
+                // only ScheduleModal ever sets that field, so this alone
+                // tells a schedule edit apart from a regular page edit.
+                if (page.endDate != null) onOpenSchedule(page);
+                else onOpenPage(page.id);
+              }}
             >
               <span className="wdb-activity-bar__category" style={{ color: categoryColor, background: `${categoryColor}1f` }}>
                 {categoryLabel}

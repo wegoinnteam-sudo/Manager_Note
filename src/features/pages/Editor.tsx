@@ -1,5 +1,5 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
-import type { AttachmentDTO, PageBlock, PageContent, PageSummaryDTO, TeamMemberDTO } from "@shared/types";
+import type { AttachmentDTO, PageBlock, PageCategoryDTO, PageContent, PageSummaryDTO, TeamMemberDTO } from "@shared/types";
 import { ALLOWED_UPLOAD_EXTENSIONS } from "@shared/types";
 import { Block, type HeadingRef } from "./Block";
 import { caretPixelPosition, offsetAtEdgeLine } from "./caretPosition";
@@ -294,8 +294,9 @@ export const Editor = forwardRef<EditorHandle, {
   canViewSensitive: boolean;
   guestName?: string;
   guestColors: Record<string, string>;
+  categories: PageCategoryDTO[];
 }>(function Editor(
-  { pageId, content, attachments, editable, onChange, onOpenPage, onPagesChanged, onAttachmentUploaded, pages, members, registerFileDropHandler, presenceUsers, onCursorReport, canViewSensitive, guestName, guestColors },
+  { pageId, content, attachments, editable, onChange, onOpenPage, onPagesChanged, onAttachmentUploaded, pages, members, registerFileDropHandler, presenceUsers, onCursorReport, canViewSensitive, guestName, guestColors, categories },
   ref,
 ) {
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -1594,6 +1595,7 @@ export const Editor = forwardRef<EditorHandle, {
                 canViewSensitive={canViewSensitive}
                 guestName={guestName}
                 guestColors={guestColors}
+                categories={categories}
               />
             </div>
           </div>

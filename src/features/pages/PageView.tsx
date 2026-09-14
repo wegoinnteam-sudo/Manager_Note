@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { AttachmentDTO, PageDetailDTO, PageSummaryDTO, TeamMemberDTO } from "@shared/types";
+import type { AttachmentDTO, PageCategoryDTO, PageDetailDTO, PageSummaryDTO, TeamMemberDTO } from "@shared/types";
 import { api, ApiClientError } from "@/lib/api";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
 import { Editor, type EditorHandle } from "./Editor";
@@ -37,6 +37,7 @@ export function PageView({
   guestName,
   canViewSensitive,
   autoSave = true,
+  categories,
 }: {
   pageId: string;
   canEdit: boolean;
@@ -59,6 +60,7 @@ export function PageView({
   // now always runs — edits used to be held purely locally in this mode and
   // silently dropped if the panel was closed before the button was pressed.
   autoSave?: boolean;
+  categories: PageCategoryDTO[];
 }) {
   const [page, setPage] = useState<PageDetailDTO | null>(null);
   const [attachments, setAttachments] = useState<AttachmentDTO[]>([]);
@@ -414,6 +416,7 @@ export function PageView({
           canViewSensitive={canViewSensitive}
           guestName={guestName}
           guestColors={guestColors}
+          categories={categories}
         />
 
         <Comments pageId={page.id} canComment={canEdit} guestName={guestName} />

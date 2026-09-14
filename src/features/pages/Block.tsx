@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { AttachmentDTO, PageBlock, PageSummaryDTO, TeamMemberDTO } from "@shared/types";
+import type { AttachmentDTO, PageBlock, PageCategoryDTO, PageSummaryDTO, TeamMemberDTO } from "@shared/types";
 import type { PresenceUser } from "@/hooks/usePresence";
 import { renderInline } from "./inlineMarkdown";
 import { api } from "@/lib/api";
@@ -83,6 +83,7 @@ export function Block({
   canViewSensitive,
   guestName,
   guestColors,
+  categories,
 }: {
   block: PageBlock;
   index: number;
@@ -112,6 +113,7 @@ export function Block({
   canViewSensitive: boolean;
   guestName?: string;
   guestColors: Record<string, string>;
+  categories: PageCategoryDTO[];
 }) {
   const localRef = useRef<HTMLTextAreaElement | null>(null);
   const [, bumpRender] = useState(0);
@@ -246,6 +248,7 @@ export function Block({
           onRemove={onRemoveBlock}
           guestName={guestName}
           guestColors={guestColors}
+          categories={categories}
         />
         {editable && (
           <button type="button" className="block-row__handle" onClick={onRemoveBlock} title="블록 제거">

@@ -7,6 +7,7 @@ import type {
   DatabaseTemplate,
   HandoffStatus,
   PageCategory,
+  PageCategoryDTO,
   PageBlock,
   PageSummaryDTO,
   TeamMemberDTO,
@@ -129,12 +130,12 @@ function scheduleRangeLabel(startDate: string, endDate: string): string {
   return startDate === endDate ? compactDateLabel(startDate) : `${compactDateLabel(startDate)} ~ ${compactDateLabel(endDate)}`;
 }
 
-function todayKey(): string {
+export function todayKey(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function canManageSchedule(item: PageSummaryDTO, user: UserDTO | null): boolean {
+export function canManageSchedule(item: PageSummaryDTO, user: UserDTO | null): boolean {
   return !!user && (user.role === "admin" || item.createdBy === user.id);
 }
 
@@ -174,6 +175,7 @@ export function DatabaseView({
   onRemove,
   guestName,
   guestColors,
+  categories,
 }: {
   block: DbViewBlock;
   parentId: string;
@@ -187,6 +189,10 @@ export function DatabaseView({
   onRemove: () => void;
   guestName?: string;
   guestColors: Record<string, string>;
+  // Wegoinn DB's admin-managed category list — used for the calendar's own
+  // schedule category (so it matches what the activity feed shows), while
+  // table/board/chart views here keep the separate fixed PAGE_CATEGORIES set.
+  categories: PageCategoryDTO[];
 }) {
   const view = block.view;
   const properties = block.properties ?? DEFAULT_PROPERTIES;
@@ -235,10 +241,13 @@ export function DatabaseView({
     return allChildren.filter((child) => {
       if (filter && !matchesFilter(child, filter, members)) return false;
       if (!query) return true;
-      return [child.title, child.description ?? "", child.tags.join(" "), child.category ? CATEGORY_LABELS[child.category] : ""]
+      const categoryLabel = child.category
+        ? categories.find((c) => c.key === child.category)?.label ?? CATEGORY_LABELS[child.category] ?? child.category
+        : "";
+      return [child.title, child.description ?? "", child.tags.join(" "), categoryLabel]
         .some((value) => value.toLocaleLowerCase().includes(query));
     });
-  }, [allChildren, filter, searchQuery, members]);
+  }, [allChildren, filter, searchQuery, members, categories]);
   const subItemCounts = useMemo(() => {
     const counts = new Map<string, number>();
     pages.forEach((page) => {
@@ -561,6 +570,7 @@ export function DatabaseView({
                 pages={pages}
                 sourcePageId={sourceParentId}
                 currentPageId={parentId}
+                categories={categories}
                 onChange={(p) => onPatch(p)}
                 onClose={() => setMenuOpen(null)}
               />
@@ -610,6 +620,7 @@ export function DatabaseView({
               : guestName ?? currentUser?.name ?? "-"
           }
           readOnly={scheduleModalReadOnly}
+          categories={categories}
           onSave={async (values) => {
             if (selectedSchedule) await updateSchedule(selectedSchedule, values);
             else await createSchedule(values);
@@ -793,6 +804,7 @@ function DatabaseViewEditPanel({
   pages,
   sourcePageId,
   currentPageId,
+  categories,
   onChange,
   onClose,
 }: {
@@ -805,6 +817,10 @@ function DatabaseViewEditPanel({
   pages: PageSummaryDTO[];
   sourcePageId: string;
   currentPageId: string;
+  // Only used to render the category filter's options when view === "calendar"
+  // — calendar schedules use Wegoinn DB's category list, other views keep
+  // the fixed PAGE_CATEGORIES set.
+  categories: PageCategoryDTO[];
   onChange: (patch: Partial<DbViewBlock>) => void;
   onClose: () => void;
 }) {
@@ -877,7 +893,9 @@ function DatabaseViewEditPanel({
           ) : filter.field === "category" ? (
             <select value={filter.value ?? ""} onChange={(e) => onChange({ filter: { ...filter, value: e.target.value } })}>
               <option value="">카테고리 없음</option>
-              {PAGE_CATEGORIES.map((category) => <option key={category} value={category}>{CATEGORY_LABELS[category]}</option>)}
+              {view === "calendar"
+                ? categories.map((category) => <option key={category.key} value={category.key}>{category.label}</option>)
+                : PAGE_CATEGORIES.map((category) => <option key={category} value={category}>{CATEGORY_LABELS[category]}</option>)}
             </select>
           ) : filter.field === "assigneeId" ? (
             <select value={filter.value ?? ""} onChange={(e) => onChange({ filter: { ...filter, value: e.target.value } })}>

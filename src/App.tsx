@@ -222,6 +222,7 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
         onCursorReport={(blockId, offset) => reportCursor(activePageId, blockId, offset)}
         guestName={identity.name}
         canViewSensitive={canEdit}
+        categories={categories}
       />
     );
   } else {
@@ -308,6 +309,7 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
                   guestName={identity.name}
                   canViewSensitive={canEdit}
                   autoSave={peekAnchorLeft == null}
+                  categories={categories}
                 />
               </div>
             </div>
