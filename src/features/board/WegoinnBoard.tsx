@@ -127,15 +127,31 @@ export function WegoinnBoard({
   // ever sets it), so this check needs no extra parent/block lookup.
   const [activitySchedule, setActivitySchedule] = useState<PageSummaryDTO | null>(null);
   const [activityScheduleReadOnly, setActivityScheduleReadOnly] = useState(false);
+  // Which fields the clicked activity row actually changed (from its
+  // "page.updated" metadata) — highlighted in the modal so it's obvious what
+  // was edited, without having to diff it yourself. Cleared once the row is
+  // acked (✓), since re-opening an acked schedule has nothing left to flag.
+  const [activityScheduleFields, setActivityScheduleFields] = useState<Set<string>>(new Set());
+  const [activityScheduleItemId, setActivityScheduleItemId] = useState<string | null>(null);
 
-  const openActivitySchedule = (page: PageSummaryDTO) => {
+  const openActivitySchedule = (page: PageSummaryDTO, item: ActivityFeedItemDTO) => {
     setActivitySchedule(page);
     setActivityScheduleReadOnly(!canEdit || !canManageSchedule(page, user));
+    const fields = item.action === "page.updated" && Array.isArray(item.metadata.fields) ? (item.metadata.fields as string[]) : [];
+    setActivityScheduleFields(new Set(fields));
+    setActivityScheduleItemId(item.id);
   };
 
   const closeActivitySchedule = () => {
     setActivitySchedule(null);
     setActivityScheduleReadOnly(false);
+    setActivityScheduleFields(new Set());
+    setActivityScheduleItemId(null);
+  };
+
+  const ackActivitySchedule = () => {
+    if (activityScheduleItemId) ackActivityItem(activityScheduleItemId);
+    closeActivitySchedule();
   };
 
   const updateActivitySchedule = async (page: PageSummaryDTO, values: ScheduleFormValues) => {
@@ -674,6 +690,8 @@ export function WegoinnBoard({
         authorName={activitySchedule.authorName || memberName(members, activitySchedule.createdBy)}
         readOnly={activityScheduleReadOnly}
         categories={categories}
+        highlightFields={activityScheduleFields}
+        onAck={activityScheduleItemId ? ackActivitySchedule : undefined}
         onSave={async (values) => {
           await updateActivitySchedule(activitySchedule, values);
           closeActivitySchedule();
@@ -747,7 +765,7 @@ function ActivityFeedBar({
   onAck: (id: string) => void;
   onAckAll: () => void;
   onOpenPage: (id: string) => void;
-  onOpenSchedule: (page: PageSummaryDTO) => void;
+  onOpenSchedule: (page: PageSummaryDTO, item: ActivityFeedItemDTO) => void;
 }) {
   if (items.length === 0) return null;
   return (
@@ -784,7 +802,7 @@ function ActivityFeedBar({
                 // A schedule (calendar-view page) always carries an endDate;
                 // only ScheduleModal ever sets that field, so this alone
                 // tells a schedule edit apart from a regular page edit.
-                if (page.endDate != null) onOpenSchedule(page);
+                if (page.endDate != null) onOpenSchedule(page, item);
                 else onOpenPage(page.id);
               }}
             >

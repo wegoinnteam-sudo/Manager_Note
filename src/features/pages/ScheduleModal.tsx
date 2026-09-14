@@ -20,6 +20,8 @@ export function ScheduleModal({
   authorName,
   readOnly = false,
   categories,
+  highlightFields,
+  onAck,
   onSave,
   onCancel,
 }: {
@@ -31,9 +33,17 @@ export function ScheduleModal({
   // Same category list Wegoinn DB cards use, so a schedule's category badge
   // resolves consistently everywhere it's shown (calendar, activity feed).
   categories: PageCategoryDTO[];
+  // Field names (activity-log field naming, e.g. "dueDate"/"endDate") to mark
+  // with a highlighter — opened from an unacked "최근 수정" row, this shows
+  // at a glance what actually changed instead of making the viewer diff it.
+  highlightFields?: Set<string>;
+  // Present only when opened from an activity row: acks it (and clears the
+  // highlight) without having to close this and find the row in the feed.
+  onAck?: () => void;
   onSave: (values: ScheduleFormValues) => Promise<void>;
   onCancel: () => void;
 }) {
+  const highlighted = (field: string) => (highlightFields?.has(field) ? " schedule-modal__field--highlight" : "");
   const [values, setValues] = useState<ScheduleFormValues>(initial);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -102,7 +112,7 @@ export function ScheduleModal({
   return (
     <Modal title={readOnly ? "일정 보기" : mode === "create" ? "일정 추가" : "일정 수정"} onClose={onCancel}>
       <div ref={containerRef} className="schedule-modal">
-        <label className="schedule-modal__field">
+        <label className={"schedule-modal__field" + highlighted("title")}>
           <span>제목 *</span>
           <input
             ref={titleRef}
@@ -116,7 +126,7 @@ export function ScheduleModal({
           />
         </label>
 
-        <label className="schedule-modal__field">
+        <label className={"schedule-modal__field" + highlighted("description")}>
           <span>내용/메모</span>
           <textarea
             rows={3}
@@ -129,29 +139,29 @@ export function ScheduleModal({
         </label>
 
         <div className="schedule-modal__row">
-          <label className="schedule-modal__field">
+          <label className={"schedule-modal__field" + highlighted("dueDate")}>
             <span>시작일 *</span>
             <input type="date" value={values.startDate} onChange={(e) => setValues({ ...values, startDate: e.target.value })} disabled={readOnly} />
           </label>
-          <label className="schedule-modal__field">
+          <label className={"schedule-modal__field" + highlighted("endDate")}>
             <span>종료일 *</span>
             <input type="date" value={values.endDate} onChange={(e) => setValues({ ...values, endDate: e.target.value })} disabled={readOnly} />
           </label>
         </div>
         {dateOutOfOrder && <div className="schedule-modal__error">종료일은 시작일보다 빠를 수 없습니다.</div>}
 
-        <label className="schedule-modal__checkbox">
+        <label className={"schedule-modal__checkbox" + highlighted("allDay")}>
           <input type="checkbox" checked={values.allDay} onChange={(e) => setValues({ ...values, allDay: e.target.checked })} disabled={readOnly} />
           종일 일정
         </label>
 
         {!values.allDay && (
           <div className="schedule-modal__row">
-            <label className="schedule-modal__field">
+            <label className={"schedule-modal__field" + highlighted("startTime")}>
               <span>시작 시간</span>
               <input type="time" value={values.startTime} onChange={(e) => setValues({ ...values, startTime: e.target.value })} disabled={readOnly} />
             </label>
-            <label className="schedule-modal__field">
+            <label className={"schedule-modal__field" + highlighted("endTime")}>
               <span>종료 시간</span>
               <input type="time" value={values.endTime} onChange={(e) => setValues({ ...values, endTime: e.target.value })} disabled={readOnly} />
             </label>
@@ -159,7 +169,7 @@ export function ScheduleModal({
         )}
         {sameDayTimeWarning && <div className="schedule-modal__warning">종료 시간이 시작 시간보다 빠릅니다. 확인해주세요.</div>}
 
-        <label className="schedule-modal__field">
+        <label className={"schedule-modal__field" + highlighted("category")}>
           <span>카테고리 (일정 색상)</span>
           <select
             value={values.category ?? ""}
@@ -185,6 +195,11 @@ export function ScheduleModal({
         {error && <div className="schedule-modal__error">{error}</div>}
 
         <div className="schedule-modal__actions">
+          {onAck && (
+            <button type="button" className="schedule-modal__ack" onClick={onAck} disabled={saving} title="확인 (최근 수정 목록에서 지우기)">
+              ✓ 확인
+            </button>
+          )}
           <button type="button" onClick={onCancel} disabled={saving}>
             {readOnly ? "닫기" : "취소"}
           </button>
