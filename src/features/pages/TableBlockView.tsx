@@ -21,6 +21,10 @@ function cellKey(r: number, c: number): string {
   return `${r}-${c}`;
 }
 
+function pad2(n: number): string {
+  return n < 10 ? `0${n}` : `${n}`;
+}
+
 export function TableBlockView({
   block,
   editable,
@@ -210,6 +214,22 @@ export function TableBlockView({
   };
 
   const handleCellKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, r: number, c: number) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === ";") {
+      e.preventDefault();
+      const now = new Date();
+      const stamp = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+      const input = e.currentTarget;
+      const start = input.selectionStart ?? input.value.length;
+      const end = input.selectionEnd ?? start;
+      const nextValue = input.value.slice(0, start) + stamp + input.value.slice(end);
+      const nextCaret = start + stamp.length;
+      updateCell(r, c, nextValue);
+      requestAnimationFrame(() => {
+        input.setSelectionRange(nextCaret, nextCaret);
+      });
+      return;
+    }
+
     if (e.key === "Backspace" && e.currentTarget.value === "" && rows.length > 1 && rows[r].every((cell) => cell === "")) {
       e.preventDefault();
       const targetRow = Math.max(0, r - 1);
