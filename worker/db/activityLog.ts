@@ -84,6 +84,7 @@ export async function listActivityFeed(
        WHERE a.team_id = ?3
          AND a.page_id IS NOT NULL
          AND a.actor_id IS NOT NULL
+         AND k.guest_name IS NULL
          AND ${NOT_SELF_CLAUSE}
          AND a.action IN (?4, ?5, ?6, ?7, ?8)
        ORDER BY a.created_at DESC
@@ -91,7 +92,21 @@ export async function listActivityFeed(
     )
     .bind(viewer.guestName, viewer.userId, teamId, ...FEED_ACTIONS, limit)
     .all<ActivityFeedRow>();
-  return results ?? [];
+
+  // Every save creates its own row (one per PATCH), so a page edited several
+  // times before anyone acks piles up as that many "process" entries here.
+  // Collapse those down to just the newest per page — the viewer wants to
+  // see what changed since they last looked, not each intermediate save.
+  const seenPages = new Set<string>();
+  const deduped: ActivityFeedRow[] = [];
+  for (const row of results ?? []) {
+    if (row.page_id) {
+      if (seenPages.has(row.page_id)) continue;
+      seenPages.add(row.page_id);
+    }
+    deduped.push(row);
+  }
+  return deduped;
 }
 
 /** Returns false if the activity doesn't exist (or belongs to another team), so the route can 404. */
@@ -100,15 +115,34 @@ export async function ackActivity(
   params: { activityId: string; teamId: string; guestName: string },
 ): Promise<boolean> {
   const row = await db
-    .prepare("SELECT id FROM activity_logs WHERE id = ?1 AND team_id = ?2")
+    .prepare("SELECT id, page_id FROM activity_logs WHERE id = ?1 AND team_id = ?2")
     .bind(params.activityId, params.teamId)
-    .first<{ id: string }>();
+    .first<{ id: string; page_id: string | null }>();
   if (!row) return false;
 
-  await db
-    .prepare("INSERT INTO activity_acks (activity_id, guest_name) VALUES (?1, ?2) ON CONFLICT(activity_id, guest_name) DO NOTHING")
-    .bind(params.activityId, params.guestName)
-    .run();
+  // The feed only ever shows the newest row per page (listActivityFeed
+  // collapses the rest as "process"), so acking it should close out every
+  // earlier still-unacked edit to that same page too — otherwise the next
+  // refresh would resurface one of those collapsed rows as if it were new.
+  if (row.page_id) {
+    await db
+      .prepare(
+        `INSERT INTO activity_acks (activity_id, guest_name)
+         SELECT a.id, ?1
+         FROM activity_logs a
+         WHERE a.team_id = ?2
+           AND a.page_id = ?3
+           AND a.action IN (?4, ?5, ?6, ?7, ?8)
+         ON CONFLICT(activity_id, guest_name) DO NOTHING`,
+      )
+      .bind(params.guestName, params.teamId, row.page_id, ...FEED_ACTIONS)
+      .run();
+  } else {
+    await db
+      .prepare("INSERT INTO activity_acks (activity_id, guest_name) VALUES (?1, ?2) ON CONFLICT(activity_id, guest_name) DO NOTHING")
+      .bind(params.activityId, params.guestName)
+      .run();
+  }
   return true;
 }
 
