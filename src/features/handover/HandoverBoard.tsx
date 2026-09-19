@@ -186,6 +186,10 @@ export function HandoverBoard({
   // Photos attach to an already-created notice (no pre-upload staging in
   // the compose form) — after submitting, the new row appears at the top
   // of the list and "📷 사진 추가" there works the same as any other row.
+  // The input itself is single-select (no `multiple`) — some Android
+  // gallery/photo pickers return an empty FileList through a WebView's
+  // multi-select file input, so a photo could be picked and confirmed yet
+  // never actually arrive here. Tap the button again to add more than one.
   const addPhotos = async (notice: HandoverNoticeDTO, files: FileList | null) => {
     if (!files || files.length === 0) return;
     setUploadingNoticeId(notice.id);
@@ -466,7 +470,6 @@ export function HandoverBoard({
                                   id={`hb-photo-input-${notice.id}`}
                                   type="file"
                                   accept="image/*"
-                                  multiple
                                   className="hb-photo-input"
                                   disabled={uploadingNoticeId === notice.id}
                                   onChange={(e) => {
