@@ -189,6 +189,8 @@ export const api = {
   }) => request<HandoverNoticeDTO>("/api/handover", { method: "POST", body: JSON.stringify(input) }),
   setHandoverNoticeDone: (id: string, input: { isDone: boolean; completedBy?: string }) =>
     request<HandoverNoticeDTO>(`/api/handover/${id}/done`, { method: "PATCH", body: JSON.stringify(input) }),
+  setHandoverNoticeAck: (id: string, input: { name: string; acked: boolean }) =>
+    request<HandoverNoticeDTO>(`/api/handover/${id}/ack`, { method: "PATCH", body: JSON.stringify(input) }),
   deleteHandoverNotice: (id: string) => request<{ ok: true }>(`/api/handover/${id}`, { method: "DELETE" }),
   deleteHandoverPhoto: (id: string) => request<{ ok: true }>(`/api/handover/photos/${id}`, { method: "DELETE" }),
 };

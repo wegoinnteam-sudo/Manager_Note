@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { HandoverCategory, HandoverNoticeDTO } from "@shared/types";
-import { HANDOVER_CATEGORIES, HANDOVER_CATEGORY_LABELS } from "@shared/types";
+import { HANDOVER_ALL_ACK_NAMES, HANDOVER_CATEGORIES, HANDOVER_CATEGORY_LABELS } from "@shared/types";
 import { api, uploadHandoverPhoto } from "@/lib/api";
 import { compressImageForUpload } from "@/lib/imageCompression";
 import { todayKey } from "@/features/pages/DatabaseView";
@@ -17,6 +17,7 @@ const VIEW_TITLES: Record<ViewMode, string> = {
   reception: "Reception 인수인계",
   repair: "Repair 인수인계",
   others: "Others 인수인계",
+  everyone: "All 인수인계",
 };
 
 function nowTime(): string {
@@ -126,7 +127,7 @@ export function HandoverBoard({
 
   const counts = useMemo(() => {
     const done = notices.filter((n) => n.isDone).length;
-    const byCategory: Record<HandoverCategory, number> = { hostel: 0, reception: 0, repair: 0, others: 0 };
+    const byCategory: Record<HandoverCategory, number> = { hostel: 0, reception: 0, repair: 0, others: 0, everyone: 0 };
     notices.forEach((n) => {
       byCategory[n.category] += 1;
     });
@@ -168,6 +169,16 @@ export function HandoverBoard({
       } finally {
         setBusyId(null);
       }
+    }
+  };
+
+  const toggleAck = async (notice: HandoverNoticeDTO, name: string, checked: boolean) => {
+    setBusyId(notice.id);
+    try {
+      await api.setHandoverNoticeAck(notice.id, { name, acked: checked });
+      await onNoticesChanged();
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -498,29 +509,52 @@ export function HandoverBoard({
                             )}
                           </div>
                         </td>
-                        <td className="hb-done-cell" data-label="완료">
-                          <label className="hb-check-wrap" aria-label="완료 표시">
-                            <input
-                              type="checkbox"
-                              className="hb-done-check"
-                              checked={notice.isDone}
-                              disabled={!canEdit || busyId === notice.id}
-                              onChange={(e) => toggleDone(notice, e.target.checked)}
-                            />
-                          </label>
-                        </td>
-                        <td data-label="완료자">
-                          <input
-                            className="hb-completer-input"
-                            list="hb-name-suggestions"
-                            aria-label="완료자"
-                            value={completerFor(notice)}
-                            disabled={!canEdit || notice.isDone}
-                            placeholder="이름 입력"
-                            maxLength={60}
-                            onChange={(e) => setDraftCompleter((current) => ({ ...current, [notice.id]: e.target.value }))}
-                          />
-                        </td>
+                        {notice.category === "everyone" ? (
+                          <td className="hb-ack-cell" data-label="확인" colSpan={2}>
+                            <div className="hb-ack-grid">
+                              {HANDOVER_ALL_ACK_NAMES.map((name) => {
+                                const acked = notice.acks.includes(name);
+                                return (
+                                  <label key={name} className={acked ? "hb-ack-item hb-ack-item--acked" : "hb-ack-item"}>
+                                    <span className="hb-ack-name">{name}</span>
+                                    <input
+                                      type="checkbox"
+                                      checked={acked}
+                                      disabled={!canEdit || busyId === notice.id}
+                                      onChange={(e) => toggleAck(notice, name, e.target.checked)}
+                                    />
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </td>
+                        ) : (
+                          <>
+                            <td className="hb-done-cell" data-label="완료">
+                              <label className="hb-check-wrap" aria-label="완료 표시">
+                                <input
+                                  type="checkbox"
+                                  className="hb-done-check"
+                                  checked={notice.isDone}
+                                  disabled={!canEdit || busyId === notice.id}
+                                  onChange={(e) => toggleDone(notice, e.target.checked)}
+                                />
+                              </label>
+                            </td>
+                            <td data-label="완료자">
+                              <input
+                                className="hb-completer-input"
+                                list="hb-name-suggestions"
+                                aria-label="완료자"
+                                value={completerFor(notice)}
+                                disabled={!canEdit || notice.isDone}
+                                placeholder="이름 입력"
+                                maxLength={60}
+                                onChange={(e) => setDraftCompleter((current) => ({ ...current, [notice.id]: e.target.value }))}
+                              />
+                            </td>
+                          </>
+                        )}
                       </tr>
                     );
                   })}

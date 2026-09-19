@@ -1,7 +1,9 @@
 import type { Env } from "../types";
 import type { HandoverCategory, HandoverNoticeDTO } from "../../shared/types";
+import { HANDOVER_ALL_ACK_NAMES } from "../../shared/types";
 import { newId, nowIso } from "../lib/ids";
 import { listPhotosByNoticeIds, toHandoverPhotoDTO } from "./handoverPhotos";
+import { listAcksByNoticeIds, listAcksForNotice, setAck } from "./handoverNoticeAcks";
 
 interface HandoverNoticeRow {
   id: string;
@@ -19,7 +21,11 @@ interface HandoverNoticeRow {
   updated_at: string;
 }
 
-function toDto(row: HandoverNoticeRow, photos: HandoverNoticeDTO["photos"] = []): HandoverNoticeDTO {
+// "everyone" (displayed "All") notices are done once every fixed name in
+// HANDOVER_ALL_ACK_NAMES has acked — the is_done/completed_by columns are
+// never written for that category, so isDone is derived here instead of
+// read straight off the row like every other category.
+function toDto(row: HandoverNoticeRow, photos: HandoverNoticeDTO["photos"] = [], acks: string[] = []): HandoverNoticeDTO {
   return {
     id: row.id,
     noticeDate: row.notice_date,
@@ -28,13 +34,14 @@ function toDto(row: HandoverNoticeRow, photos: HandoverNoticeDTO["photos"] = [])
     reference: row.reference,
     category: row.category,
     body: row.body,
-    isDone: row.is_done === 1,
+    isDone: row.category === "everyone" ? acks.length >= HANDOVER_ALL_ACK_NAMES.length : row.is_done === 1,
     completedBy: row.completed_by,
     completedAt: row.completed_at,
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     photos,
+    acks,
   };
 }
 
@@ -49,8 +56,22 @@ export async function listHandoverNotices(db: Env["DB"], teamId: string): Promis
     .bind(teamId)
     .all<HandoverNoticeRow>();
   const rows = results ?? [];
-  const photosByNotice = await listPhotosByNoticeIds(db, rows.map((row) => row.id));
-  return rows.map((row) => toDto(row, (photosByNotice.get(row.id) ?? []).map(toHandoverPhotoDTO)));
+  const noticeIds = rows.map((row) => row.id);
+  const [photosByNotice, acksByNotice] = await Promise.all([
+    listPhotosByNoticeIds(db, noticeIds),
+    listAcksByNoticeIds(db, noticeIds),
+  ]);
+  return rows.map((row) =>
+    toDto(row, (photosByNotice.get(row.id) ?? []).map(toHandoverPhotoDTO), acksByNotice.get(row.id) ?? []),
+  );
+}
+
+export async function getHandoverNoticeCategory(db: Env["DB"], teamId: string, id: string): Promise<HandoverCategory | null> {
+  const row = await db
+    .prepare("SELECT category FROM handover_notices WHERE id = ?1 AND team_id = ?2 AND is_deleted = 0")
+    .bind(id, teamId)
+    .first<{ category: HandoverCategory }>();
+  return row?.category ?? null;
 }
 
 export async function createHandoverNotice(
@@ -92,6 +113,7 @@ export async function createHandoverNotice(
     createdAt: now,
     updatedAt: now,
     photos: [],
+    acks: [],
   };
 }
 
@@ -122,6 +144,31 @@ export async function setHandoverNoticeDone(
     .bind(id, teamId)
     .first<HandoverNoticeRow>();
   return row ? toDto(row) : null;
+}
+
+// Toggles one person's ack on an "everyone"-category notice. Returns null
+// for a missing notice or one that isn't in that category — the two share
+// a not-found response since a category mismatch means this endpoint
+// simply doesn't apply, same as the id not existing at all.
+export async function setHandoverNoticeAck(
+  db: Env["DB"],
+  teamId: string,
+  id: string,
+  name: string,
+  acked: boolean,
+): Promise<HandoverNoticeDTO | null> {
+  const row = await db
+    .prepare(
+      `SELECT id, notice_date, notice_time, from_name, reference, category, body, is_done, completed_by, completed_at, created_by, created_at, updated_at
+       FROM handover_notices WHERE id = ?1 AND team_id = ?2 AND is_deleted = 0`,
+    )
+    .bind(id, teamId)
+    .first<HandoverNoticeRow>();
+  if (!row || row.category !== "everyone") return null;
+
+  await setAck(db, id, name, acked);
+  const acks = await listAcksForNotice(db, id);
+  return toDto(row, [], acks);
 }
 
 export async function softDeleteHandoverNotice(db: Env["DB"], teamId: string, id: string): Promise<boolean> {

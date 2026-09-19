@@ -1,6 +1,12 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createTestDb } from "./helpers/fakeD1";
-import { createHandoverNotice, listHandoverNotices, setHandoverNoticeDone, softDeleteHandoverNotice } from "../db/handoverNotices";
+import {
+  createHandoverNotice,
+  listHandoverNotices,
+  setHandoverNoticeAck,
+  setHandoverNoticeDone,
+  softDeleteHandoverNotice,
+} from "../db/handoverNotices";
 import { createHandoverPhoto, deleteHandoverPhotoRow, getHandoverPhotoForTeam } from "../db/handoverPhotos";
 
 let db: any;
@@ -116,5 +122,41 @@ describe("handoverNotices", () => {
     await deleteHandoverPhotoRow(db, photo2.id);
     const afterDelete = await listHandoverNotices(db, TEAM);
     expect(afterDelete.find((n) => n.id === first.id)!.photos).toHaveLength(1);
+  });
+
+  it("an 'everyone' notice is only done once all four names have acked", async () => {
+    const created = await createHandoverNotice(db, TEAM, { ...sampleInput, category: "everyone" as const }, USER);
+    expect(created.isDone).toBe(false);
+
+    await setHandoverNoticeAck(db, TEAM, created.id, "Justin", true);
+    let notice = (await listHandoverNotices(db, TEAM)).find((n) => n.id === created.id)!;
+    expect(notice.acks).toEqual(["Justin"]);
+    expect(notice.isDone).toBe(false);
+
+    await setHandoverNoticeAck(db, TEAM, created.id, "Jane", true);
+    await setHandoverNoticeAck(db, TEAM, created.id, "Been", true);
+    const last = await setHandoverNoticeAck(db, TEAM, created.id, "Daniel", true);
+    expect(last?.isDone).toBe(true);
+    expect(last?.acks).toHaveLength(4);
+
+    // Un-acking one name drops it back to not-done.
+    await setHandoverNoticeAck(db, TEAM, created.id, "Jane", false);
+    notice = (await listHandoverNotices(db, TEAM)).find((n) => n.id === created.id)!;
+    expect(notice.acks.sort()).toEqual(["Been", "Daniel", "Justin"]);
+    expect(notice.isDone).toBe(false);
+  });
+
+  it("rejects acking a notice that isn't category 'everyone'", async () => {
+    const created = await createHandoverNotice(db, TEAM, sampleInput, USER);
+    expect(await setHandoverNoticeAck(db, TEAM, created.id, "Justin", true)).toBeNull();
+  });
+
+  it("rejects setting done/undone on an 'everyone' notice via the ordinary completer flow", async () => {
+    const created = await createHandoverNotice(db, TEAM, { ...sampleInput, category: "everyone" as const }, USER);
+    // setHandoverNoticeDone itself doesn't guard category (the route does),
+    // but it must not silently make an "everyone" notice look done via the
+    // is_done column — isDone stays derived from acks regardless.
+    const result = await setHandoverNoticeDone(db, TEAM, created.id, { isDone: true, completedBy: "Daniel" });
+    expect(result?.isDone).toBe(false);
   });
 });

@@ -57,16 +57,27 @@ export const DEFAULT_TAG_COLOR = "#6b7280";
 // Wegoinn Hostel reception handover board — a fixed-column board separate
 // from the Wegoinn DB page/category system above. See handover_notices in
 // migrations/0016_handover_notices.sql.
-export type HandoverCategory = "hostel" | "reception" | "repair" | "others";
+// "everyone" is the key for the "All" category (labelled "All" below) — not
+// named "all" because the board's view-tab ViewMode already uses the string
+// "all" to mean "전체보기" (every category at once); reusing it here would
+// collide with that.
+export type HandoverCategory = "hostel" | "reception" | "repair" | "others" | "everyone";
 
-export const HANDOVER_CATEGORIES: HandoverCategory[] = ["hostel", "reception", "repair", "others"];
+export const HANDOVER_CATEGORIES: HandoverCategory[] = ["hostel", "reception", "repair", "others", "everyone"];
 
 export const HANDOVER_CATEGORY_LABELS: Record<HandoverCategory, string> = {
   hostel: "Hostel",
   reception: "Reception",
   repair: "Repair",
   others: "Others",
+  everyone: "All",
 };
+
+// "All" category notices need every one of these specific people to
+// individually confirm they've seen it (see handover_notice_acks in
+// migrations/0018_handover_notice_acks.sql) instead of the single
+// completed_by flow the other categories use.
+export const HANDOVER_ALL_ACK_NAMES = ["Justin", "Jane", "Been", "Daniel"] as const;
 
 export interface HandoverPhotoDTO {
   id: string;
@@ -92,6 +103,9 @@ export interface HandoverNoticeDTO {
   createdAt: string;
   updatedAt: string;
   photos: HandoverPhotoDTO[];
+  // Names from HANDOVER_ALL_ACK_NAMES who have acked — only meaningful
+  // when category is "all"; empty for every other category.
+  acks: string[];
 }
 
 export interface UserDTO {

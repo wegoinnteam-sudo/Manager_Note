@@ -1,11 +1,18 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import type { AppBindings } from "../types";
-import { HANDOVER_CATEGORIES, IMAGE_EXTENSIONS } from "../../shared/types";
+import { HANDOVER_ALL_ACK_NAMES, HANDOVER_CATEGORIES, IMAGE_EXTENSIONS } from "../../shared/types";
 import { requireAuth, requireRole } from "../middleware/rbac";
 import { Errors } from "../lib/errors";
 import { extensionOf } from "../lib/validation";
-import { createHandoverNotice, listHandoverNotices, setHandoverNoticeDone, softDeleteHandoverNotice } from "../db/handoverNotices";
+import {
+  createHandoverNotice,
+  getHandoverNoticeCategory,
+  listHandoverNotices,
+  setHandoverNoticeAck,
+  setHandoverNoticeDone,
+  softDeleteHandoverNotice,
+} from "../db/handoverNotices";
 import { createHandoverPhoto, deleteHandoverPhotoRow, getHandoverPhotoForTeam, toHandoverPhotoDTO } from "../db/handoverPhotos";
 import { uploadFileStreaming, getFileMediaStream, getFileThumbnailStream, deleteFilePermanently } from "../drive/client";
 import { getTeamFolderIds } from "../drive/folders";
@@ -47,12 +54,31 @@ const setDoneSchema = z
   });
 
 handoverRoute.patch("/:id/done", requireRole("editor"), async (c) => {
+  const id = c.req.param("id");
+  const category = await getHandoverNoticeCategory(c.env.DB, c.var.teamId, id);
+  if (!category) throw Errors.notFound("인수인계 항목을 찾을 수 없습니다.");
+  if (category === "everyone") {
+    throw Errors.badRequest("All 항목은 완료자 대신 각자 확인(v) 체크로 처리해주세요.");
+  }
+
   const input = setDoneSchema.parse(await c.req.json());
-  const notice = await setHandoverNoticeDone(c.env.DB, c.var.teamId, c.req.param("id"), {
+  const notice = await setHandoverNoticeDone(c.env.DB, c.var.teamId, id, {
     isDone: input.isDone,
     completedBy: input.isDone ? input.completedBy! : null,
   });
   if (!notice) throw Errors.notFound("인수인계 항목을 찾을 수 없습니다.");
+  return c.json(notice);
+});
+
+const setAckSchema = z.object({
+  name: z.enum(HANDOVER_ALL_ACK_NAMES),
+  acked: z.boolean(),
+});
+
+handoverRoute.patch("/:id/ack", requireRole("editor"), async (c) => {
+  const input = setAckSchema.parse(await c.req.json());
+  const notice = await setHandoverNoticeAck(c.env.DB, c.var.teamId, c.req.param("id"), input.name, input.acked);
+  if (!notice) throw Errors.notFound("All 항목을 찾을 수 없습니다.");
   return c.json(notice);
 });
 

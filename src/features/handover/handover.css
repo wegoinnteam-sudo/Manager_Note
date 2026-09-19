@@ -465,6 +465,10 @@
   background: #eef1f4;
   color: #5d6873;
 }
+.hb-notice-tag--everyone {
+  background: #f3e8ff;
+  color: #7e22ce;
+}
 
 .hb-notice-head {
   display: flex;
@@ -608,6 +612,47 @@
   min-height: 38px;
   padding: 6px 9px;
   font-size: 0.84rem;
+}
+
+.hb-ack-cell {
+  vertical-align: middle;
+  /* Only takes effect on the mobile stacked-card layout (a real grid
+     container there) — a normal desktop <table> ignores grid-column. */
+  grid-column: 1 / -1;
+}
+.hb-ack-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.hb-ack-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 52px;
+  padding: 6px 4px;
+  border: 1px solid var(--hb-line-strong);
+  border-radius: 8px;
+  background: #f7f9fb;
+}
+.hb-ack-item--acked {
+  border-color: var(--hb-green);
+  background: #eefbf4;
+}
+.hb-ack-name {
+  color: #425466;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+.hb-ack-item--acked .hb-ack-name {
+  color: var(--hb-green);
+}
+.hb-ack-item input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  min-height: 0;
+  margin: 0;
 }
 
 .hb-empty-state {
