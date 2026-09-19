@@ -99,9 +99,11 @@ export function HandoverBoard({
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
   const [postingCommentId, setPostingCommentId] = useState<string | null>(null);
 
-  const [formDate, setFormDate] = useState(todayKey());
-  const [formTime, setFormTime] = useState(nowTime());
-  const [formFrom, setFormFrom] = useState(guestName);
+  // Date/Time/From aren't typed in on the compose form — they're stamped
+  // automatically (current date/time, current writer's name). `composeNow`
+  // only drives the read-only preview; the values actually saved are re-read
+  // at submit time so they reflect the moment of registration.
+  const [composeNow, setComposeNow] = useState(() => ({ date: todayKey(), time: nowTime() }));
   const [formCategory, setFormCategory] = useState<HandoverCategory | "">("");
   const [formReference, setFormReference] = useState("");
   const [formBody, setFormBody] = useState("");
@@ -117,6 +119,14 @@ export function HandoverBoard({
     const qs = params.toString();
     window.history.replaceState({}, "", qs ? `/handover?${qs}` : "/handover");
   }, [view]);
+
+  useEffect(() => {
+    if (!composeOpen) return;
+    const tick = () => setComposeNow({ date: todayKey(), time: nowTime() });
+    tick();
+    const timer = window.setInterval(tick, 15_000);
+    return () => window.clearInterval(timer);
+  }, [composeOpen]);
 
   useEffect(() => {
     // Sticky (error) toasts stay up until manually closed — a 2.4s auto-hide
@@ -299,9 +309,6 @@ export function HandoverBoard({
   };
 
   const resetForm = () => {
-    setFormDate(todayKey());
-    setFormTime(nowTime());
-    setFormFrom(guestName);
     setFormCategory("");
     setFormReference("");
     setFormBody("");
@@ -309,13 +316,14 @@ export function HandoverBoard({
 
   const submitNotice = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!formCategory || !formFrom.trim() || !formReference.trim() || !formBody.trim() || submitting) return;
+    const fromName = guestName.trim();
+    if (!formCategory || !fromName || !formReference.trim() || !formBody.trim() || submitting) return;
     setSubmitting(true);
     try {
       await api.createHandoverNotice({
-        noticeDate: formDate,
-        noticeTime: formTime,
-        fromName: formFrom.trim(),
+        noticeDate: todayKey(),
+        noticeTime: nowTime(),
+        fromName,
         reference: formReference.trim(),
         category: formCategory,
         body: formBody.trim(),
@@ -339,21 +347,7 @@ export function HandoverBoard({
             <p className="hb-heading-note">오늘의 공지와 처리 상태를 한눈에 확인하세요.</p>
           </div>
           {canEdit && (
-            <button
-              type="button"
-              className="hb-primary-button"
-              aria-expanded={composeOpen}
-              onClick={() => {
-                if (!composeOpen) {
-                  // Always jump to "now" on open, not whatever was left over
-                  // from the page loading or a previous open/close — the
-                  // form's date/time only otherwise update on submit.
-                  setFormDate(todayKey());
-                  setFormTime(nowTime());
-                }
-                setComposeOpen((v) => !v);
-              }}
-            >
+            <button type="button" className="hb-primary-button" aria-expanded={composeOpen} onClick={() => setComposeOpen((v) => !v)}>
               {composeOpen ? "작성창 닫기" : "+ 인수인계 작성"}
             </button>
           )}
@@ -400,18 +394,9 @@ export function HandoverBoard({
             </div>
             <form onSubmit={submitNotice}>
               <div className="hb-form-grid">
-                <label>Date<input type="date" value={formDate} onChange={(e) => setFormDate(e.target.value)} required /></label>
-                <label>Time<input type="time" value={formTime} onChange={(e) => setFormTime(e.target.value)} required /></label>
-                <label>
-                  From
-                  <input
-                    list="hb-name-suggestions"
-                    value={formFrom}
-                    maxLength={60}
-                    onChange={(e) => setFormFrom(e.target.value)}
-                    required
-                  />
-                </label>
+                <label>Date<input type="date" className="hb-auto-field" value={composeNow.date} readOnly tabIndex={-1} /></label>
+                <label>Time<input type="time" className="hb-auto-field" value={composeNow.time} readOnly tabIndex={-1} /></label>
+                <label>From<input className="hb-auto-field" value={guestName} readOnly tabIndex={-1} /></label>
                 <label>
                   구분
                   <select value={formCategory} onChange={(e) => setFormCategory(e.target.value as HandoverCategory)} required>

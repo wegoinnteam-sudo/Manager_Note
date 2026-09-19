@@ -263,6 +263,11 @@
   color: var(--hb-ink);
   padding: 9px 11px;
 }
+.hb-page input.hb-auto-field {
+  background: #eef3fb;
+  color: #5b6b80;
+  cursor: default;
+}
 .hb-page textarea {
   min-height: 74px;
   resize: vertical;
