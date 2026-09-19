@@ -30,7 +30,9 @@ describe("handoverAckRoster", () => {
       {
         noticeDate: "2026-09-19",
         noticeTime: "08:45",
-        fromName: "Jane",
+        // Not on the roster, so the writer isn't auto-checked and this test
+        // only sees the acks it sets itself.
+        fromName: "손님",
         reference: "Kim · 812호",
         category: "everyone",
         body: "전체 공지 확인 요망.",

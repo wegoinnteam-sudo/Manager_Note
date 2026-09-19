@@ -127,7 +127,13 @@ describe("handoverNotices", () => {
   });
 
   it("an 'everyone' notice is only done once all four names have acked", async () => {
-    const created = await createHandoverNotice(db, TEAM, { ...sampleInput, category: "everyone" as const }, USER);
+    // A writer outside the roster, so nothing is auto-checked here.
+    const created = await createHandoverNotice(
+      db,
+      TEAM,
+      { ...sampleInput, fromName: "손님", category: "everyone" as const },
+      USER,
+    );
     expect(created.isDone).toBe(false);
 
     await setHandoverNoticeAck(db, TEAM, created.id, "Justin", true);
@@ -146,6 +152,40 @@ describe("handoverNotices", () => {
     notice = (await listHandoverNotices(db, TEAM)).find((n) => n.id === created.id)!;
     expect(notice.acks.sort()).toEqual(["Been", "Daniel", "Justin"]);
     expect(notice.isDone).toBe(false);
+  });
+
+  it("auto-checks the writer's own v when they write an 'everyone' notice", async () => {
+    const created = await createHandoverNotice(db, TEAM, { ...sampleInput, category: "everyone" as const }, USER);
+    expect(created.acks).toEqual(["Jane"]);
+    expect(created.isDone).toBe(false);
+
+    const listed = (await listHandoverNotices(db, TEAM)).find((n) => n.id === created.id)!;
+    expect(listed.acks).toEqual(["Jane"]);
+  });
+
+  it("matches the writer to the roster name regardless of case or spaces", async () => {
+    const created = await createHandoverNotice(
+      db,
+      TEAM,
+      { ...sampleInput, fromName: " jane ", category: "everyone" as const },
+      USER,
+    );
+    expect(created.acks).toEqual(["Jane"]);
+  });
+
+  it("does not auto-check anyone when the writer isn't on the roster, or the category isn't 'everyone'", async () => {
+    const outsider = await createHandoverNotice(
+      db,
+      TEAM,
+      { ...sampleInput, fromName: "손님", category: "everyone" as const },
+      USER,
+    );
+    expect(outsider.acks).toEqual([]);
+
+    const other = await createHandoverNotice(db, TEAM, sampleInput, USER);
+    expect(other.acks).toEqual([]);
+    const listed = (await listHandoverNotices(db, TEAM)).find((n) => n.id === other.id)!;
+    expect(listed.acks).toEqual([]);
   });
 
   it("rejects acking a notice that isn't category 'everyone'", async () => {

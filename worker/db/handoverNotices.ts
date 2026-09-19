@@ -5,6 +5,7 @@ import { newId, nowIso } from "../lib/ids";
 import { listPhotosByNoticeIds, toHandoverPhotoDTO } from "./handoverPhotos";
 import { listAcksByNoticeIds, listAcksForNotice, setAck } from "./handoverNoticeAcks";
 import { listCommentsByNoticeIds } from "./handoverComments";
+import { getHandoverAckRoster } from "./handoverAckRoster";
 
 interface HandoverNoticeRow {
   id: string;
@@ -112,6 +113,20 @@ export async function createHandoverNotice(
     .bind(id, teamId, input.noticeDate, input.noticeTime, input.fromName, input.reference, input.category, input.body, createdBy, now)
     .run();
 
+  // Whoever writes an "All" notice has obviously seen it, so their own v is
+  // checked for them — but only when the writer is actually one of the
+  // roster names (someone else's name can't be added to the four slots).
+  const acks: string[] = [];
+  if (input.category === "everyone") {
+    const roster = await getHandoverAckRoster(db, teamId);
+    const writer = input.fromName.trim().toLocaleLowerCase();
+    const match = roster.find((name) => name.trim().toLocaleLowerCase() === writer);
+    if (match) {
+      await setAck(db, id, match, true);
+      acks.push(match);
+    }
+  }
+
   return {
     id,
     noticeDate: input.noticeDate,
@@ -120,7 +135,7 @@ export async function createHandoverNotice(
     reference: input.reference,
     category: input.category,
     body: input.body,
-    isDone: false,
+    isDone: input.category === "everyone" ? acks.length >= HANDOVER_ALL_ACK_COUNT : false,
     completedBy: null,
     completedAt: null,
     createdBy,
@@ -128,7 +143,7 @@ export async function createHandoverNotice(
     updatedAt: now,
     photos: [],
     comments: [],
-    acks: [],
+    acks,
   };
 }
 
