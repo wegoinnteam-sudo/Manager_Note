@@ -158,7 +158,66 @@ function HandoverAckRosterSection() {
   );
 }
 
-export function AdminSettings({ displaySettings }: { displaySettings: DisplaySettings }) {
+// The name typed into the very first "이름을 입력하세요" screen (see
+// LoginScreen.tsx / useGuestIdentity) — everyone shares one login, so this
+// locally-saved display name is what actually distinguishes who wrote a
+// notice/comment/calendar entry. Renaming it here only affects things
+// created from now on; past entries keep the name they were made with.
+function MyNameSection({ guestName, onChangeGuestName }: { guestName: string; onChangeGuestName: (name: string) => void }) {
+  const [value, setValue] = useState(guestName);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    setValue(guestName);
+  }, [guestName]);
+
+  const save = () => {
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === guestName) return;
+    onChangeGuestName(trimmed);
+    setSaved(true);
+    window.setTimeout(() => setSaved(false), 2000);
+  };
+
+  return (
+    <div className="section">
+      <div className="section__title">내 이름</div>
+      <p style={{ fontSize: 12, color: "var(--color-text-muted)", margin: "0 0 8px" }}>
+        처음 접속할 때 입력한 이름입니다. 인수인계 작성, 댓글, 캘린더 등에서 이 이름으로 활동합니다 (이 기기에만 저장됨).
+      </p>
+      <div style={{ display: "flex", gap: 8 }}>
+        <input
+          value={value}
+          maxLength={40}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") save();
+          }}
+          style={{ width: 180, padding: "6px 10px", border: "1px solid var(--color-border)", borderRadius: 6 }}
+        />
+        <button
+          type="button"
+          onClick={save}
+          disabled={!value.trim() || value.trim() === guestName}
+          style={{ padding: "6px 14px", borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--color-surface)", cursor: "pointer" }}
+        >
+          저장
+        </button>
+      </div>
+      {saved && <p style={{ fontSize: 12, marginTop: 8 }}>저장되었습니다.</p>}
+    </div>
+  );
+}
+
+export function AdminSettings({
+  displaySettings,
+  guestName,
+  onChangeGuestName,
+}: {
+  displaySettings: DisplaySettings;
+  guestName: string;
+  onChangeGuestName: (name: string) => void;
+}) {
   const [users, setUsers] = useState<UserDTO[]>([]);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<Role>("viewer");
@@ -208,6 +267,8 @@ export function AdminSettings({ displaySettings }: { displaySettings: DisplaySet
   return (
     <div className="page-view">
       <h2>설정</h2>
+
+      <MyNameSection guestName={guestName} onChangeGuestName={onChangeGuestName} />
 
       <DisplaySettingsSection settings={displaySettings} />
 

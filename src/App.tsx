@@ -25,7 +25,7 @@ import { LoginScreen } from "@/features/identity/LoginScreen";
 import { DriveSyncBanner } from "@/features/drive/DriveSyncBanner";
 import type { GuestIdentity } from "@/hooks/useGuestIdentity";
 
-function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }) {
+function AppShell({ user, identity, onChangeGuestName }: { user: UserDTO; identity: GuestIdentity; onChangeGuestName: (name: string) => void }) {
   const { pages, setPages, refresh: refreshPages } = usePages();
   const { members } = useTeamMembers();
   const { colors: guestColors, refresh: refreshGuestColors } = useGuestColors();
@@ -213,7 +213,7 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
   } else if (path === "/trash") {
     content = <Trash canRestore={canEdit} onOpenPage={openPage} onRestored={refreshPages} />;
   } else if (path === "/admin") {
-    content = <AdminSettings displaySettings={displaySettings} />;
+    content = <AdminSettings displaySettings={displaySettings} guestName={identity.name} onChangeGuestName={onChangeGuestName} />;
   } else if (path.startsWith("/search/")) {
     content = <SearchResults query={decodeURIComponent(path.slice("/search/".length))} onOpenPage={openPage} />;
   } else if (activePageId) {
@@ -356,5 +356,5 @@ export default function App() {
   if (!identity) {
     return <LoginScreen onSubmit={setName} />;
   }
-  return <AppShell user={user} identity={identity} />;
+  return <AppShell user={user} identity={identity} onChangeGuestName={setName} />;
 }
