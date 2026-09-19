@@ -76,7 +76,7 @@ export function HandoverBoard({
 }) {
   const [view, setView] = useState<ViewMode>(readInitialView);
   const [composeOpen, setComposeOpen] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ text: string; sticky: boolean } | null>(null);
   const [draftCompleter, setDraftCompleter] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -99,10 +99,15 @@ export function HandoverBoard({
   }, [view]);
 
   useEffect(() => {
-    if (!toast) return;
+    // Sticky (error) toasts stay up until manually closed — a 2.4s auto-hide
+    // was too easy to miss on mobile, especially when the message is the
+    // only clue to what actually went wrong.
+    if (!toast || toast.sticky) return;
     const timer = window.setTimeout(() => setToast(null), 2400);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  const showToast = (text: string, sticky = false) => setToast({ text, sticky });
 
   // Real names to suggest for "From"/완료자, pulled from data already in the
   // app instead of a hardcoded roster: everyone who has ever written or
@@ -142,14 +147,14 @@ export function HandoverBoard({
     if (checked) {
       const completedBy = completerFor(notice).trim();
       if (!completedBy) {
-        setToast("완료자를 먼저 선택해주세요.");
+        showToast("완료자를 먼저 선택해주세요.");
         return;
       }
       setBusyId(notice.id);
       try {
         await api.setHandoverNoticeDone(notice.id, { isDone: true, completedBy });
         await onNoticesChanged();
-        setToast("완료했습니다. 전체보기에서 다시 확인할 수 있습니다.");
+        showToast("완료했습니다. 전체보기에서 다시 확인할 수 있습니다.");
       } finally {
         setBusyId(null);
       }
@@ -159,7 +164,7 @@ export function HandoverBoard({
         await api.setHandoverNoticeDone(notice.id, { isDone: false });
         setDraftCompleter((current) => ({ ...current, [notice.id]: "" }));
         await onNoticesChanged();
-        setToast("미완료 상태로 변경했습니다.");
+        showToast("미완료 상태로 변경했습니다.");
       } finally {
         setBusyId(null);
       }
@@ -172,7 +177,7 @@ export function HandoverBoard({
     try {
       await api.deleteHandoverNotice(notice.id);
       await onNoticesChanged();
-      setToast("삭제했습니다.");
+      showToast("삭제했습니다.");
     } finally {
       setDeletingId(null);
     }
@@ -190,9 +195,10 @@ export function HandoverBoard({
         await uploadHandoverPhoto(notice.id, compressed);
       }
       await onNoticesChanged();
-      setToast("사진을 추가했습니다.");
+      showToast("사진을 추가했습니다.");
     } catch (err) {
-      setToast(err instanceof Error ? err.message : "사진 업로드에 실패했습니다.");
+      console.error("handover photo upload failed", err);
+      showToast(err instanceof Error ? err.message : "사진 업로드에 실패했습니다.", true);
     } finally {
       setUploadingNoticeId(null);
     }
@@ -233,7 +239,7 @@ export function HandoverBoard({
       await onNoticesChanged();
       resetForm();
       setComposeOpen(false);
-      setToast("새 인수인계를 표에 추가했습니다.");
+      showToast("새 인수인계를 표에 추가했습니다.");
     } finally {
       setSubmitting(false);
     }
@@ -497,7 +503,12 @@ export function HandoverBoard({
       </main>
 
       <div className={toast ? "hb-toast hb-toast--show" : "hb-toast"} role="status" aria-live="polite">
-        {toast}
+        <span>{toast?.text}</span>
+        {toast?.sticky && (
+          <button type="button" className="hb-toast-close" aria-label="닫기" onClick={() => setToast(null)}>
+            ×
+          </button>
+        )}
       </div>
     </div>
   );
