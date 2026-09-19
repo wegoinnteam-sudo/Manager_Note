@@ -645,14 +645,18 @@ export function HandoverBoard({
                               </div>
                               {canEdit && (
                                 <div className="hb-comment-form">
-                                  <input
+                                  <textarea
                                     className="hb-comment-input"
-                                    placeholder="댓글 남기기…"
+                                    rows={1}
+                                    placeholder="댓글 남기기… (Shift+Enter로 줄바꿈)"
                                     maxLength={2000}
                                     value={commentDrafts[notice.id] ?? ""}
                                     onChange={(e) => setCommentDrafts((current) => ({ ...current, [notice.id]: e.target.value }))}
                                     onKeyDown={(e) => {
-                                      if (e.key === "Enter") submitComment(notice);
+                                      if (e.key === "Enter" && !e.shiftKey) {
+                                        e.preventDefault();
+                                        submitComment(notice);
+                                      }
                                     }}
                                   />
                                   <button

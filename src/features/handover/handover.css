@@ -555,17 +555,21 @@
 .hb-comment-body {
   color: #425466;
   word-break: break-word;
+  white-space: pre-wrap;
 }
 .hb-comment-form {
   display: flex;
   gap: 8px;
   margin-top: 8px;
 }
-.hb-comment-input {
+textarea.hb-comment-input {
   flex: 1;
   min-height: 36px;
-  padding: 6px 10px;
+  max-height: 160px;
+  padding: 8px 10px;
   font-size: 0.83rem;
+  line-height: 1.4;
+  resize: vertical;
 }
 .hb-comment-form .hb-secondary-button {
   min-height: 36px;
