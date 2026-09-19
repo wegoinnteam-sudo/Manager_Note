@@ -441,6 +441,11 @@
   color: #263747;
   line-height: 1.62;
   word-break: keep-all;
+  overflow-wrap: anywhere;
+  /* Show the Notice exactly as typed: line breaks, blank lines, and runs of
+     spaces/tabs used for alignment (a plain <p> collapses all of them). */
+  white-space: pre-wrap;
+  tab-size: 4;
 }
 .hb-notice-tag {
   display: inline-block;
