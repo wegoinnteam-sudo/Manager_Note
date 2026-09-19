@@ -78,6 +78,12 @@ export function HandoverBoard({
   onNoticesChanged: () => Promise<void> | void;
 }) {
   const [view, setView] = useState<ViewMode>(readInitialView);
+  const [dateFilter, setDateFilter] = useState("");
+  const [fromFilter, setFromFilter] = useState("");
+  const [referenceFilter, setReferenceFilter] = useState("");
+  const hasFilters = Boolean(dateFilter || fromFilter || referenceFilter);
+  const authors = useMemo(() => [...new Set(notices.map((n) => n.fromName))]
+    .filter(Boolean).sort((a, b) => a.localeCompare(b, "ko")), [notices]);
   const [composeOpen, setComposeOpen] = useState(false);
   const [toast, setToast] = useState<{ text: string; sticky: boolean } | null>(null);
   const [draftCompleter, setDraftCompleter] = useState<Record<string, string>>({});
@@ -165,11 +171,14 @@ export function HandoverBoard({
 
   const visible = useMemo(() => {
     return notices.filter((n) => {
+      if (dateFilter && n.noticeDate !== dateFilter) return false;
+      if (fromFilter && n.fromName !== fromFilter) return false;
+      if (referenceFilter.trim() && !n.reference.toLocaleLowerCase().includes(referenceFilter.trim().toLocaleLowerCase())) return false;
       if (view === "main") return !n.isDone;
       if (view === "all") return true;
       return n.category === view;
     });
-  }, [notices, view]);
+  }, [notices, view, dateFilter, fromFilter, referenceFilter]);
 
   const completerFor = (notice: HandoverNoticeDTO) => draftCompleter[notice.id] ?? notice.completedBy ?? "";
 
@@ -459,13 +468,17 @@ export function HandoverBoard({
             </div>
           </div>
 
+          {hasFilters && (
+            <div className="hb-filter-status" role="status">
+              <span>{dateFilter && `날짜: ${dateFilter} · `}{fromFilter && `작성자: ${fromFilter} · `}{referenceFilter && `검색: ${referenceFilter} · `}{visible.length}건</span>
+              <button type="button" className="hb-secondary-button" onClick={() => {
+                setDateFilter(""); setFromFilter(""); setReferenceFilter("");
+              }}>필터 초기화</button>
+            </div>
+          )}
           <div className="hb-table-wrap">
             {!loaded ? (
               <div className="hb-empty-state">불러오는 중…</div>
-            ) : visible.length === 0 ? (
-              <div className="hb-empty-state">
-                <strong>표시할 인수인계가 없습니다.</strong>다른 카테고리를 선택하거나 전체보기를 확인해주세요.
-              </div>
             ) : (
               <table className="hb-table">
                 <colgroup>
@@ -475,11 +488,45 @@ export function HandoverBoard({
                 </colgroup>
                 <thead>
                   <tr>
-                    <th>Date</th><th>Time</th><th>From</th><th>이름 · 객실번호 · 예약번호</th><th>Notice</th>
+                    <th>
+                      <details className="hb-column-filter">
+                        <summary onClick={(e) => {
+                          e.preventDefault();
+                          const details = e.currentTarget.parentElement as HTMLDetailsElement;
+                          details.open = true;
+                          const input = details.querySelector("input");
+                          input?.focus();
+                          try { input?.showPicker?.(); } catch { /* Native input remains available. */ }
+                        }}>Date {dateFilter ? "●" : "⌄"}</summary>
+                        <input type="date" aria-label="Date 날짜 필터" value={dateFilter}
+                          onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch { /* Native input remains available. */ } }}
+                          onChange={(e) => setDateFilter(e.target.value)} />
+                      </details>
+                    </th>
+                    <th>Time</th>
+                    <th>
+                      <label className="hb-column-filter">From
+                        <select aria-label="From 작성자 필터" value={fromFilter} onChange={(e) => setFromFilter(e.target.value)}>
+                          <option value="">전체 작성자</option>
+                          {authors.map((name) => <option key={name} value={name}>{name}</option>)}
+                        </select>
+                      </label>
+                    </th>
+                    <th>
+                      <details className="hb-column-filter">
+                        <summary>이름 · 객실번호 · 예약번호 {referenceFilter ? "●" : "⌄"}</summary>
+                        <input type="search" aria-label="이름 · 객실번호 · 예약번호 필터" placeholder="이름, 객실번호, 예약번호 검색"
+                          value={referenceFilter} onChange={(e) => setReferenceFilter(e.target.value)} />
+                      </details>
+                    </th><th>Notice</th>
                     <th className="hb-center">✓</th><th>완료자</th>
                   </tr>
                 </thead>
                 <tbody>
+                  {visible.length === 0 && <tr><td colSpan={7} className="hb-empty-state">
+                    <strong>표시할 인수인계가 없습니다.</strong>
+                    {hasFilters ? "필터를 변경하거나 초기화해주세요." : "다른 카테고리를 선택하거나 전체보기를 확인해주세요."}
+                  </td></tr>}
                   {visible.map((notice) => {
                     const [dateMain, dateSub] = formatKoreanDate(notice.noticeDate).split("|");
                     return (
