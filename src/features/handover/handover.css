@@ -986,3 +986,188 @@ textarea.hb-comment-input {
   .hb-table thead th:nth-child(4) { display: block; flex: 1 1 130px; }
   .hb-table td.hb-empty-state { grid-column: 1 / -1; }
 }
+
+/* ── Mobile readability pass (phones only; desktop styles are untouched) ──
+   1. Lock the page horizontally. The hidden per-notice file input was being
+      stretched to 100% width by `.hb-page input`, pushing the document ~50px
+      wider than the screen so it could be dragged left/right.
+   2. Notice text: bigger and darker.
+   3. Key fields (date/time/from/reference) bold and dark, laid out so a card
+      reads at a glance. */
+@media (max-width: 640px) {
+  .hb-page {
+    overflow-x: clip;
+  }
+  .hb-page .hb-photo-input {
+    width: 1px;
+    min-height: 0;
+  }
+  .hb-main {
+    max-width: 100%;
+  }
+
+  /* Tabs wrap onto several rows instead of scrolling sideways. */
+  .hb-view-tabs {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+  .hb-view-tab {
+    flex: 1 1 calc(33.333% - 8px);
+    justify-content: center;
+    min-height: 44px;
+    padding: 0 8px;
+    font-weight: 800;
+  }
+
+  /* Card: date | time | from on one row, then reference, then notice. */
+  .hb-table tbody tr {
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.8fr) minmax(0, 1fr);
+    padding: 14px 12px;
+    border-left-width: 6px;
+  }
+  .hb-table td {
+    min-width: 0;
+    padding: 8px 4px;
+  }
+  .hb-table td::before {
+    color: #4b5a68;
+    font-size: 0.72rem;
+    font-weight: 900;
+  }
+  .hb-table td:nth-child(7) {
+    grid-column: 2 / -1;
+  }
+  .hb-table td.hb-ack-cell {
+    grid-column: 1 / -1;
+  }
+
+  .hb-date-main {
+    color: #0a1722;
+    font-size: 1.02rem;
+    font-weight: 900;
+  }
+  .hb-date-sub {
+    color: #1552a6;
+    font-size: 0.82rem;
+    font-weight: 800;
+  }
+  .hb-time-main {
+    color: #0a1722;
+    font-size: 1.15rem;
+    font-weight: 900;
+  }
+  .hb-from-badge {
+    min-height: 34px;
+    padding: 0 10px;
+    color: #0f3f85;
+    font-size: 0.95rem;
+    font-weight: 900;
+  }
+  .hb-reference-main {
+    padding: 9px 11px;
+    border-radius: 9px;
+    background: #f0f5fc;
+    color: #0a1722;
+    font-size: 1.12rem;
+    font-weight: 900;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+  }
+
+  .hb-notice-tag {
+    padding: 3px 9px;
+    font-size: 0.8rem;
+    font-weight: 900;
+  }
+  .hb-page .hb-notice-text {
+    color: #0a1722;
+    font-size: 1.14rem;
+    font-weight: 700;
+    line-height: 1.7;
+  }
+  .hb-row--completed .hb-notice-text {
+    color: #4b5a68;
+  }
+  .hb-notice-edit,
+  .hb-notice-delete {
+    min-width: 40px;
+    min-height: 40px;
+    font-size: 1.15rem;
+  }
+
+  .hb-comment-author {
+    color: #0a1722;
+    font-weight: 900;
+  }
+  .hb-comment-body {
+    color: #1f2f3d;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .hb-page .hb-done-check {
+    width: 28px;
+    height: 28px;
+    min-height: 0;
+  }
+  .hb-page .hb-completer-input {
+    font-size: 1rem;
+    font-weight: 700;
+  }
+  .hb-ack-name {
+    color: #0a1722;
+    font-weight: 900;
+  }
+
+  .hb-column-filter-toggle {
+    min-height: 40px;
+    color: #263747;
+    font-size: 0.9rem;
+    font-weight: 900;
+  }
+
+  /* iOS Safari zooms (and pans sideways) into any input under 16px on focus. */
+  .hb-page input,
+  .hb-page select,
+  .hb-page textarea,
+  .hb-page textarea.hb-comment-input {
+    font-size: 16px;
+  }
+  .hb-page textarea.hb-comment-input {
+    min-height: 56px;
+  }
+
+  /* Summary: three counters on one row so the notices start higher up. */
+  .hb-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .hb-summary-card {
+    min-height: 0;
+    padding: 12px 12px;
+  }
+  .hb-summary-number {
+    font-size: 1.7rem;
+  }
+  .hb-summary-accent {
+    display: none;
+  }
+  .hb-summary-label {
+    white-space: nowrap;
+  }
+
+  /* "All" acknowledgements fill the card width. */
+  .hb-ack-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .hb-ack-item {
+    padding: 9px 6px;
+  }
+  .hb-ack-name {
+    font-size: 0.95rem;
+  }
+  .hb-ack-item input[type="checkbox"] {
+    width: 26px;
+    height: 26px;
+  }
+}
