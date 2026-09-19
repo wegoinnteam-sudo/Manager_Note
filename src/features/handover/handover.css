@@ -1126,6 +1126,22 @@ textarea.hb-comment-input {
     font-weight: 900;
   }
 
+  /* Card read view: Date / Time / From / 이름·객실·예약 labels and their
+     values in the heaviest weight, plus a hairline stroke so they stay bold on
+     fonts with no 800/900 face (which would otherwise fall back to 700). */
+  .hb-table td:nth-child(-n + 4)::before {
+    color: #1f2f3d;
+    font-weight: 900;
+    -webkit-text-stroke: 0.3px currentColor;
+  }
+  .hb-date-main,
+  .hb-time-main,
+  .hb-date-sub,
+  .hb-from-badge {
+    font-weight: 900;
+    -webkit-text-stroke: 0.4px currentColor;
+  }
+
   /* iOS Safari zooms (and pans sideways) into any input under 16px on focus. */
   .hb-page input,
   .hb-page select,
