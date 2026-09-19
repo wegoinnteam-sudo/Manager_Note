@@ -207,6 +207,9 @@ export const api = {
   createHandoverComment: (id: string, body: string, authorName?: string) =>
     request<HandoverCommentDTO>(`/api/handover/${id}/comments`, { method: "POST", body: JSON.stringify({ body, authorName }) }),
   deleteHandoverPhoto: (id: string) => request<{ ok: true }>(`/api/handover/photos/${id}`, { method: "DELETE" }),
+  listHandoverAckRoster: () => request<{ names: string[] }>("/api/handover/ack-roster"),
+  setHandoverAckRoster: (names: string[]) =>
+    request<{ names: string[] }>("/api/handover/ack-roster", { method: "PUT", body: JSON.stringify({ names }) }),
 };
 
 /**

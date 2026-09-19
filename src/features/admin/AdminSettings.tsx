@@ -92,6 +92,72 @@ function DisplaySettingsSection({ settings }: { settings: DisplaySettings }) {
   );
 }
 
+function HandoverAckRosterSection() {
+  const [names, setNames] = useState<string[]>(["", "", "", ""]);
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.listHandoverAckRoster().then((res) => {
+      setNames(res.names);
+      setLoaded(true);
+    });
+  }, []);
+
+  const save = async () => {
+    const trimmed = names.map((name) => name.trim());
+    if (trimmed.some((name) => !name)) {
+      setMessage("이름을 모두 입력해주세요.");
+      return;
+    }
+    setSaving(true);
+    setMessage(null);
+    try {
+      const res = await api.setHandoverAckRoster(trimmed);
+      setNames(res.names);
+      setMessage("저장되었습니다.");
+    } catch (err) {
+      setMessage(err instanceof ApiClientError ? err.message : "저장에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="section">
+      <div className="section__title">인수인계 "All" 담당자 이름</div>
+      <p style={{ fontSize: 12, color: "var(--color-text-muted)", margin: "0 0 8px" }}>
+        인수인계판에서 구분을 "All"로 선택했을 때 표시되는 4명의 확인 체크박스 이름입니다.
+      </p>
+      {!loaded ? (
+        <p style={{ fontSize: 12 }}>불러오는 중…</p>
+      ) : (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          {names.map((name, i) => (
+            <input
+              key={i}
+              value={name}
+              maxLength={60}
+              onChange={(e) => setNames((current) => current.map((n, idx) => (idx === i ? e.target.value : n)))}
+              style={{ width: 110, padding: "6px 10px", border: "1px solid var(--color-border)", borderRadius: 6 }}
+            />
+          ))}
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving}
+            style={{ padding: "6px 14px", borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--color-surface)", cursor: "pointer" }}
+          >
+            {saving ? "저장 중…" : "저장"}
+          </button>
+        </div>
+      )}
+      {message && <p style={{ fontSize: 12, marginTop: 8 }}>{message}</p>}
+    </div>
+  );
+}
+
 export function AdminSettings({ displaySettings }: { displaySettings: DisplaySettings }) {
   const [users, setUsers] = useState<UserDTO[]>([]);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -144,6 +210,8 @@ export function AdminSettings({ displaySettings }: { displaySettings: DisplaySet
       <h2>설정</h2>
 
       <DisplaySettingsSection settings={displaySettings} />
+
+      <HandoverAckRosterSection />
 
       <div className="section">
         <div className="section__title">Google Drive 동기화</div>

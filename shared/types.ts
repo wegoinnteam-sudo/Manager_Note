@@ -73,11 +73,16 @@ export const HANDOVER_CATEGORY_LABELS: Record<HandoverCategory, string> = {
   everyone: "All",
 };
 
-// "All" category notices need every one of these specific people to
+// "All" category notices need every one of a fixed number of people to
 // individually confirm they've seen it (see handover_notice_acks in
 // migrations/0018_handover_notice_acks.sql) instead of the single
-// completed_by flow the other categories use.
+// completed_by flow the other categories use. The names themselves are
+// editable from 설정 (see handover_ack_roster in
+// migrations/0021_handover_ack_roster.sql) — this is only the seed used
+// the first time a team's roster is read. Use HANDOVER_ALL_ACK_COUNT, not
+// this array's length, for anything checking "have all of them acked".
 export const HANDOVER_ALL_ACK_NAMES = ["Justin", "Jane", "Been", "Daniel"] as const;
+export const HANDOVER_ALL_ACK_COUNT = HANDOVER_ALL_ACK_NAMES.length;
 
 export interface HandoverPhotoDTO {
   id: string;

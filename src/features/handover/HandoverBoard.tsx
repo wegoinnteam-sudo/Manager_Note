@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import type { HandoverCategory, HandoverNoticeDTO } from "@shared/types";
 import { HANDOVER_ALL_ACK_NAMES, HANDOVER_CATEGORIES, HANDOVER_CATEGORY_LABELS } from "@shared/types";
+// HANDOVER_ALL_ACK_NAMES above is only the fallback shown before the real
+// roster (editable from 설정, see AdminSettings.tsx) has loaded.
 import { api, uploadHandoverPhoto } from "@/lib/api";
 import { compressImageForUpload } from "@/lib/imageCompression";
 import { todayKey } from "@/features/pages/DatabaseView";
@@ -103,6 +105,11 @@ export function HandoverBoard({
   const [formCategory, setFormCategory] = useState<HandoverCategory | "">("");
   const [formReference, setFormReference] = useState("");
   const [formBody, setFormBody] = useState("");
+  const [ackRoster, setAckRoster] = useState<string[]>([...HANDOVER_ALL_ACK_NAMES]);
+
+  useEffect(() => {
+    api.listHandoverAckRoster().then(({ names }) => setAckRoster(names));
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -675,7 +682,7 @@ export function HandoverBoard({
                         {notice.category === "everyone" ? (
                           <td className="hb-ack-cell" data-label="확인" colSpan={2}>
                             <div className="hb-ack-grid">
-                              {HANDOVER_ALL_ACK_NAMES.map((name) => {
+                              {ackRoster.map((name) => {
                                 const acked = notice.acks.includes(name);
                                 return (
                                   <label key={name} className={acked ? "hb-ack-item hb-ack-item--acked" : "hb-ack-item"}>

@@ -1,6 +1,6 @@
 import type { Env } from "../types";
 import type { HandoverCategory, HandoverNoticeDTO } from "../../shared/types";
-import { HANDOVER_ALL_ACK_NAMES } from "../../shared/types";
+import { HANDOVER_ALL_ACK_COUNT } from "../../shared/types";
 import { newId, nowIso } from "../lib/ids";
 import { listPhotosByNoticeIds, toHandoverPhotoDTO } from "./handoverPhotos";
 import { listAcksByNoticeIds, listAcksForNotice, setAck } from "./handoverNoticeAcks";
@@ -22,10 +22,11 @@ interface HandoverNoticeRow {
   updated_at: string;
 }
 
-// "everyone" (displayed "All") notices are done once every fixed name in
-// HANDOVER_ALL_ACK_NAMES has acked — the is_done/completed_by columns are
-// never written for that category, so isDone is derived here instead of
-// read straight off the row like every other category.
+// "everyone" (displayed "All") notices are done once HANDOVER_ALL_ACK_COUNT
+// people have acked (see handover_ack_roster for the editable names) — the
+// is_done/completed_by columns are never written for that category, so
+// isDone is derived here instead of read straight off the row like every
+// other category.
 function toDto(
   row: HandoverNoticeRow,
   photos: HandoverNoticeDTO["photos"] = [],
@@ -40,7 +41,7 @@ function toDto(
     reference: row.reference,
     category: row.category,
     body: row.body,
-    isDone: row.category === "everyone" ? acks.length >= HANDOVER_ALL_ACK_NAMES.length : row.is_done === 1,
+    isDone: row.category === "everyone" ? acks.length >= HANDOVER_ALL_ACK_COUNT : row.is_done === 1,
     completedBy: row.completed_by,
     completedAt: row.completed_at,
     createdBy: row.created_by,

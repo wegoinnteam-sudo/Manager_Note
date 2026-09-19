@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import type { AppBindings } from "../types";
-import { HANDOVER_ALL_ACK_NAMES, HANDOVER_CATEGORIES, IMAGE_EXTENSIONS } from "../../shared/types";
+import { HANDOVER_ALL_ACK_COUNT, HANDOVER_CATEGORIES, IMAGE_EXTENSIONS } from "../../shared/types";
 import { requireAuth, requireRole } from "../middleware/rbac";
 import { Errors } from "../lib/errors";
 import { extensionOf } from "../lib/validation";
@@ -16,6 +16,7 @@ import {
 } from "../db/handoverNotices";
 import { createHandoverPhoto, deleteHandoverPhotoRow, getHandoverPhotoForTeam, toHandoverPhotoDTO } from "../db/handoverPhotos";
 import { createHandoverComment } from "../db/handoverComments";
+import { getHandoverAckRoster, setHandoverAckRoster } from "../db/handoverAckRoster";
 import { uploadFileStreaming, getFileMediaStream, getFileThumbnailStream, deleteFilePermanently } from "../drive/client";
 import { getTeamFolderIds } from "../drive/folders";
 
@@ -73,15 +74,31 @@ handoverRoute.patch("/:id/done", requireRole("editor"), async (c) => {
 });
 
 const setAckSchema = z.object({
-  name: z.enum(HANDOVER_ALL_ACK_NAMES),
+  name: nameSchema,
   acked: z.boolean(),
 });
 
 handoverRoute.patch("/:id/ack", requireRole("editor"), async (c) => {
   const input = setAckSchema.parse(await c.req.json());
+  const roster = await getHandoverAckRoster(c.env.DB, c.var.teamId);
+  if (!roster.includes(input.name)) throw Errors.badRequest("담당자 이름이 올바르지 않습니다.");
   const notice = await setHandoverNoticeAck(c.env.DB, c.var.teamId, c.req.param("id"), input.name, input.acked);
   if (!notice) throw Errors.notFound("All 항목을 찾을 수 없습니다.");
   return c.json(notice);
+});
+
+handoverRoute.get("/ack-roster", async (c) => {
+  return c.json({ names: await getHandoverAckRoster(c.env.DB, c.var.teamId) });
+});
+
+const setAckRosterSchema = z.object({
+  names: z.array(nameSchema).length(HANDOVER_ALL_ACK_COUNT),
+});
+
+handoverRoute.put("/ack-roster", requireRole("editor"), async (c) => {
+  const input = setAckRosterSchema.parse(await c.req.json());
+  const names = await setHandoverAckRoster(c.env.DB, c.var.teamId, input.names);
+  return c.json({ names });
 });
 
 handoverRoute.delete("/:id", requireRole("editor"), async (c) => {
