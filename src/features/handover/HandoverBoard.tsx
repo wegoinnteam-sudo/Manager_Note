@@ -489,23 +489,22 @@ export function HandoverBoard({
                 <thead>
                   <tr>
                     <th>
-                      <details className="hb-column-filter">
-                        <summary onClick={(e) => {
-                          e.preventDefault();
-                          const details = e.currentTarget.parentElement as HTMLDetailsElement;
-                          details.open = true;
-                          const input = details.querySelector("input");
-                          input?.focus();
-                          try { input?.showPicker?.(); } catch { /* Native input remains available. */ }
-                        }}>Date {dateFilter ? "●" : "⌄"}</summary>
+                      <label className="hb-column-filter hb-column-filter--picker">
+                        <span aria-hidden="true">Date {dateFilter ? "●" : "⌄"}</span>
                         <input type="date" aria-label="Date 날짜 필터" value={dateFilter}
+                          onKeyDown={(e) => {
+                            if ((e.key === "Enter" || e.key === " ") && e.currentTarget.showPicker) {
+                              try { e.currentTarget.showPicker(); e.preventDefault(); } catch { /* Preserve native keyboard behavior. */ }
+                            }
+                          }}
                           onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch { /* Native input remains available. */ } }}
                           onChange={(e) => setDateFilter(e.target.value)} />
-                      </details>
+                      </label>
                     </th>
                     <th>Time</th>
                     <th>
-                      <label className="hb-column-filter">From
+                      <label className="hb-column-filter hb-column-filter--picker">
+                        <span aria-hidden="true">From {fromFilter ? "●" : "⌄"}</span>
                         <select aria-label="From 작성자 필터" value={fromFilter} onChange={(e) => setFromFilter(e.target.value)}>
                           <option value="">전체 작성자</option>
                           {authors.map((name) => <option key={name} value={name}>{name}</option>)}
