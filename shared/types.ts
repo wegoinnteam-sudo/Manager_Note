@@ -88,6 +88,13 @@ export interface HandoverPhotoDTO {
   thumbnailUrl: string;
 }
 
+export interface HandoverCommentDTO {
+  id: string;
+  authorName: string;
+  body: string;
+  createdAt: string;
+}
+
 export interface HandoverNoticeDTO {
   id: string;
   noticeDate: string;
@@ -103,6 +110,7 @@ export interface HandoverNoticeDTO {
   createdAt: string;
   updatedAt: string;
   photos: HandoverPhotoDTO[];
+  comments: HandoverCommentDTO[];
   // Names from HANDOVER_ALL_ACK_NAMES who have acked — only meaningful
   // when category is "all"; empty for every other category.
   acks: string[];

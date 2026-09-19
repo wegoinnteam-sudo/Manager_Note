@@ -6,8 +6,10 @@ import {
   setHandoverNoticeAck,
   setHandoverNoticeDone,
   softDeleteHandoverNotice,
+  updateHandoverNotice,
 } from "../db/handoverNotices";
 import { createHandoverPhoto, deleteHandoverPhotoRow, getHandoverPhotoForTeam } from "../db/handoverPhotos";
+import { createHandoverComment } from "../db/handoverComments";
 
 let db: any;
 const TEAM = "team_test";
@@ -158,5 +160,53 @@ describe("handoverNotices", () => {
     // is_done column — isDone stays derived from acks regardless.
     const result = await setHandoverNoticeDone(db, TEAM, created.id, { isDone: true, completedBy: "Daniel" });
     expect(result?.isDone).toBe(false);
+  });
+
+  it("updates a notice's fields", async () => {
+    const created = await createHandoverNotice(db, TEAM, sampleInput, USER);
+    const updated = await updateHandoverNotice(db, TEAM, created.id, {
+      noticeDate: "2026-09-20",
+      noticeTime: "10:00",
+      fromName: "가원",
+      reference: "Lee · 705호",
+      category: "repair",
+      body: "에어컨 필터 교체 완료.",
+    });
+    expect(updated).toMatchObject({
+      noticeDate: "2026-09-20",
+      noticeTime: "10:00",
+      fromName: "가원",
+      reference: "Lee · 705호",
+      category: "repair",
+      body: "에어컨 필터 교체 완료.",
+    });
+
+    expect(await updateHandoverNotice(db, "team_other", created.id, sampleInput)).toBeNull();
+  });
+
+  it("embeds each notice's comments in the list, oldest first", async () => {
+    const notice = await createHandoverNotice(db, TEAM, sampleInput, USER);
+    await createHandoverComment(db, {
+      noticeId: notice.id,
+      teamId: TEAM,
+      authorId: USER,
+      authorName: "Daniel",
+      body: "확인했습니다.",
+    });
+    await createHandoverComment(db, {
+      noticeId: notice.id,
+      teamId: TEAM,
+      authorId: USER,
+      authorName: "Daniel",
+      guestName: "가원",
+      body: "저도 확인했어요.",
+    });
+
+    const notices = await listHandoverNotices(db, TEAM);
+    const comments = notices.find((n) => n.id === notice.id)!.comments;
+    expect(comments).toHaveLength(2);
+    expect(comments[0].body).toBe("확인했습니다.");
+    expect(comments[0].authorName).toBe("Daniel");
+    expect(comments[1].authorName).toBe("가원");
   });
 });

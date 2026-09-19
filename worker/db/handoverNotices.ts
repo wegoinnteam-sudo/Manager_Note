@@ -4,6 +4,7 @@ import { HANDOVER_ALL_ACK_NAMES } from "../../shared/types";
 import { newId, nowIso } from "../lib/ids";
 import { listPhotosByNoticeIds, toHandoverPhotoDTO } from "./handoverPhotos";
 import { listAcksByNoticeIds, listAcksForNotice, setAck } from "./handoverNoticeAcks";
+import { listCommentsByNoticeIds } from "./handoverComments";
 
 interface HandoverNoticeRow {
   id: string;
@@ -25,7 +26,12 @@ interface HandoverNoticeRow {
 // HANDOVER_ALL_ACK_NAMES has acked — the is_done/completed_by columns are
 // never written for that category, so isDone is derived here instead of
 // read straight off the row like every other category.
-function toDto(row: HandoverNoticeRow, photos: HandoverNoticeDTO["photos"] = [], acks: string[] = []): HandoverNoticeDTO {
+function toDto(
+  row: HandoverNoticeRow,
+  photos: HandoverNoticeDTO["photos"] = [],
+  acks: string[] = [],
+  comments: HandoverNoticeDTO["comments"] = [],
+): HandoverNoticeDTO {
   return {
     id: row.id,
     noticeDate: row.notice_date,
@@ -41,6 +47,7 @@ function toDto(row: HandoverNoticeRow, photos: HandoverNoticeDTO["photos"] = [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     photos,
+    comments,
     acks,
   };
 }
@@ -57,12 +64,18 @@ export async function listHandoverNotices(db: Env["DB"], teamId: string): Promis
     .all<HandoverNoticeRow>();
   const rows = results ?? [];
   const noticeIds = rows.map((row) => row.id);
-  const [photosByNotice, acksByNotice] = await Promise.all([
+  const [photosByNotice, acksByNotice, commentsByNotice] = await Promise.all([
     listPhotosByNoticeIds(db, noticeIds),
     listAcksByNoticeIds(db, noticeIds),
+    listCommentsByNoticeIds(db, noticeIds),
   ]);
   return rows.map((row) =>
-    toDto(row, (photosByNotice.get(row.id) ?? []).map(toHandoverPhotoDTO), acksByNotice.get(row.id) ?? []),
+    toDto(
+      row,
+      (photosByNotice.get(row.id) ?? []).map(toHandoverPhotoDTO),
+      acksByNotice.get(row.id) ?? [],
+      commentsByNotice.get(row.id) ?? [],
+    ),
   );
 }
 
@@ -113,8 +126,45 @@ export async function createHandoverNotice(
     createdAt: now,
     updatedAt: now,
     photos: [],
+    comments: [],
     acks: [],
   };
+}
+
+export async function updateHandoverNotice(
+  db: Env["DB"],
+  teamId: string,
+  id: string,
+  input: {
+    noticeDate: string;
+    noticeTime: string;
+    fromName: string;
+    reference: string;
+    category: HandoverCategory;
+    body: string;
+  },
+): Promise<HandoverNoticeDTO | null> {
+  const now = nowIso();
+  const { meta } = await db
+    .prepare(
+      `UPDATE handover_notices
+       SET notice_date = ?1, notice_time = ?2, from_name = ?3, reference = ?4, category = ?5, body = ?6, updated_at = ?7
+       WHERE id = ?8 AND team_id = ?9 AND is_deleted = 0`,
+    )
+    .bind(input.noticeDate, input.noticeTime, input.fromName, input.reference, input.category, input.body, now, id, teamId)
+    .run();
+  if (meta.changes === 0) return null;
+
+  const row = await db
+    .prepare(
+      `SELECT id, notice_date, notice_time, from_name, reference, category, body, is_done, completed_by, completed_at, created_by, created_at, updated_at
+       FROM handover_notices WHERE id = ?1 AND team_id = ?2`,
+    )
+    .bind(id, teamId)
+    .first<HandoverNoticeRow>();
+  if (!row) return null;
+  const acks = row.category === "everyone" ? await listAcksForNotice(db, id) : [];
+  return toDto(row, [], acks);
 }
 
 // Toggles completion. Marking done stamps who completed it and when;

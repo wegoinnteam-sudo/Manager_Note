@@ -84,6 +84,18 @@ export function HandoverBoard({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [uploadingNoticeId, setUploadingNoticeId] = useState<string | null>(null);
   const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<{
+    noticeDate: string;
+    noticeTime: string;
+    fromName: string;
+    category: HandoverCategory;
+    reference: string;
+    body: string;
+  } | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
+  const [postingCommentId, setPostingCommentId] = useState<string | null>(null);
 
   const [formDate, setFormDate] = useState(todayKey());
   const [formTime, setFormTime] = useState(nowTime());
@@ -191,6 +203,56 @@ export function HandoverBoard({
       showToast("삭제했습니다.");
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const startEdit = (notice: HandoverNoticeDTO) => {
+    setEditingId(notice.id);
+    setEditDraft({
+      noticeDate: notice.noticeDate,
+      noticeTime: notice.noticeTime,
+      fromName: notice.fromName,
+      category: notice.category,
+      reference: notice.reference,
+      body: notice.body,
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditDraft(null);
+  };
+
+  const saveEdit = async (notice: HandoverNoticeDTO) => {
+    if (!editDraft || !editDraft.fromName.trim() || !editDraft.reference.trim() || !editDraft.body.trim() || savingEdit) return;
+    setSavingEdit(true);
+    try {
+      await api.updateHandoverNotice(notice.id, {
+        noticeDate: editDraft.noticeDate,
+        noticeTime: editDraft.noticeTime,
+        fromName: editDraft.fromName.trim(),
+        reference: editDraft.reference.trim(),
+        category: editDraft.category,
+        body: editDraft.body.trim(),
+      });
+      await onNoticesChanged();
+      cancelEdit();
+      showToast("수정했습니다.");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const submitComment = async (notice: HandoverNoticeDTO) => {
+    const text = (commentDrafts[notice.id] ?? "").trim();
+    if (!text || postingCommentId === notice.id) return;
+    setPostingCommentId(notice.id);
+    try {
+      await api.createHandoverComment(notice.id, text, guestName);
+      setCommentDrafts((current) => ({ ...current, [notice.id]: "" }));
+      await onNoticesChanged();
+    } finally {
+      setPostingCommentId(null);
     }
   };
 
@@ -430,31 +492,96 @@ export function HandoverBoard({
                     const [dateMain, dateSub] = formatKoreanDate(notice.noticeDate).split("|");
                     return (
                       <tr key={notice.id} className={notice.isDone ? "hb-row hb-row--completed" : "hb-row"}>
-                        <td data-label="Date">
-                          <span className="hb-date-main">{dateMain}</span>
-                          {dateSub && <span className="hb-date-sub">{dateSub}</span>}
-                        </td>
-                        <td data-label="Time"><span className="hb-time-main">{notice.noticeTime}</span></td>
-                        <td data-label="From"><span className="hb-from-badge">{notice.fromName}</span></td>
-                        <td data-label="이름 · 객실 · 예약"><span className="hb-reference-main">{notice.reference}</span></td>
-                        <td data-label="Notice">
-                          <div className="hb-notice-head">
-                            <span className={`hb-notice-tag hb-notice-tag--${notice.category}`}>{HANDOVER_CATEGORY_LABELS[notice.category]}</span>
-                            {canEdit && (
-                              <button
-                                type="button"
-                                className="hb-notice-delete"
-                                title="삭제"
-                                aria-label="인수인계 삭제"
-                                disabled={deletingId === notice.id}
-                                onClick={() => deleteNotice(notice)}
+                        {editingId === notice.id && editDraft ? (
+                          <>
+                            <td data-label="Date">
+                              <input
+                                type="date"
+                                value={editDraft.noticeDate}
+                                onChange={(e) => setEditDraft({ ...editDraft, noticeDate: e.target.value })}
+                              />
+                            </td>
+                            <td data-label="Time">
+                              <input
+                                type="time"
+                                value={editDraft.noticeTime}
+                                onChange={(e) => setEditDraft({ ...editDraft, noticeTime: e.target.value })}
+                              />
+                            </td>
+                            <td data-label="From">
+                              <input
+                                list="hb-name-suggestions"
+                                value={editDraft.fromName}
+                                maxLength={60}
+                                onChange={(e) => setEditDraft({ ...editDraft, fromName: e.target.value })}
+                              />
+                            </td>
+                            <td data-label="이름 · 객실 · 예약">
+                              <input
+                                value={editDraft.reference}
+                                maxLength={200}
+                                onChange={(e) => setEditDraft({ ...editDraft, reference: e.target.value })}
+                              />
+                            </td>
+                            <td data-label="Notice">
+                              <select
+                                value={editDraft.category}
+                                onChange={(e) => setEditDraft({ ...editDraft, category: e.target.value as HandoverCategory })}
                               >
-                                🗑
-                              </button>
-                            )}
-                          </div>
-                          <p className="hb-notice-text">{notice.body}</p>
-                          <div className="hb-photo-row">
+                                {HANDOVER_CATEGORIES.map((category) => (
+                                  <option key={category} value={category}>
+                                    {HANDOVER_CATEGORY_LABELS[category]}
+                                  </option>
+                                ))}
+                              </select>
+                              <textarea
+                                className="hb-edit-textarea"
+                                value={editDraft.body}
+                                maxLength={2000}
+                                onChange={(e) => setEditDraft({ ...editDraft, body: e.target.value })}
+                              />
+                              <div className="hb-edit-actions">
+                                <button type="button" className="hb-secondary-button" onClick={cancelEdit}>
+                                  취소
+                                </button>
+                                <button type="button" className="hb-primary-button" disabled={savingEdit} onClick={() => saveEdit(notice)}>
+                                  {savingEdit ? "저장 중…" : "저장"}
+                                </button>
+                              </div>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td data-label="Date">
+                              <span className="hb-date-main">{dateMain}</span>
+                              {dateSub && <span className="hb-date-sub">{dateSub}</span>}
+                            </td>
+                            <td data-label="Time"><span className="hb-time-main">{notice.noticeTime}</span></td>
+                            <td data-label="From"><span className="hb-from-badge">{notice.fromName}</span></td>
+                            <td data-label="이름 · 객실 · 예약"><span className="hb-reference-main">{notice.reference}</span></td>
+                            <td data-label="Notice">
+                              <div className="hb-notice-head">
+                                <span className={`hb-notice-tag hb-notice-tag--${notice.category}`}>{HANDOVER_CATEGORY_LABELS[notice.category]}</span>
+                                {canEdit && (
+                                  <div className="hb-notice-actions">
+                                    <button type="button" className="hb-notice-edit" title="수정" aria-label="인수인계 수정" onClick={() => startEdit(notice)}>
+                                      ✎
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="hb-notice-delete"
+                                      title="삭제"
+                                      aria-label="인수인계 삭제"
+                                      disabled={deletingId === notice.id}
+                                      onClick={() => deleteNotice(notice)}
+                                    >
+                                      🗑
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                              <p className="hb-notice-text">{notice.body}</p>
+                              <div className="hb-photo-row">
                             {notice.photos.map((photo) => (
                               <div key={photo.id} className="hb-photo-thumb-wrap">
                                 <a href={photo.url} target="_blank" rel="noopener noreferrer">
@@ -507,8 +634,40 @@ export function HandoverBoard({
                                 />
                               </>
                             )}
-                          </div>
-                        </td>
+                              </div>
+                              <div className="hb-comment-list">
+                                {notice.comments.map((comment) => (
+                                  <div key={comment.id} className="hb-comment">
+                                    <span className="hb-comment-author">{comment.authorName}</span>
+                                    <span className="hb-comment-body">{comment.body}</span>
+                                  </div>
+                                ))}
+                              </div>
+                              {canEdit && (
+                                <div className="hb-comment-form">
+                                  <input
+                                    className="hb-comment-input"
+                                    placeholder="댓글 남기기…"
+                                    maxLength={2000}
+                                    value={commentDrafts[notice.id] ?? ""}
+                                    onChange={(e) => setCommentDrafts((current) => ({ ...current, [notice.id]: e.target.value }))}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") submitComment(notice);
+                                    }}
+                                  />
+                                  <button
+                                    type="button"
+                                    className="hb-secondary-button"
+                                    disabled={postingCommentId === notice.id || !(commentDrafts[notice.id] ?? "").trim()}
+                                    onClick={() => submitComment(notice)}
+                                  >
+                                    등록
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          </>
+                        )}
                         {notice.category === "everyone" ? (
                           <td className="hb-ack-cell" data-label="확인" colSpan={2}>
                             <div className="hb-ack-grid">

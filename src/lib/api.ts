@@ -16,6 +16,7 @@ import type {
   HandoverCategory,
   HandoverNoticeDTO,
   HandoverPhotoDTO,
+  HandoverCommentDTO,
 } from "@shared/types";
 import type { AiAnswer, AiStatus } from "@shared/ai";
 
@@ -187,11 +188,24 @@ export const api = {
     category: HandoverCategory;
     body: string;
   }) => request<HandoverNoticeDTO>("/api/handover", { method: "POST", body: JSON.stringify(input) }),
+  updateHandoverNotice: (
+    id: string,
+    input: {
+      noticeDate: string;
+      noticeTime: string;
+      fromName: string;
+      reference: string;
+      category: HandoverCategory;
+      body: string;
+    },
+  ) => request<HandoverNoticeDTO>(`/api/handover/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
   setHandoverNoticeDone: (id: string, input: { isDone: boolean; completedBy?: string }) =>
     request<HandoverNoticeDTO>(`/api/handover/${id}/done`, { method: "PATCH", body: JSON.stringify(input) }),
   setHandoverNoticeAck: (id: string, input: { name: string; acked: boolean }) =>
     request<HandoverNoticeDTO>(`/api/handover/${id}/ack`, { method: "PATCH", body: JSON.stringify(input) }),
   deleteHandoverNotice: (id: string) => request<{ ok: true }>(`/api/handover/${id}`, { method: "DELETE" }),
+  createHandoverComment: (id: string, body: string, authorName?: string) =>
+    request<HandoverCommentDTO>(`/api/handover/${id}/comments`, { method: "POST", body: JSON.stringify({ body, authorName }) }),
   deleteHandoverPhoto: (id: string) => request<{ ok: true }>(`/api/handover/photos/${id}`, { method: "DELETE" }),
 };
 

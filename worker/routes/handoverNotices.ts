@@ -12,8 +12,10 @@ import {
   setHandoverNoticeAck,
   setHandoverNoticeDone,
   softDeleteHandoverNotice,
+  updateHandoverNotice,
 } from "../db/handoverNotices";
 import { createHandoverPhoto, deleteHandoverPhotoRow, getHandoverPhotoForTeam, toHandoverPhotoDTO } from "../db/handoverPhotos";
+import { createHandoverComment } from "../db/handoverComments";
 import { uploadFileStreaming, getFileMediaStream, getFileThumbnailStream, deleteFilePermanently } from "../drive/client";
 import { getTeamFolderIds } from "../drive/folders";
 
@@ -86,6 +88,32 @@ handoverRoute.delete("/:id", requireRole("editor"), async (c) => {
   const deleted = await softDeleteHandoverNotice(c.env.DB, c.var.teamId, c.req.param("id"));
   if (!deleted) throw Errors.notFound("인수인계 항목을 찾을 수 없습니다.");
   return c.json({ ok: true });
+});
+
+handoverRoute.patch("/:id", requireRole("editor"), async (c) => {
+  const input = createSchema.parse(await c.req.json());
+  const notice = await updateHandoverNotice(c.env.DB, c.var.teamId, c.req.param("id"), input as any);
+  if (!notice) throw Errors.notFound("인수인계 항목을 찾을 수 없습니다.");
+  return c.json(notice);
+});
+
+const createCommentSchema = z.object({
+  body: z.string().trim().min(1).max(2000),
+  authorName: nameSchema.optional(),
+});
+
+handoverRoute.post("/:id/comments", requireRole("editor"), async (c) => {
+  const input = createCommentSchema.parse(await c.req.json());
+  const user = c.var.user!;
+  const comment = await createHandoverComment(c.env.DB, {
+    noticeId: c.req.param("id"),
+    teamId: c.var.teamId,
+    authorId: user.id,
+    authorName: user.name,
+    guestName: input.authorName,
+    body: input.body,
+  });
+  return c.json(comment, 201);
 });
 
 const MAX_PHOTO_BYTES = 15 * 1024 * 1024;
