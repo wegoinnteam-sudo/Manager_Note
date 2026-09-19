@@ -767,18 +767,22 @@ function ActivityFeedBar({
   onOpenPage: (id: string) => void;
   onOpenSchedule: (page: PageSummaryDTO, item: ActivityFeedItemDTO) => void;
 }) {
-  if (items.length === 0) return null;
+  const activePages = new Map(pages.filter((page) => !page.isDeleted).map((page) => [page.id, page]));
+  const visibleItems = items.flatMap((item) => {
+    const page = item.pageId ? activePages.get(item.pageId) : undefined;
+    return page ? [{ item, page }] : [];
+  });
+  if (visibleItems.length === 0) return null;
   return (
     <div className="wdb-activity-bar" role="region" aria-label="최근 수정 알림">
       <div className="wdb-activity-bar__header">
-        <span className="wdb-activity-bar__title">최근 수정 {items.length}건</span>
+        <span className="wdb-activity-bar__title">최근 수정 {visibleItems.length}건</span>
         <button type="button" className="wdb-activity-bar__ack-all" onClick={onAckAll}>
           ✓ 전체 확인
         </button>
       </div>
       <div className="wdb-activity-bar__rows">
-      {items.map((item) => {
-        const page = item.pageId ? pages.find((p) => p.id === item.pageId) : undefined;
+      {visibleItems.map(({ item, page }) => {
         const categoryDef = categories.find((c) => c.key === page?.category);
         const categoryLabel = categoryDef?.label ?? (page?.category ? page.category : UNCATEGORIZED_LABEL);
         const categoryColor = categoryDef?.color ?? UNCATEGORIZED_COLOR;
@@ -796,9 +800,7 @@ function ActivityFeedBar({
             <button
               type="button"
               className="wdb-activity-bar__body"
-              disabled={!page}
               onClick={() => {
-                if (!page) return;
                 // A schedule (calendar-view page) always carries an endDate;
                 // only ScheduleModal ever sets that field, so this alone
                 // tells a schedule edit apart from a regular page edit.
@@ -809,7 +811,7 @@ function ActivityFeedBar({
               <span className="wdb-activity-bar__category" style={{ color: categoryColor, background: `${categoryColor}1f` }}>
                 {categoryLabel}
               </span>
-              <span className="wdb-activity-bar__page">{page?.title ?? "삭제된 페이지"}</span>
+              <span className="wdb-activity-bar__page">{page.title}</span>
               <span className="wdb-activity-bar__desc">{describeActivity(item)}</span>
               <span className="wdb-activity-bar__actor">
                 {item.actorName || (item.actorId ? memberName(members, item.actorId) : "알 수 없음")}

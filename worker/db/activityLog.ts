@@ -80,6 +80,7 @@ export async function listActivityFeed(
     .prepare(
       `SELECT a.*, CASE WHEN k.guest_name IS NULL THEN 0 ELSE 1 END AS acked
        FROM activity_logs a
+       INNER JOIN pages p ON p.id = a.page_id AND p.team_id = a.team_id AND p.is_deleted = 0
        LEFT JOIN activity_acks k ON k.activity_id = a.id AND k.guest_name = ?1
        WHERE a.team_id = ?3
          AND a.page_id IS NOT NULL
