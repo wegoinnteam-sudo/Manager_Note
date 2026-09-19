@@ -68,6 +68,15 @@ export const HANDOVER_CATEGORY_LABELS: Record<HandoverCategory, string> = {
   others: "Others",
 };
 
+export interface HandoverPhotoDTO {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  url: string;
+  thumbnailUrl: string;
+}
+
 export interface HandoverNoticeDTO {
   id: string;
   noticeDate: string;
@@ -82,6 +91,7 @@ export interface HandoverNoticeDTO {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+  photos: HandoverPhotoDTO[];
 }
 
 export interface UserDTO {

@@ -15,6 +15,7 @@ import type {
   ActivityFeedItemDTO,
   HandoverCategory,
   HandoverNoticeDTO,
+  HandoverPhotoDTO,
 } from "@shared/types";
 import type { AiAnswer, AiStatus } from "@shared/ai";
 
@@ -188,6 +189,8 @@ export const api = {
   }) => request<HandoverNoticeDTO>("/api/handover", { method: "POST", body: JSON.stringify(input) }),
   setHandoverNoticeDone: (id: string, input: { isDone: boolean; completedBy?: string }) =>
     request<HandoverNoticeDTO>(`/api/handover/${id}/done`, { method: "PATCH", body: JSON.stringify(input) }),
+  deleteHandoverNotice: (id: string) => request<{ ok: true }>(`/api/handover/${id}`, { method: "DELETE" }),
+  deleteHandoverPhoto: (id: string) => request<{ ok: true }>(`/api/handover/photos/${id}`, { method: "DELETE" }),
 };
 
 /**
@@ -225,6 +228,46 @@ export function uploadAttachment(
         resolve(body as AttachmentDTO);
       } else {
         reject(new ApiClientError(xhr.status, body?.error ?? "error", body?.message ?? "업로드에 실패했습니다."));
+      }
+    };
+    xhr.onerror = () => reject(new ApiClientError(0, "network_error", "네트워크 오류로 업로드에 실패했습니다."));
+    xhr.onabort = () => reject(new ApiClientError(0, "aborted", "업로드가 취소되었습니다."));
+    if (opts.signal) {
+      opts.signal.addEventListener("abort", () => xhr.abort());
+    }
+    xhr.send(file);
+  });
+}
+
+/** Same XHR-with-progress pattern as uploadAttachment, targeting a handover notice's photo endpoint instead of a page's. */
+export function uploadHandoverPhoto(
+  noticeId: string,
+  file: File,
+  opts: { onProgress?: (pct: number) => void; signal?: AbortSignal } = {},
+): Promise<HandoverPhotoDTO> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `/api/handover/${noticeId}/photos`);
+    xhr.withCredentials = true;
+    xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+    xhr.setRequestHeader("X-File-Name", encodeURIComponent(file.name));
+    const csrf = readCookie("th_csrf");
+    if (csrf) xhr.setRequestHeader("X-CSRF-Token", csrf);
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && opts.onProgress) opts.onProgress(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () => {
+      let body: any = null;
+      try {
+        body = JSON.parse(xhr.responseText);
+      } catch {
+        /* ignore */
+      }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(body as HandoverPhotoDTO);
+      } else {
+        reject(new ApiClientError(xhr.status, body?.error ?? "error", body?.message ?? "사진 업로드에 실패했습니다."));
       }
     };
     xhr.onerror = () => reject(new ApiClientError(0, "network_error", "네트워크 오류로 업로드에 실패했습니다."));

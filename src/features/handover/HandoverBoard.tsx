@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import type { HandoverCategory, HandoverNoticeDTO } from "@shared/types";
 import { HANDOVER_CATEGORIES, HANDOVER_CATEGORY_LABELS } from "@shared/types";
-import { api } from "@/lib/api";
+import { api, uploadHandoverPhoto } from "@/lib/api";
+import { compressImageForUpload } from "@/lib/imageCompression";
 import { todayKey } from "@/features/pages/DatabaseView";
 import "./handover.css";
+
+const MAX_PHOTO_BYTES = 15 * 1024 * 1024;
 
 type ViewMode = "main" | "all" | HandoverCategory;
 
@@ -60,6 +63,9 @@ export function HandoverBoard({
   const [draftCompleter, setDraftCompleter] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [uploadingNoticeId, setUploadingNoticeId] = useState<string | null>(null);
+  const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
 
   const [formDate, setFormDate] = useState(todayKey());
   const [formTime, setFormTime] = useState(nowTime());
@@ -140,6 +146,48 @@ export function HandoverBoard({
       } finally {
         setBusyId(null);
       }
+    }
+  };
+
+  const deleteNotice = async (notice: HandoverNoticeDTO) => {
+    if (!window.confirm("이 인수인계 항목을 삭제할까요? 삭제하면 되돌릴 수 없습니다.")) return;
+    setDeletingId(notice.id);
+    try {
+      await api.deleteHandoverNotice(notice.id);
+      await onNoticesChanged();
+      setToast("삭제했습니다.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  // Photos attach to an already-created notice (no pre-upload staging in
+  // the compose form) — after submitting, the new row appears at the top
+  // of the list and "📷 사진 추가" there works the same as any other row.
+  const addPhotos = async (notice: HandoverNoticeDTO, files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setUploadingNoticeId(notice.id);
+    try {
+      for (const file of Array.from(files)) {
+        const compressed = await compressImageForUpload(file, MAX_PHOTO_BYTES);
+        await uploadHandoverPhoto(notice.id, compressed);
+      }
+      await onNoticesChanged();
+      setToast("사진을 추가했습니다.");
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "사진 업로드에 실패했습니다.");
+    } finally {
+      setUploadingNoticeId(null);
+    }
+  };
+
+  const deletePhoto = async (photoId: string) => {
+    setDeletingPhotoId(photoId);
+    try {
+      await api.deleteHandoverPhoto(photoId);
+      await onNoticesChanged();
+    } finally {
+      setDeletingPhotoId(null);
     }
   };
 
@@ -343,8 +391,59 @@ export function HandoverBoard({
                         <td data-label="From"><span className="hb-from-badge">{notice.fromName}</span></td>
                         <td data-label="이름 · 객실 · 예약"><span className="hb-reference-main">{notice.reference}</span></td>
                         <td data-label="Notice">
-                          <span className={`hb-notice-tag hb-notice-tag--${notice.category}`}>{HANDOVER_CATEGORY_LABELS[notice.category]}</span>
+                          <div className="hb-notice-head">
+                            <span className={`hb-notice-tag hb-notice-tag--${notice.category}`}>{HANDOVER_CATEGORY_LABELS[notice.category]}</span>
+                            {canEdit && (
+                              <button
+                                type="button"
+                                className="hb-notice-delete"
+                                title="삭제"
+                                aria-label="인수인계 삭제"
+                                disabled={deletingId === notice.id}
+                                onClick={() => deleteNotice(notice)}
+                              >
+                                🗑
+                              </button>
+                            )}
+                          </div>
                           <p className="hb-notice-text">{notice.body}</p>
+                          <div className="hb-photo-row">
+                            {notice.photos.map((photo) => (
+                              <div key={photo.id} className="hb-photo-thumb-wrap">
+                                <a href={photo.url} target="_blank" rel="noopener noreferrer">
+                                  <img className="hb-photo-thumb" src={photo.thumbnailUrl} alt={photo.fileName} loading="lazy" />
+                                </a>
+                                {canEdit && (
+                                  <button
+                                    type="button"
+                                    className="hb-photo-remove"
+                                    aria-label="사진 삭제"
+                                    disabled={deletingPhotoId === photo.id}
+                                    onClick={() => deletePhoto(photo.id)}
+                                  >
+                                    ×
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                            {canEdit && (
+                              <label className="hb-photo-add-btn">
+                                {uploadingNoticeId === notice.id ? "업로드 중…" : "📷 사진 추가"}
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  multiple
+                                  className="hb-photo-input"
+                                  disabled={uploadingNoticeId === notice.id}
+                                  onChange={(e) => {
+                                    const files = e.target.files;
+                                    e.target.value = "";
+                                    addPhotos(notice, files);
+                                  }}
+                                />
+                              </label>
+                            )}
+                          </div>
                         </td>
                         <td className="hb-done-cell" data-label="완료">
                           <label className="hb-check-wrap" aria-label="완료 표시">

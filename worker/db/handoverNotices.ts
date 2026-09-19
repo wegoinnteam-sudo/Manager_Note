@@ -1,6 +1,7 @@
 import type { Env } from "../types";
 import type { HandoverCategory, HandoverNoticeDTO } from "../../shared/types";
 import { newId, nowIso } from "../lib/ids";
+import { listPhotosByNoticeIds, toHandoverPhotoDTO } from "./handoverPhotos";
 
 interface HandoverNoticeRow {
   id: string;
@@ -18,7 +19,7 @@ interface HandoverNoticeRow {
   updated_at: string;
 }
 
-function toDto(row: HandoverNoticeRow): HandoverNoticeDTO {
+function toDto(row: HandoverNoticeRow, photos: HandoverNoticeDTO["photos"] = []): HandoverNoticeDTO {
   return {
     id: row.id,
     noticeDate: row.notice_date,
@@ -33,6 +34,7 @@ function toDto(row: HandoverNoticeRow): HandoverNoticeDTO {
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    photos,
   };
 }
 
@@ -46,7 +48,9 @@ export async function listHandoverNotices(db: Env["DB"], teamId: string): Promis
     )
     .bind(teamId)
     .all<HandoverNoticeRow>();
-  return (results ?? []).map(toDto);
+  const rows = results ?? [];
+  const photosByNotice = await listPhotosByNoticeIds(db, rows.map((row) => row.id));
+  return rows.map((row) => toDto(row, (photosByNotice.get(row.id) ?? []).map(toHandoverPhotoDTO)));
 }
 
 export async function createHandoverNotice(
@@ -87,6 +91,7 @@ export async function createHandoverNotice(
     createdBy,
     createdAt: now,
     updatedAt: now,
+    photos: [],
   };
 }
 
@@ -117,4 +122,12 @@ export async function setHandoverNoticeDone(
     .bind(id, teamId)
     .first<HandoverNoticeRow>();
   return row ? toDto(row) : null;
+}
+
+export async function softDeleteHandoverNotice(db: Env["DB"], teamId: string, id: string): Promise<boolean> {
+  const { meta } = await db
+    .prepare("UPDATE handover_notices SET is_deleted = 1, updated_at = ?1 WHERE id = ?2 AND team_id = ?3 AND is_deleted = 0")
+    .bind(nowIso(), id, teamId)
+    .run();
+  return meta.changes > 0;
 }

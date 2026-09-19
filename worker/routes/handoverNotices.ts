@@ -1,10 +1,14 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import type { AppBindings } from "../types";
-import { HANDOVER_CATEGORIES } from "../../shared/types";
+import { HANDOVER_CATEGORIES, IMAGE_EXTENSIONS } from "../../shared/types";
 import { requireAuth, requireRole } from "../middleware/rbac";
 import { Errors } from "../lib/errors";
-import { createHandoverNotice, listHandoverNotices, setHandoverNoticeDone } from "../db/handoverNotices";
+import { extensionOf } from "../lib/validation";
+import { createHandoverNotice, listHandoverNotices, setHandoverNoticeDone, softDeleteHandoverNotice } from "../db/handoverNotices";
+import { createHandoverPhoto, deleteHandoverPhotoRow, getHandoverPhotoForTeam, toHandoverPhotoDTO } from "../db/handoverPhotos";
+import { uploadFileStreaming, getFileMediaStream, getFileThumbnailStream, deleteFilePermanently } from "../drive/client";
+import { getTeamFolderIds } from "../drive/folders";
 
 export const handoverRoute = new Hono<AppBindings>();
 
@@ -50,4 +54,102 @@ handoverRoute.patch("/:id/done", requireRole("editor"), async (c) => {
   });
   if (!notice) throw Errors.notFound("인수인계 항목을 찾을 수 없습니다.");
   return c.json(notice);
+});
+
+handoverRoute.delete("/:id", requireRole("editor"), async (c) => {
+  const deleted = await softDeleteHandoverNotice(c.env.DB, c.var.teamId, c.req.param("id"));
+  if (!deleted) throw Errors.notFound("인수인계 항목을 찾을 수 없습니다.");
+  return c.json({ ok: true });
+});
+
+const MAX_PHOTO_BYTES = 15 * 1024 * 1024;
+
+// Raw-binary upload (not multipart), same convention as
+// worker/routes/pages.ts's attachment upload: the Worker streams straight
+// through to Drive without buffering, and the frontend sends one file per
+// request. Unlike page attachments there's no pending/failed status
+// machine or R2 mirror here — a rejected notice photo just fails the
+// request outright, no D1 row is left behind either way.
+handoverRoute.post("/:id/photos", requireRole("editor"), async (c) => {
+  const noticeId = c.req.param("id");
+
+  const fileNameHeader = c.req.header("x-file-name");
+  if (!fileNameHeader) throw Errors.badRequest("X-File-Name 헤더가 필요합니다.");
+  const fileName = decodeURIComponent(fileNameHeader).slice(0, 255);
+  const extension = extensionOf(fileName);
+  if (!IMAGE_EXTENSIONS.has(extension)) {
+    throw Errors.unsupportedMedia(`이미지 파일만 첨부할 수 있습니다: .${extension || "?"}`);
+  }
+
+  const sizeHeader = c.req.header("content-length");
+  const sizeBytes = sizeHeader ? Number(sizeHeader) : NaN;
+  if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) {
+    throw Errors.badRequest("Content-Length 헤더가 필요합니다.");
+  }
+  if (sizeBytes > MAX_PHOTO_BYTES) {
+    throw Errors.payloadTooLarge(`사진 크기는 ${MAX_PHOTO_BYTES / 1024 / 1024}MB를 초과할 수 없습니다.`);
+  }
+
+  const mimeType = c.req.header("content-type") || "application/octet-stream";
+  const body = c.req.raw.body;
+  if (!body) throw Errors.badRequest("업로드할 사진이 없습니다.");
+
+  const folders = await getTeamFolderIds(c.env);
+  const driveResult = await uploadFileStreaming(c.env, {
+    name: fileName,
+    mimeType,
+    parentFolderId: folders.Attachments,
+    sizeBytes,
+    body,
+  });
+
+  const photo = await createHandoverPhoto(c.env.DB, {
+    noticeId,
+    teamId: c.var.teamId,
+    fileName,
+    mimeType,
+    sizeBytes,
+    driveFileId: driveResult.id,
+    driveWebViewLink: driveResult.webViewLink ?? null,
+    uploadedBy: c.var.user!.id,
+  });
+
+  return c.json(toHandoverPhotoDTO(photo), 201);
+});
+
+const PHOTO_CACHE = "private, max-age=31536000, immutable";
+
+handoverRoute.get("/photos/:id/preview", async (c) => {
+  const photo = await getHandoverPhotoForTeam(c.env.DB, c.var.teamId, c.req.param("id"));
+  if (!photo) throw Errors.notFound("사진을 찾을 수 없습니다.");
+  const driveRes = await getFileMediaStream(c.env, photo.drive_file_id);
+  const headers = new Headers();
+  headers.set("Content-Type", photo.mime_type);
+  headers.set("Content-Length", String(photo.size_bytes));
+  headers.set("Cache-Control", PHOTO_CACHE);
+  return new Response(driveRes.body, { status: 200, headers });
+});
+
+handoverRoute.get("/photos/:id/thumbnail", async (c) => {
+  const photo = await getHandoverPhotoForTeam(c.env.DB, c.var.teamId, c.req.param("id"));
+  if (!photo) throw Errors.notFound("사진을 찾을 수 없습니다.");
+  const thumbnailRes = await getFileThumbnailStream(c.env, photo.drive_file_id);
+  const headers = new Headers();
+  headers.set("Content-Type", thumbnailRes.headers.get("Content-Type") || "image/jpeg");
+  headers.set("Cache-Control", PHOTO_CACHE);
+  return new Response(thumbnailRes.body, { status: 200, headers });
+});
+
+handoverRoute.delete("/photos/:id", requireRole("editor"), async (c) => {
+  const photo = await getHandoverPhotoForTeam(c.env.DB, c.var.teamId, c.req.param("id"));
+  if (!photo) throw Errors.notFound("사진을 찾을 수 없습니다.");
+  try {
+    await deleteFilePermanently(c.env, photo.drive_file_id);
+  } catch {
+    // Best-effort — the D1 row still goes away so the photo disappears from
+    // the UI even if the Drive-side delete failed; an orphaned Drive file
+    // is a much smaller problem than a photo the UI can't get rid of.
+  }
+  await deleteHandoverPhotoRow(c.env.DB, photo.id);
+  return c.json({ ok: true });
 });

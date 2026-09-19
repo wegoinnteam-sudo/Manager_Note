@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createTestDb } from "./helpers/fakeD1";
-import { createHandoverNotice, listHandoverNotices, setHandoverNoticeDone } from "../db/handoverNotices";
+import { createHandoverNotice, listHandoverNotices, setHandoverNoticeDone, softDeleteHandoverNotice } from "../db/handoverNotices";
+import { createHandoverPhoto, deleteHandoverPhotoRow, getHandoverPhotoForTeam } from "../db/handoverPhotos";
 
 let db: any;
 const TEAM = "team_test";
@@ -60,5 +61,60 @@ describe("handoverNotices", () => {
     const created = await createHandoverNotice(db, TEAM, sampleInput, USER);
     const result = await setHandoverNoticeDone(db, "team_other", created.id, { isDone: true, completedBy: "하나" });
     expect(result).toBeNull();
+  });
+
+  it("soft-deletes a notice so it no longer appears in the list", async () => {
+    const created = await createHandoverNotice(db, TEAM, sampleInput, USER);
+    const other = await createHandoverNotice(db, TEAM, { ...sampleInput, category: "hostel" as const }, USER);
+
+    const deleted = await softDeleteHandoverNotice(db, TEAM, created.id);
+    expect(deleted).toBe(true);
+
+    const notices = await listHandoverNotices(db, TEAM);
+    expect(notices.map((n) => n.id)).toEqual([other.id]);
+
+    // Deleting again (or a notice from another team) reports nothing changed.
+    expect(await softDeleteHandoverNotice(db, TEAM, created.id)).toBe(false);
+    expect(await softDeleteHandoverNotice(db, "team_other", other.id)).toBe(false);
+  });
+
+  it("embeds each notice's photos in the list, grouped correctly", async () => {
+    const first = await createHandoverNotice(db, TEAM, sampleInput, USER);
+    const second = await createHandoverNotice(db, TEAM, { ...sampleInput, category: "hostel" as const }, USER);
+
+    await createHandoverPhoto(db, {
+      noticeId: first.id,
+      teamId: TEAM,
+      fileName: "damage.jpg",
+      mimeType: "image/jpeg",
+      sizeBytes: 12345,
+      driveFileId: "drive_1",
+      driveWebViewLink: null,
+      uploadedBy: USER,
+    });
+    const photo2 = await createHandoverPhoto(db, {
+      noticeId: first.id,
+      teamId: TEAM,
+      fileName: "damage2.jpg",
+      mimeType: "image/jpeg",
+      sizeBytes: 22345,
+      driveFileId: "drive_2",
+      driveWebViewLink: null,
+      uploadedBy: USER,
+    });
+
+    const notices = await listHandoverNotices(db, TEAM);
+    const firstDto = notices.find((n) => n.id === first.id)!;
+    const secondDto = notices.find((n) => n.id === second.id)!;
+    expect(firstDto.photos).toHaveLength(2);
+    expect(firstDto.photos[0].url).toBe(`/api/handover/photos/${firstDto.photos[0].id}/preview`);
+    expect(secondDto.photos).toHaveLength(0);
+
+    expect(await getHandoverPhotoForTeam(db, TEAM, photo2.id)).not.toBeNull();
+    expect(await getHandoverPhotoForTeam(db, "team_other", photo2.id)).toBeNull();
+
+    await deleteHandoverPhotoRow(db, photo2.id);
+    const afterDelete = await listHandoverNotices(db, TEAM);
+    expect(afterDelete.find((n) => n.id === first.id)!.photos).toHaveLength(1);
   });
 });
