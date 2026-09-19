@@ -43,13 +43,17 @@ export function HandoverBoard({
   canEdit,
   guestName,
   guestColors,
+  notices,
+  loaded,
+  onNoticesChanged,
 }: {
   canEdit: boolean;
   guestName: string;
   guestColors: Record<string, string>;
+  notices: HandoverNoticeDTO[];
+  loaded: boolean;
+  onNoticesChanged: () => Promise<void> | void;
 }) {
-  const [notices, setNotices] = useState<HandoverNoticeDTO[]>([]);
-  const [loading, setLoading] = useState(true);
   const [view, setView] = useState<ViewMode>(readInitialView);
   const [composeOpen, setComposeOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -63,16 +67,6 @@ export function HandoverBoard({
   const [formCategory, setFormCategory] = useState<HandoverCategory | "">("");
   const [formReference, setFormReference] = useState("");
   const [formBody, setFormBody] = useState("");
-
-  const refresh = async () => {
-    const { notices: rows } = await api.listHandoverNotices();
-    setNotices(rows);
-  };
-
-  useEffect(() => {
-    setLoading(true);
-    refresh().finally(() => setLoading(false));
-  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -131,7 +125,7 @@ export function HandoverBoard({
       setBusyId(notice.id);
       try {
         await api.setHandoverNoticeDone(notice.id, { isDone: true, completedBy });
-        await refresh();
+        await onNoticesChanged();
         setToast("완료했습니다. 전체보기에서 다시 확인할 수 있습니다.");
       } finally {
         setBusyId(null);
@@ -141,7 +135,7 @@ export function HandoverBoard({
       try {
         await api.setHandoverNoticeDone(notice.id, { isDone: false });
         setDraftCompleter((current) => ({ ...current, [notice.id]: "" }));
-        await refresh();
+        await onNoticesChanged();
         setToast("미완료 상태로 변경했습니다.");
       } finally {
         setBusyId(null);
@@ -171,7 +165,7 @@ export function HandoverBoard({
         category: formCategory,
         body: formBody.trim(),
       });
-      await refresh();
+      await onNoticesChanged();
       resetForm();
       setComposeOpen(false);
       setToast("새 인수인계를 표에 추가했습니다.");
@@ -317,7 +311,7 @@ export function HandoverBoard({
           </div>
 
           <div className="hb-table-wrap">
-            {loading ? (
+            {!loaded ? (
               <div className="hb-empty-state">불러오는 중…</div>
             ) : visible.length === 0 ? (
               <div className="hb-empty-state">

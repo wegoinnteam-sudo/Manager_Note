@@ -11,6 +11,7 @@ import { usePresence } from "@/hooks/usePresence";
 import { useTheme } from "@/hooks/useTheme";
 import { useDisplaySettings } from "@/hooks/useDisplaySettings";
 import { usePageCategories } from "@/hooks/usePageCategories";
+import { useHandoverNotices } from "@/hooks/useHandoverNotices";
 import { api } from "@/lib/api";
 import { Sidebar } from "@/features/sidebar/Sidebar";
 import { WegoinnBoard } from "@/features/board/WegoinnBoard";
@@ -33,6 +34,7 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
   const { preference: theme, setTheme } = useTheme();
   const displaySettings = useDisplaySettings();
   const { categories, refresh: refreshCategories } = usePageCategories();
+  const { notices: handoverNotices, loaded: handoverLoaded, refresh: refreshHandoverNotices } = useHandoverNotices();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [justCreatedPageId, setJustCreatedPageId] = useState<string | null>(null);
   // Each entry is one level of "peeked" page (opened from a Wegoinn DB card,
@@ -198,7 +200,16 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
       />
     );
   } else if (path === "/handover") {
-    content = <HandoverBoard canEdit={canEdit} guestName={identity.name} guestColors={guestColors} />;
+    content = (
+      <HandoverBoard
+        canEdit={canEdit}
+        guestName={identity.name}
+        guestColors={guestColors}
+        notices={handoverNotices}
+        loaded={handoverLoaded}
+        onNoticesChanged={refreshHandoverNotices}
+      />
+    );
   } else if (path === "/trash") {
     content = <Trash canRestore={canEdit} onOpenPage={openPage} onRestored={refreshPages} />;
   } else if (path === "/admin") {
@@ -251,6 +262,7 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
           user={user}
           pages={pages}
           categories={categories}
+          handoverNotices={handoverNotices}
           activePageId={activePageId}
           onOpenPage={openPage}
           onCreatePage={createPage}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import type { PageCategoryDTO, PageDetailDTO, PageSummaryDTO, TeamMemberDTO, UserDTO } from "@shared/types";
+import type { HandoverNoticeDTO, PageCategoryDTO, PageDetailDTO, PageSummaryDTO, TeamMemberDTO, UserDTO } from "@shared/types";
 import { buildPageTree, type PageTreeNode } from "@/hooks/usePages";
 import type { PresenceUser } from "@/hooks/usePresence";
 import type { ThemePreference } from "@/hooks/useTheme";
@@ -15,6 +15,10 @@ const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
 const FAVORITES_KEY = "th_sidebar_favorites";
 const OFFLINE_KEY_PREFIX = "th_offline_page_";
 const WIKI_KEY = "th_wiki_pages";
+// Per-browser "last seen" marker for the handover badge — same trust model
+// as the other sidebar localStorage keys above (favorites, offline pages):
+// not synced across devices, just enough to know what's new on this one.
+const HANDOVER_SEEN_KEY = "th_handover_last_seen";
 
 function readStoredIds(key: string): string[] {
   try {
@@ -212,6 +216,7 @@ export function Sidebar({
   teamName,
   pages,
   categories,
+  handoverNotices,
   activePageId,
   onOpenPage,
   onCreatePage,
@@ -233,6 +238,7 @@ export function Sidebar({
   user: UserDTO;
   pages: PageSummaryDTO[];
   categories: PageCategoryDTO[];
+  handoverNotices: HandoverNoticeDTO[];
   activePageId: string | null;
   onOpenPage: (id: string) => void;
   onCreatePage: () => void;
@@ -259,6 +265,7 @@ export function Sidebar({
     pages.filter((page) => localStorage.getItem(`${OFFLINE_KEY_PREFIX}${page.id}`)).map((page) => page.id),
   );
   const [wikiIds, setWikiIds] = useState<string[]>(() => readStoredIds(WIKI_KEY));
+  const [handoverLastSeen, setHandoverLastSeen] = useState(() => localStorage.getItem(HANDOVER_SEEN_KEY) ?? "");
   const [contextMenu, setContextMenu] = useState<{ page: PageSummaryDTO; x: number; y: number } | null>(null);
   const [editingPageId, setEditingPageId] = useState<string | null>(null);
   const [moving, setMoving] = useState(false);
@@ -293,6 +300,22 @@ export function Sidebar({
     visit(uncategorizedTree);
     return ids;
   }, [categoryTrees, uncategorizedTree]);
+  // Handover notices created after the last time this browser opened the
+  // board — cleared the instant "📋 인수인계" is clicked below, not on every
+  // poll tick, so the badge doesn't flicker off before the user actually
+  // looks at the new entries.
+  const newHandoverCount = useMemo(
+    () => handoverNotices.filter((notice) => notice.createdAt > handoverLastSeen).length,
+    [handoverNotices, handoverLastSeen],
+  );
+
+  const openHandover = () => {
+    const now = new Date().toISOString();
+    localStorage.setItem(HANDOVER_SEEN_KEY, now);
+    setHandoverLastSeen(now);
+    onNavigate("/handover");
+  };
+
   const recent = useMemo(
     () => [...pages].sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1)).slice(0, 5),
     [pages],
@@ -580,8 +603,13 @@ export function Sidebar({
       <button type="button" className="sidebar__link sidebar__link--wdb" onClick={() => onNavigate("/db")}>
         🗂 Wegoinn DB
       </button>
-      <button type="button" className="sidebar__link" onClick={() => onNavigate("/handover")}>
-        📋 인수인계
+      <button type="button" className="sidebar__link sidebar__link--handover" onClick={openHandover}>
+        <span>📋 인수인계</span>
+        {newHandoverCount > 0 && (
+          <span className="sidebar__handover-badge" title={`새로운 인수인계 ${newHandoverCount}건`}>
+            {newHandoverCount > 99 ? "99+" : newHandoverCount}
+          </span>
+        )}
       </button>
 
       <button type="button" className="sidebar__new-page" onClick={onCreatePage}>
