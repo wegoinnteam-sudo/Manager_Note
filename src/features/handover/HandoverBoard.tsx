@@ -190,11 +190,11 @@ export function HandoverBoard({
   // gallery/photo pickers return an empty FileList through a WebView's
   // multi-select file input, so a photo could be picked and confirmed yet
   // never actually arrive here. Tap the button again to add more than one.
-  const addPhotos = async (notice: HandoverNoticeDTO, files: FileList | null) => {
-    if (!files || files.length === 0) return;
+  const addPhotos = async (notice: HandoverNoticeDTO, files: File[]) => {
+    if (files.length === 0) return;
     setUploadingNoticeId(notice.id);
     try {
-      for (const file of Array.from(files)) {
+      for (const file of files) {
         const compressed = await compressImageForUpload(file, MAX_PHOTO_BYTES);
         await uploadHandoverPhoto(notice.id, compressed);
       }
@@ -473,10 +473,16 @@ export function HandoverBoard({
                                   className="hb-photo-input"
                                   disabled={uploadingNoticeId === notice.id}
                                   onChange={(e) => {
-                                    const files = e.target.files;
+                                    // Copy the FileList into a plain array before touching
+                                    // e.target.value — resetting the input's value to allow
+                                    // re-selecting the same file also clears its live
+                                    // FileList in some Android browsers, and addPhotos is
+                                    // async, so it would otherwise see an empty selection by
+                                    // the time it actually ran.
+                                    const selected = e.target.files ? Array.from(e.target.files) : [];
                                     e.target.value = "";
-                                    showToast(files && files.length > 0 ? `${files.length}장 선택됨, 업로드를 시작합니다…` : "선택된 사진이 없습니다.");
-                                    addPhotos(notice, files);
+                                    showToast(selected.length > 0 ? `${selected.length}장 선택됨, 업로드를 시작합니다…` : "선택된 사진이 없습니다.");
+                                    addPhotos(notice, selected);
                                   }}
                                 />
                               </>
