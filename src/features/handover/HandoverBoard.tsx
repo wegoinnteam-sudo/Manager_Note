@@ -450,9 +450,20 @@ export function HandoverBoard({
                               </div>
                             ))}
                             {canEdit && (
-                              <label className="hb-photo-add-btn">
-                                {uploadingNoticeId === notice.id ? "업로드 중…" : "📷 사진 추가"}
+                              <>
+                                <button
+                                  type="button"
+                                  className="hb-photo-add-btn"
+                                  disabled={uploadingNoticeId === notice.id}
+                                  onClick={() => {
+                                    showToast("사진 선택 창을 엽니다…");
+                                    document.getElementById(`hb-photo-input-${notice.id}`)?.click();
+                                  }}
+                                >
+                                  {uploadingNoticeId === notice.id ? "업로드 중…" : "📷 사진 추가"}
+                                </button>
                                 <input
+                                  id={`hb-photo-input-${notice.id}`}
                                   type="file"
                                   accept="image/*"
                                   multiple
@@ -461,10 +472,11 @@ export function HandoverBoard({
                                   onChange={(e) => {
                                     const files = e.target.files;
                                     e.target.value = "";
+                                    showToast(files && files.length > 0 ? `${files.length}장 선택됨, 업로드를 시작합니다…` : "선택된 사진이 없습니다.");
                                     addPhotos(notice, files);
                                   }}
                                 />
-                              </label>
+                              </>
                             )}
                           </div>
                         </td>
