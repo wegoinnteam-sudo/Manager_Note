@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { HandoverCategory, HandoverNoticeDTO } from "@shared/types";
 import { HANDOVER_ALL_ACK_NAMES, HANDOVER_CATEGORIES, HANDOVER_CATEGORY_LABELS } from "@shared/types";
 // HANDOVER_ALL_ACK_NAMES above is only the fallback shown before the real
@@ -59,6 +59,82 @@ function PhotoThumb({ fileName, url, thumbnailUrl }: { fileName: string; url: st
       loading="lazy"
       onError={() => setFailed(true)}
     />
+  );
+}
+
+// A column-header filter that shows only its label until clicked, then opens
+// a popover with the control. It closes again on an outside click, Esc, focus
+// moving elsewhere, or scrolling/resizing — and since every instance closes
+// itself on any outside click, opening one closes the others. The popover is
+// position: fixed so the table wrapper's overflow can't clip it.
+function HeaderFilter({
+  label,
+  active,
+  children,
+}: {
+  label: string;
+  active: boolean;
+  children: (close: () => void) => ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const rootRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const close = useCallback(() => setOpen(false), []);
+
+  useEffect(() => {
+    if (!open) return;
+    const isOutside = (target: EventTarget | null) => !rootRef.current?.contains(target as Node | null);
+    const onPointerDown = (e: PointerEvent) => { if (isOutside(e.target)) close(); };
+    const onFocusIn = (e: FocusEvent) => { if (isOutside(e.target)) close(); };
+    // Scroll events from inside the popover (e.g. a long search text scrolling
+    // its own input) must not close it.
+    const onScroll = (e: Event) => { if (isOutside(e.target)) close(); };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      close();
+      buttonRef.current?.focus();
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("focusin", onFocusIn);
+    document.addEventListener("keydown", onKeyDown);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", close);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("focusin", onFocusIn);
+      document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [open, close]);
+
+  const toggle = () => {
+    if (!open && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setPos({ top: rect.bottom + 4, left: Math.max(8, Math.min(rect.left, window.innerWidth - 248)) });
+    }
+    setOpen((v) => !v);
+  };
+
+  return (
+    <div className="hb-column-filter" ref={rootRef}>
+      <button
+        type="button"
+        ref={buttonRef}
+        className={active ? "hb-column-filter-toggle hb-column-filter-toggle--active" : "hb-column-filter-toggle"}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={toggle}
+      >
+        {label} <span aria-hidden="true">{active ? "●" : "⌄"}</span>
+      </button>
+      {open && (
+        <div className="hb-column-filter-pop" role="dialog" aria-label={`${label} 필터`} style={{ top: pos.top, left: pos.left }}>
+          {children(close)}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -489,34 +565,61 @@ export function HandoverBoard({
                 <thead>
                   <tr>
                     <th>
-                      <label className="hb-column-filter hb-column-filter--picker">
-                        <span aria-hidden="true">Date {dateFilter ? "●" : "⌄"}</span>
-                        <input type="date" aria-label="Date 날짜 필터" value={dateFilter}
-                          onKeyDown={(e) => {
-                            if ((e.key === "Enter" || e.key === " ") && e.currentTarget.showPicker) {
-                              try { e.currentTarget.showPicker(); e.preventDefault(); } catch { /* Preserve native keyboard behavior. */ }
-                            }
-                          }}
-                          onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch { /* Native input remains available. */ } }}
-                          onChange={(e) => setDateFilter(e.target.value)} />
-                      </label>
+                      <HeaderFilter label="Date" active={!!dateFilter}>
+                        {(close) => (
+                          <>
+                            <input
+                              type="date"
+                              aria-label="Date 날짜 필터"
+                              value={dateFilter}
+                              autoFocus
+                              onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch { /* Native input remains available. */ } }}
+                              onChange={(e) => { setDateFilter(e.target.value); if (e.target.value) close(); }}
+                            />
+                            {dateFilter && (
+                              <button type="button" className="hb-secondary-button hb-column-filter-clear" onClick={() => { setDateFilter(""); close(); }}>
+                                날짜 지우기
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </HeaderFilter>
                     </th>
                     <th>Time</th>
                     <th>
-                      <label className="hb-column-filter hb-column-filter--picker">
-                        <span aria-hidden="true">From {fromFilter ? "●" : "⌄"}</span>
-                        <select aria-label="From 작성자 필터" value={fromFilter} onChange={(e) => setFromFilter(e.target.value)}>
-                          <option value="">전체 작성자</option>
-                          {authors.map((name) => <option key={name} value={name}>{name}</option>)}
-                        </select>
-                      </label>
+                      <HeaderFilter label="From" active={!!fromFilter}>
+                        {(close) => (
+                          <div className="hb-column-filter-options" role="listbox" aria-label="From 작성자 필터">
+                            {["", ...authors].map((name) => (
+                              <button
+                                key={name || "__all"}
+                                type="button"
+                                role="option"
+                                aria-selected={fromFilter === name}
+                                className={fromFilter === name ? "hb-column-filter-option hb-column-filter-option--selected" : "hb-column-filter-option"}
+                                onClick={() => { setFromFilter(name); close(); }}
+                              >
+                                {name || "전체 작성자"}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </HeaderFilter>
                     </th>
                     <th>
-                      <details className="hb-column-filter">
-                        <summary>이름 · 객실번호 · 예약번호 {referenceFilter ? "●" : "⌄"}</summary>
-                        <input type="search" aria-label="이름 · 객실번호 · 예약번호 필터" placeholder="이름, 객실번호, 예약번호 검색"
-                          value={referenceFilter} onChange={(e) => setReferenceFilter(e.target.value)} />
-                      </details>
+                      <HeaderFilter label="이름 · 객실번호 · 예약번호" active={!!referenceFilter}>
+                        {(close) => (
+                          <input
+                            type="search"
+                            aria-label="이름 · 객실번호 · 예약번호 필터"
+                            placeholder="이름, 객실번호, 예약번호 검색"
+                            value={referenceFilter}
+                            autoFocus
+                            onChange={(e) => setReferenceFilter(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") close(); }}
+                          />
+                        )}
+                      </HeaderFilter>
                     </th><th>Notice</th>
                     <th className="hb-center">✓</th><th>완료자</th>
                   </tr>
