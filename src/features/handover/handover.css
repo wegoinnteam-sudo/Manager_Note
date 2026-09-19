@@ -1195,3 +1195,304 @@ textarea.hb-comment-input {
   font-weight: 900;
   -webkit-text-stroke: 0.4px currentColor;
 }
+
+/* ── Mobile card redesign (phones only) ──────────────────────────────────
+   Each notice becomes a soft panel holding separate white cards, in this
+   order: [Date | Time | From] → 이름·객실·예약 → Notice (+ edit/delete) →
+   photo button → comments → [완료 | 완료자] or the "All" 확인 grid.
+   The status colour stays on the panel's left edge (blue = open, green =
+   done). Later than, and overrides, the earlier mobile blocks above. */
+@media (max-width: 640px) {
+  .hb-table tbody tr.hb-row {
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 0.85fr) minmax(0, 0.95fr);
+    gap: 10px 0;
+    margin-bottom: 16px;
+    padding: 10px;
+    border: 0;
+    border-left: 6px solid var(--hb-blue);
+    border-radius: 16px;
+    background: #eaf0f7;
+  }
+  .hb-table tbody tr.hb-row--completed {
+    border-left-color: var(--hb-green);
+    background: #e9f3ed;
+  }
+
+  /* Every cell is a white card; neighbours that belong together are flush. */
+  .hb-page .hb-table tbody tr td {
+    position: relative;
+    min-width: 0;
+    padding: 12px 10px;
+    border: 1px solid #dbe4ee;
+    border-radius: 14px;
+    background: #fff;
+  }
+  .hb-page .hb-table tbody tr td::before {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 0.74rem;
+    letter-spacing: 0.03em;
+  }
+  .hb-page .hb-table tbody tr td:nth-child(1)::before { content: "📅\00a0" attr(data-label); }
+  .hb-page .hb-table tbody tr td:nth-child(2)::before { content: "🕐\00a0" attr(data-label); }
+  .hb-page .hb-table tbody tr td:nth-child(3)::before { content: "👤\00a0" attr(data-label); }
+  .hb-page .hb-table tbody tr td:nth-child(4)::before { content: "📝\00a0" attr(data-label); }
+
+  /* Row 1: Date | Time | From as a single three-column card with dividers. */
+  .hb-page .hb-table tbody tr td:nth-child(1) {
+    border-right: 0;
+    border-radius: 14px 0 0 14px;
+    padding-left: 14px;
+  }
+  .hb-page .hb-table tbody tr td:nth-child(2) {
+    border-left: 0;
+    border-right: 0;
+    border-radius: 0;
+    box-shadow: inset 1px 0 #e3e9f0, inset -1px 0 #e3e9f0;
+  }
+  .hb-page .hb-table tbody tr td:nth-child(3) {
+    border-left: 0;
+    border-radius: 0 14px 14px 0;
+  }
+  .hb-date-main {
+    font-size: 1.05rem;
+    line-height: 1.25;
+    white-space: nowrap;
+  }
+  .hb-date-sub {
+    display: inline-block;
+    margin-top: 6px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: #e3eeff;
+    color: #1a5fd0;
+    font-size: 0.8rem;
+    font-weight: 900;
+  }
+  .hb-time-main {
+    font-size: 1.15rem;
+    line-height: 1.25;
+  }
+  .hb-page .hb-from-badge {
+    min-width: 0;
+    min-height: 0;
+    padding: 0;
+    justify-content: flex-start;
+    background: none;
+    color: #0a1722;
+    font-size: 1.15rem;
+    line-height: 1.25;
+  }
+
+  /* Row 2: reference as its own card, no inner box. */
+  .hb-page .hb-table tbody tr td:nth-child(4) {
+    padding: 12px 14px 14px;
+  }
+  .hb-page .hb-reference-main {
+    padding: 0;
+    background: none;
+    font-size: 1.12rem;
+  }
+
+  /* Row 3: Notice. The cell itself is transparent; the label, tag row and
+     text stack into one white card and the photo/comment parts follow as
+     their own blocks. */
+  .hb-page .hb-table tbody tr td:nth-child(5) {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+  }
+  .hb-page .hb-table tbody tr td:nth-child(5)::before {
+    content: "📢\00a0" attr(data-label);
+    margin: 0;
+    padding: 12px 14px 4px;
+    border: 1px solid #dbe4ee;
+    border-bottom: 0;
+    border-radius: 14px 14px 0 0;
+    background: #fff;
+  }
+  .hb-table td:nth-child(5) .hb-notice-head {
+    justify-content: flex-start;
+    margin: 0;
+    padding: 2px 14px 6px;
+    border: solid #dbe4ee;
+    border-width: 0 1px;
+    background: #fff;
+  }
+  .hb-table td:nth-child(5) .hb-notice-tag {
+    padding: 3px 12px;
+    border-radius: 999px;
+    font-size: 0.8rem;
+  }
+  .hb-table td:nth-child(5) .hb-notice-actions {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    gap: 8px;
+  }
+  .hb-notice-edit,
+  .hb-notice-delete {
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+    min-height: 42px;
+    border-radius: 50%;
+    background: #eef2f6;
+    color: #4a5b6c;
+  }
+  .hb-notice-delete {
+    color: #c0392b;
+  }
+  .hb-page .hb-table td:nth-child(5) .hb-notice-text {
+    padding: 4px 14px 16px;
+    border: 1px solid #dbe4ee;
+    border-top: 0;
+    border-radius: 0 0 14px 14px;
+    background: #fff;
+  }
+  .hb-table td:nth-child(5) .hb-photo-row {
+    margin-top: 10px;
+    gap: 10px;
+  }
+  .hb-table td:nth-child(5) .hb-photo-thumb {
+    width: 72px;
+    height: 72px;
+    border-radius: 10px;
+  }
+  .hb-table td:nth-child(5) .hb-photo-add-btn {
+    flex: 1 1 100%;
+    min-height: 52px;
+    border: 0;
+    border-radius: 12px;
+    background: #e1edff;
+    color: #1a5fd0;
+    font-size: 1.02rem;
+    font-weight: 900;
+  }
+  .hb-table td:nth-child(5) .hb-comment-list:not(:empty) {
+    margin-top: 10px;
+    padding: 4px 14px;
+    border: 1px solid #dbe4ee;
+    border-radius: 14px;
+    background: #fff;
+  }
+  .hb-table td:nth-child(5) .hb-comment {
+    align-items: baseline;
+  }
+  .hb-table td:nth-child(5) .hb-comment-form {
+    margin-top: 10px;
+    gap: 10px;
+  }
+  .hb-page .hb-table td:nth-child(5) textarea.hb-comment-input {
+    min-height: 52px;
+    border-radius: 12px;
+    background: #fff;
+  }
+  .hb-table td:nth-child(5) .hb-comment-form .hb-secondary-button {
+    min-width: 72px;
+    min-height: 52px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--hb-blue);
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 900;
+  }
+  .hb-table td:nth-child(5) .hb-comment-form .hb-secondary-button:disabled {
+    opacity: 0.45;
+  }
+
+  /* Editing a notice: the cells revert to plain stacked white cards. */
+  .hb-page .hb-table tbody tr:has(.hb-edit-textarea) td:nth-child(-n + 4) {
+    grid-column: 1 / -1;
+    padding: 12px 14px;
+    border: 1px solid #dbe4ee;
+    border-radius: 14px;
+    box-shadow: none;
+  }
+  .hb-edit-actions {
+    gap: 10px;
+  }
+  .hb-page .hb-edit-actions .hb-primary-button,
+  .hb-page .hb-edit-actions .hb-secondary-button {
+    min-height: 46px;
+    font-size: 1rem;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+  .hb-page .hb-edit-actions .hb-primary-button {
+    flex: 1;
+    width: auto;
+  }
+  .hb-page .hb-edit-actions .hb-secondary-button {
+    flex: 0 0 auto;
+    padding: 0 18px;
+  }
+  .hb-page .hb-table tbody tr td:nth-child(5):has(.hb-edit-textarea) {
+    padding: 12px 14px;
+    border: 1px solid #dbe4ee;
+    border-radius: 14px;
+    background: #fff;
+  }
+  .hb-page .hb-table tbody tr td:nth-child(5):has(.hb-edit-textarea)::before {
+    padding: 0 0 6px;
+    border: 0;
+    border-radius: 0;
+    background: none;
+  }
+
+  /* Row 4: 완료 | 완료자 as one card. */
+  .hb-page .hb-table tbody tr td:nth-child(6) {
+    grid-column: 1;
+    padding-left: 14px;
+    border-right: 0;
+    border-radius: 14px 0 0 14px;
+  }
+  .hb-page .hb-table tbody tr td:nth-child(7) {
+    grid-column: 2 / -1;
+    border-left: 0;
+    border-radius: 0 14px 14px 0;
+  }
+  .hb-page .hb-table tbody tr td:nth-child(6)::before { content: "✅\00a0" attr(data-label); }
+  .hb-page .hb-table tbody tr td:nth-child(7)::before { content: "🙋\00a0" attr(data-label); }
+
+  /* "All": 확인 card with a 2×2 grid, checked = green, unchecked = grey. */
+  .hb-page .hb-table tbody tr td.hb-ack-cell {
+    grid-column: 1 / -1;
+    padding: 12px 14px 14px;
+    border: 1px solid #dbe4ee;
+    border-radius: 14px;
+  }
+  .hb-page .hb-table tbody tr td.hb-ack-cell::before {
+    content: "👥\00a0" attr(data-label);
+  }
+  .hb-ack-grid {
+    gap: 10px;
+  }
+  .hb-page .hb-ack-item {
+    display: flex;
+    flex-direction: row-reverse;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    min-height: 52px;
+    padding: 10px 14px;
+    border: 0;
+    border-radius: 12px;
+    background: #f0f3f6;
+  }
+  .hb-page .hb-ack-item--acked {
+    background: #e2f5e9;
+  }
+  .hb-ack-name {
+    font-size: 1.05rem;
+    font-weight: 900;
+  }
+  .hb-ack-item input[type="checkbox"] {
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    accent-color: var(--hb-green);
+  }
+}
