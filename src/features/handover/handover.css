@@ -1171,3 +1171,11 @@ textarea.hb-comment-input {
     height: 26px;
   }
 }
+
+/* 이름 · 객실번호 · 예약번호 value: heaviest weight, plus a hairline stroke so
+   it still reads as bold on fonts that have no 800/900 face (they'd otherwise
+   fall back to plain 700). Size is intentionally not touched here. */
+.hb-page .hb-reference-main {
+  font-weight: 900;
+  -webkit-text-stroke: 0.4px currentColor;
+}
