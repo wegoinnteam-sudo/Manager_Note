@@ -263,7 +263,16 @@ export function HandoverBoard({
               type="button"
               className="hb-primary-button"
               aria-expanded={composeOpen}
-              onClick={() => setComposeOpen((v) => !v)}
+              onClick={() => {
+                if (!composeOpen) {
+                  // Always jump to "now" on open, not whatever was left over
+                  // from the page loading or a previous open/close — the
+                  // form's date/time only otherwise update on submit.
+                  setFormDate(todayKey());
+                  setFormTime(nowTime());
+                }
+                setComposeOpen((v) => !v);
+              }}
             >
               {composeOpen ? "작성창 닫기" : "+ 인수인계 작성"}
             </button>
