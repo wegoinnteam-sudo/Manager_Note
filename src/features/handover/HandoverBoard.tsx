@@ -42,6 +42,23 @@ function readInitialView(): ViewMode {
   return "main";
 }
 
+// Drive's generated thumbnail can briefly 404 right after upload before
+// Drive finishes generating it — fall back to the full preview so a
+// just-added photo never shows a broken image icon. Same fix already used
+// for page attachments, see AttachmentPicker.tsx's PickerThumb.
+function PhotoThumb({ fileName, url, thumbnailUrl }: { fileName: string; url: string; thumbnailUrl: string }) {
+  const [failed, setFailed] = useState(false);
+  return (
+    <img
+      className="hb-photo-thumb"
+      src={failed ? url : thumbnailUrl}
+      alt={fileName}
+      loading="lazy"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 export function HandoverBoard({
   canEdit,
   guestName,
@@ -411,7 +428,7 @@ export function HandoverBoard({
                             {notice.photos.map((photo) => (
                               <div key={photo.id} className="hb-photo-thumb-wrap">
                                 <a href={photo.url} target="_blank" rel="noopener noreferrer">
-                                  <img className="hb-photo-thumb" src={photo.thumbnailUrl} alt={photo.fileName} loading="lazy" />
+                                  <PhotoThumb fileName={photo.fileName} url={photo.url} thumbnailUrl={photo.thumbnailUrl} />
                                 </a>
                                 {canEdit && (
                                   <button
