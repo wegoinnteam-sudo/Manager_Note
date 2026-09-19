@@ -54,6 +54,36 @@ export const TAG_COLORS: Record<string, string> = {
 };
 export const DEFAULT_TAG_COLOR = "#6b7280";
 
+// Wegoinn Hostel reception handover board — a fixed-column board separate
+// from the Wegoinn DB page/category system above. See handover_notices in
+// migrations/0016_handover_notices.sql.
+export type HandoverCategory = "hostel" | "reception" | "repair" | "others";
+
+export const HANDOVER_CATEGORIES: HandoverCategory[] = ["hostel", "reception", "repair", "others"];
+
+export const HANDOVER_CATEGORY_LABELS: Record<HandoverCategory, string> = {
+  hostel: "Hostel",
+  reception: "Reception",
+  repair: "Repair",
+  others: "Others",
+};
+
+export interface HandoverNoticeDTO {
+  id: string;
+  noticeDate: string;
+  noticeTime: string;
+  fromName: string;
+  reference: string;
+  category: HandoverCategory;
+  body: string;
+  isDone: boolean;
+  completedBy: string | null;
+  completedAt: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface UserDTO {
   id: string;
   email: string;

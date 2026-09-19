@@ -14,6 +14,7 @@ import { usePageCategories } from "@/hooks/usePageCategories";
 import { api } from "@/lib/api";
 import { Sidebar } from "@/features/sidebar/Sidebar";
 import { WegoinnBoard } from "@/features/board/WegoinnBoard";
+import { HandoverBoard } from "@/features/handover/HandoverBoard";
 import { PageView } from "@/features/pages/PageView";
 import { Trash } from "@/features/trash/Trash";
 import { AdminSettings } from "@/features/admin/AdminSettings";
@@ -196,6 +197,8 @@ function AppShell({ user, identity }: { user: UserDTO; identity: GuestIdentity }
         guestName={identity.name}
       />
     );
+  } else if (path === "/handover") {
+    content = <HandoverBoard canEdit={canEdit} guestName={identity.name} guestColors={guestColors} />;
   } else if (path === "/trash") {
     content = <Trash canRestore={canEdit} onOpenPage={openPage} onRestored={refreshPages} />;
   } else if (path === "/admin") {

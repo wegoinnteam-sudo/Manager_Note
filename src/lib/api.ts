@@ -13,6 +13,8 @@ import type {
   PageCategory,
   PageCategoryDTO,
   ActivityFeedItemDTO,
+  HandoverCategory,
+  HandoverNoticeDTO,
 } from "@shared/types";
 import type { AiAnswer, AiStatus } from "@shared/ai";
 
@@ -174,6 +176,18 @@ export const api = {
     request<{ created: string[]; skipped: string[] }>("/api/admin/seed-wegoinn-db", { method: "POST" }),
   adminSeedWegoinnDbContent: () =>
     request<{ pagesCreated: number; contentFilled: number }>("/api/admin/seed-wegoinn-db-content", { method: "POST" }),
+
+  listHandoverNotices: () => request<{ notices: HandoverNoticeDTO[] }>("/api/handover"),
+  createHandoverNotice: (input: {
+    noticeDate: string;
+    noticeTime: string;
+    fromName: string;
+    reference: string;
+    category: HandoverCategory;
+    body: string;
+  }) => request<HandoverNoticeDTO>("/api/handover", { method: "POST", body: JSON.stringify(input) }),
+  setHandoverNoticeDone: (id: string, input: { isDone: boolean; completedBy?: string }) =>
+    request<HandoverNoticeDTO>(`/api/handover/${id}/done`, { method: "PATCH", body: JSON.stringify(input) }),
 };
 
 /**

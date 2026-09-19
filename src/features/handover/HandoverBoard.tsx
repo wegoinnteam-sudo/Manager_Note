@@ -1,0 +1,394 @@
+import { useEffect, useMemo, useState } from "react";
+import type { HandoverCategory, HandoverNoticeDTO } from "@shared/types";
+import { HANDOVER_CATEGORIES, HANDOVER_CATEGORY_LABELS } from "@shared/types";
+import { api } from "@/lib/api";
+import { todayKey } from "@/features/pages/DatabaseView";
+import "./handover.css";
+
+type ViewMode = "main" | "all" | HandoverCategory;
+
+const VIEW_TITLES: Record<ViewMode, string> = {
+  main: "메인보드 · 미완료 Notice",
+  all: "전체 인수인계",
+  hostel: "Hostel 인수인계",
+  reception: "Reception 인수인계",
+  repair: "Repair 인수인계",
+  others: "Others 인수인계",
+};
+
+function nowTime(): string {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+function formatKoreanDate(date: string): string {
+  const d = new Date(`${date}T00:00:00+09:00`);
+  if (Number.isNaN(d.getTime())) return date;
+  const today = todayKey();
+  const yesterday = new Date(Date.now() - 86_400_000);
+  const yesterdayKey = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, "0")}-${String(yesterday.getDate()).padStart(2, "0")}`;
+  const main = new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "long", day: "numeric", weekday: "short" }).format(d);
+  const sub = date === today ? "오늘" : date === yesterdayKey ? "어제" : null;
+  return sub ? `${main}|${sub}` : main;
+}
+
+function readInitialView(): ViewMode {
+  const params = new URLSearchParams(window.location.search);
+  const v = params.get("view");
+  if (v === "all" || (HANDOVER_CATEGORIES as string[]).includes(v ?? "")) return v as ViewMode;
+  return "main";
+}
+
+export function HandoverBoard({
+  canEdit,
+  guestName,
+  guestColors,
+}: {
+  canEdit: boolean;
+  guestName: string;
+  guestColors: Record<string, string>;
+}) {
+  const [notices, setNotices] = useState<HandoverNoticeDTO[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<ViewMode>(readInitialView);
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const [draftCompleter, setDraftCompleter] = useState<Record<string, string>>({});
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const [formDate, setFormDate] = useState(todayKey());
+  const [formTime, setFormTime] = useState(nowTime());
+  const [formFrom, setFormFrom] = useState(guestName);
+  const [formCategory, setFormCategory] = useState<HandoverCategory | "">("");
+  const [formReference, setFormReference] = useState("");
+  const [formBody, setFormBody] = useState("");
+
+  const refresh = async () => {
+    const { notices: rows } = await api.listHandoverNotices();
+    setNotices(rows);
+  };
+
+  useEffect(() => {
+    setLoading(true);
+    refresh().finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (view !== "main") params.set("view", view);
+    const qs = params.toString();
+    window.history.replaceState({}, "", qs ? `/handover?${qs}` : "/handover");
+  }, [view]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 2400);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
+  // Real names to suggest for "From"/완료자, pulled from data already in the
+  // app instead of a hardcoded roster: everyone who has ever written or
+  // completed a notice here, everyone with a saved calendar color, and the
+  // current visitor's own display name.
+  const nameSuggestions = useMemo(() => {
+    const names = new Set<string>();
+    if (guestName) names.add(guestName);
+    Object.keys(guestColors).forEach((name) => names.add(name));
+    notices.forEach((notice) => {
+      names.add(notice.fromName);
+      if (notice.completedBy) names.add(notice.completedBy);
+    });
+    return [...names].sort((a, b) => a.localeCompare(b, "ko"));
+  }, [guestName, guestColors, notices]);
+
+  const counts = useMemo(() => {
+    const done = notices.filter((n) => n.isDone).length;
+    const byCategory: Record<HandoverCategory, number> = { hostel: 0, reception: 0, repair: 0, others: 0 };
+    notices.forEach((n) => {
+      byCategory[n.category] += 1;
+    });
+    return { total: notices.length, open: notices.length - done, done, byCategory };
+  }, [notices]);
+
+  const visible = useMemo(() => {
+    return notices.filter((n) => {
+      if (view === "main") return !n.isDone;
+      if (view === "all") return true;
+      return n.category === view;
+    });
+  }, [notices, view]);
+
+  const completerFor = (notice: HandoverNoticeDTO) => draftCompleter[notice.id] ?? notice.completedBy ?? "";
+
+  const toggleDone = async (notice: HandoverNoticeDTO, checked: boolean) => {
+    if (checked) {
+      const completedBy = completerFor(notice).trim();
+      if (!completedBy) {
+        setToast("완료자를 먼저 선택해주세요.");
+        return;
+      }
+      setBusyId(notice.id);
+      try {
+        await api.setHandoverNoticeDone(notice.id, { isDone: true, completedBy });
+        await refresh();
+        setToast("완료했습니다. 전체보기에서 다시 확인할 수 있습니다.");
+      } finally {
+        setBusyId(null);
+      }
+    } else {
+      setBusyId(notice.id);
+      try {
+        await api.setHandoverNoticeDone(notice.id, { isDone: false });
+        setDraftCompleter((current) => ({ ...current, [notice.id]: "" }));
+        await refresh();
+        setToast("미완료 상태로 변경했습니다.");
+      } finally {
+        setBusyId(null);
+      }
+    }
+  };
+
+  const resetForm = () => {
+    setFormDate(todayKey());
+    setFormTime(nowTime());
+    setFormFrom(guestName);
+    setFormCategory("");
+    setFormReference("");
+    setFormBody("");
+  };
+
+  const submitNotice = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!formCategory || !formFrom.trim() || !formReference.trim() || !formBody.trim() || submitting) return;
+    setSubmitting(true);
+    try {
+      await api.createHandoverNotice({
+        noticeDate: formDate,
+        noticeTime: formTime,
+        fromName: formFrom.trim(),
+        reference: formReference.trim(),
+        category: formCategory,
+        body: formBody.trim(),
+      });
+      await refresh();
+      resetForm();
+      setComposeOpen(false);
+      setToast("새 인수인계를 표에 추가했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="hb-page">
+      <main className="hb-main">
+        <section className="hb-page-heading">
+          <div>
+            <p className="hb-eyebrow">Reception Notice</p>
+            <h1>인수인계판</h1>
+            <p className="hb-heading-note">오늘의 공지와 처리 상태를 한눈에 확인하세요.</p>
+          </div>
+          {canEdit && (
+            <button
+              type="button"
+              className="hb-primary-button"
+              aria-expanded={composeOpen}
+              onClick={() => setComposeOpen((v) => !v)}
+            >
+              {composeOpen ? "작성창 닫기" : "+ 인수인계 작성"}
+            </button>
+          )}
+        </section>
+
+        <section className="hb-summary" aria-label="인수인계 현황">
+          <article className="hb-summary-card">
+            <div><p className="hb-summary-label">전체 Notice</p><p className="hb-summary-number">{counts.total}</p></div>
+            <i className="hb-summary-accent" />
+          </article>
+          <article className="hb-summary-card hb-summary-card--open">
+            <div><p className="hb-summary-label">미완료</p><p className="hb-summary-number">{counts.open}</p></div>
+            <i className="hb-summary-accent" />
+          </article>
+          <article className="hb-summary-card hb-summary-card--done">
+            <div><p className="hb-summary-label">완료</p><p className="hb-summary-number">{counts.done}</p></div>
+            <i className="hb-summary-accent" />
+          </article>
+        </section>
+
+        <nav className="hb-view-tabs" role="tablist" aria-label="인수인계 보기">
+          <button type="button" className={view === "main" ? "hb-view-tab hb-view-tab--active" : "hb-view-tab"} onClick={() => setView("main")}>
+            메인보드 <span className="hb-tab-count">{counts.open}</span>
+          </button>
+          <button type="button" className={view === "all" ? "hb-view-tab hb-view-tab--active" : "hb-view-tab"} onClick={() => setView("all")}>
+            전체보기 <span className="hb-tab-count">{counts.total}</span>
+          </button>
+          {HANDOVER_CATEGORIES.map((category) => (
+            <button
+              key={category}
+              type="button"
+              className={view === category ? "hb-view-tab hb-view-tab--active" : "hb-view-tab"}
+              onClick={() => setView(category)}
+            >
+              {HANDOVER_CATEGORY_LABELS[category]} <span className="hb-tab-count">{counts.byCategory[category]}</span>
+            </button>
+          ))}
+        </nav>
+
+        {composeOpen && canEdit && (
+          <section className="hb-compose">
+            <div className="hb-compose-head">
+              <h2>새 인수인계 작성</h2>
+            </div>
+            <form onSubmit={submitNotice}>
+              <div className="hb-form-grid">
+                <label>Date<input type="date" value={formDate} onChange={(e) => setFormDate(e.target.value)} required /></label>
+                <label>Time<input type="time" value={formTime} onChange={(e) => setFormTime(e.target.value)} required /></label>
+                <label>
+                  From
+                  <input
+                    list="hb-name-suggestions"
+                    value={formFrom}
+                    maxLength={60}
+                    onChange={(e) => setFormFrom(e.target.value)}
+                    required
+                  />
+                </label>
+                <label>
+                  구분
+                  <select value={formCategory} onChange={(e) => setFormCategory(e.target.value as HandoverCategory)} required>
+                    <option value="">선택</option>
+                    {HANDOVER_CATEGORIES.map((category) => (
+                      <option key={category} value={category}>
+                        {HANDOVER_CATEGORY_LABELS[category]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  이름 · 객실번호 · 예약번호
+                  <input
+                    value={formReference}
+                    maxLength={200}
+                    placeholder="예: Kim / 812 / OA-24091"
+                    onChange={(e) => setFormReference(e.target.value)}
+                    required
+                  />
+                </label>
+                <label>
+                  Notice
+                  <textarea
+                    value={formBody}
+                    maxLength={2000}
+                    placeholder="다음 근무자가 바로 이해할 수 있도록 작성해주세요."
+                    onChange={(e) => setFormBody(e.target.value)}
+                    required
+                  />
+                </label>
+              </div>
+              <div className="hb-compose-actions">
+                <button type="button" className="hb-secondary-button" onClick={() => setComposeOpen(false)}>
+                  취소
+                </button>
+                <button type="submit" className="hb-primary-button" disabled={submitting}>
+                  {submitting ? "등록 중…" : "등록하기"}
+                </button>
+              </div>
+            </form>
+          </section>
+        )}
+
+        <datalist id="hb-name-suggestions">
+          {nameSuggestions.map((name) => (
+            <option key={name} value={name} />
+          ))}
+        </datalist>
+
+        <section className="hb-board">
+          <div className="hb-board-toolbar">
+            <div className="hb-board-title">
+              <i className="hb-live-dot" />
+              <span>{VIEW_TITLES[view]}</span>
+            </div>
+            <div className="hb-legend">
+              <span><i className="hb-key" />미완료</span>
+              <span><i className="hb-key hb-key--green" />완료</span>
+            </div>
+          </div>
+
+          <div className="hb-table-wrap">
+            {loading ? (
+              <div className="hb-empty-state">불러오는 중…</div>
+            ) : visible.length === 0 ? (
+              <div className="hb-empty-state">
+                <strong>표시할 인수인계가 없습니다.</strong>다른 카테고리를 선택하거나 전체보기를 확인해주세요.
+              </div>
+            ) : (
+              <table className="hb-table">
+                <colgroup>
+                  <col className="hb-col-date" /><col className="hb-col-time" /><col className="hb-col-from" />
+                  <col className="hb-col-reference" /><col className="hb-col-notice" /><col className="hb-col-done" />
+                  <col className="hb-col-completed-by" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Date</th><th>Time</th><th>From</th><th>이름 · 객실번호 · 예약번호</th><th>Notice</th>
+                    <th className="hb-center">✓</th><th>완료자</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visible.map((notice) => {
+                    const [dateMain, dateSub] = formatKoreanDate(notice.noticeDate).split("|");
+                    return (
+                      <tr key={notice.id} className={notice.isDone ? "hb-row hb-row--completed" : "hb-row"}>
+                        <td data-label="Date">
+                          <span className="hb-date-main">{dateMain}</span>
+                          {dateSub && <span className="hb-date-sub">{dateSub}</span>}
+                        </td>
+                        <td data-label="Time"><span className="hb-time-main">{notice.noticeTime}</span></td>
+                        <td data-label="From"><span className="hb-from-badge">{notice.fromName}</span></td>
+                        <td data-label="이름 · 객실 · 예약"><span className="hb-reference-main">{notice.reference}</span></td>
+                        <td data-label="Notice">
+                          <span className={`hb-notice-tag hb-notice-tag--${notice.category}`}>{HANDOVER_CATEGORY_LABELS[notice.category]}</span>
+                          <p className="hb-notice-text">{notice.body}</p>
+                        </td>
+                        <td className="hb-done-cell" data-label="완료">
+                          <label className="hb-check-wrap" aria-label="완료 표시">
+                            <input
+                              type="checkbox"
+                              className="hb-done-check"
+                              checked={notice.isDone}
+                              disabled={!canEdit || busyId === notice.id}
+                              onChange={(e) => toggleDone(notice, e.target.checked)}
+                            />
+                          </label>
+                        </td>
+                        <td data-label="완료자">
+                          <input
+                            className="hb-completer-input"
+                            list="hb-name-suggestions"
+                            aria-label="완료자"
+                            value={completerFor(notice)}
+                            disabled={!canEdit || notice.isDone}
+                            placeholder="이름 입력"
+                            maxLength={60}
+                            onChange={(e) => setDraftCompleter((current) => ({ ...current, [notice.id]: e.target.value }))}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+          <div className="hb-board-foot">완료자를 먼저 선택한 뒤 체크해주세요. 완료된 항목은 메인보드에서 사라지고 전체보기와 카테고리 화면에 보관됩니다.</div>
+        </section>
+      </main>
+
+      <div className={toast ? "hb-toast hb-toast--show" : "hb-toast"} role="status" aria-live="polite">
+        {toast}
+      </div>
+    </div>
+  );
+}

@@ -580,6 +580,9 @@ export function Sidebar({
       <button type="button" className="sidebar__link sidebar__link--wdb" onClick={() => onNavigate("/db")}>
         🗂 Wegoinn DB
       </button>
+      <button type="button" className="sidebar__link" onClick={() => onNavigate("/handover")}>
+        📋 인수인계
+      </button>
 
       <button type="button" className="sidebar__new-page" onClick={onCreatePage}>
         + 새 페이지
