@@ -391,11 +391,6 @@
 .hb-row--completed {
   background: #fbfdfc;
 }
-.hb-row--completed .hb-notice-text {
-  color: #6d7b87;
-  text-decoration: line-through;
-  text-decoration-color: #a7b3bd;
-}
 .hb-table td {
   padding: 15px 14px;
   border-bottom: 1px solid var(--hb-line);
@@ -1084,9 +1079,6 @@ textarea.hb-comment-input {
     font-size: 1.14rem;
     font-weight: 700;
     line-height: 1.7;
-  }
-  .hb-row--completed .hb-notice-text {
-    color: #4b5a68;
   }
   .hb-notice-edit,
   .hb-notice-delete {
