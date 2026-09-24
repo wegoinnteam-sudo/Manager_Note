@@ -335,12 +335,71 @@
   background: var(--hb-green);
 }
 
+/* Drag-to-resize box around the table: a corner handle resizes width and
+   height together, and the strips above/below the table resize height only.
+   Width is capped at max-width: 100% so dragging the corner out can't push
+   the box past the board's own edge (which clips via overflow: hidden). */
+.hb-table-resizable {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 320px;
+  max-width: 100%;
+  min-height: 160px;
+}
+.hb-table-resizable .hb-table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.hb-resize-handle {
+  flex: 0 0 auto;
+  touch-action: none;
+}
+.hb-resize-handle--top,
+.hb-resize-handle--bottom {
+  height: 8px;
+  cursor: ns-resize;
+}
+.hb-resize-handle--top:hover,
+.hb-resize-handle--bottom:hover {
+  background: rgba(23, 105, 224, 0.12);
+}
+.hb-resize-handle--corner {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  height: 18px;
+  cursor: nwse-resize;
+  z-index: 2;
+}
+.hb-resize-handle--corner::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--hb-line-strong);
+  border-bottom: 2px solid var(--hb-line-strong);
+}
+@media (max-width: 640px) {
+  /* The table becomes stacked cards below this width, where a resizable
+     box doesn't apply — always show it at natural size. */
+  .hb-table-resizable {
+    width: auto !important;
+    height: auto !important;
+  }
+  .hb-resize-handle {
+    display: none;
+  }
+}
+
 .hb-table-wrap {
   overflow-x: auto;
 }
 .hb-table {
   width: 100%;
-  min-width: 1080px;
   border-collapse: collapse;
   table-layout: fixed;
 }

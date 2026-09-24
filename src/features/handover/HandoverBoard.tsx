@@ -422,6 +422,66 @@ export function HandoverBoard({
     }
   };
 
+  // Drag-to-resize for the table box: the corner handle drags width+height
+  // together, the top/bottom strips drag height only. Tracked in plain
+  // pointer listeners (not React state per move) until pointerup, then
+  // written once — CSS caps width at 100% so dragging past the board's own
+  // edge just stops growing instead of overflowing it.
+  const tableBoxRef = useRef<HTMLDivElement>(null);
+  const resizeRef = useRef<{
+    mode: "corner" | "top" | "bottom";
+    startX: number;
+    startY: number;
+    startWidth: number;
+    startHeight: number;
+  } | null>(null);
+  const [tableSize, setTableSize] = useState<{ width?: number; height?: number }>({});
+
+  const onResizeMove = useCallback((e: PointerEvent) => {
+    const state = resizeRef.current;
+    if (!state) return;
+    const dx = e.clientX - state.startX;
+    const dy = e.clientY - state.startY;
+    setTableSize((current) => {
+      const next = { ...current };
+      if (state.mode === "corner") {
+        next.width = Math.max(320, state.startWidth + dx);
+        next.height = Math.max(160, state.startHeight + dy);
+      } else if (state.mode === "bottom") {
+        next.height = Math.max(160, state.startHeight + dy);
+      } else {
+        next.height = Math.max(160, state.startHeight - dy);
+      }
+      return next;
+    });
+  }, []);
+
+  const onResizeUp = useCallback(() => {
+    resizeRef.current = null;
+    window.removeEventListener("pointermove", onResizeMove);
+    window.removeEventListener("pointerup", onResizeUp);
+  }, [onResizeMove]);
+
+  const startResize = useCallback(
+    (mode: "corner" | "top" | "bottom") => (e: React.PointerEvent) => {
+      const el = tableBoxRef.current;
+      if (!el) return;
+      e.preventDefault();
+      const rect = el.getBoundingClientRect();
+      resizeRef.current = { mode, startX: e.clientX, startY: e.clientY, startWidth: rect.width, startHeight: rect.height };
+      window.addEventListener("pointermove", onResizeMove);
+      window.addEventListener("pointerup", onResizeUp);
+    },
+    [onResizeMove, onResizeUp],
+  );
+
+  useEffect(() => {
+    return () => {
+      window.removeEventListener("pointermove", onResizeMove);
+      window.removeEventListener("pointerup", onResizeUp);
+    };
+  }, [onResizeMove, onResizeUp]);
+
   return (
     <div className="hb-page">
       <main className="hb-main">
@@ -552,6 +612,21 @@ export function HandoverBoard({
               }}>필터 초기화</button>
             </div>
           )}
+          <div
+            ref={tableBoxRef}
+            className="hb-table-resizable"
+            style={{
+              width: tableSize.width ? `${tableSize.width}px` : undefined,
+              height: tableSize.height ? `${tableSize.height}px` : undefined,
+            }}
+          >
+          <div
+            className="hb-resize-handle hb-resize-handle--top"
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label="표 높이 조절 (위쪽)"
+            onPointerDown={startResize("top")}
+          />
           <div className="hb-table-wrap">
             {!loaded ? (
               <div className="hb-empty-state">불러오는 중…</div>
@@ -865,6 +940,20 @@ export function HandoverBoard({
                 </tbody>
               </table>
             )}
+          </div>
+          <div
+            className="hb-resize-handle hb-resize-handle--bottom"
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label="표 높이 조절 (아래쪽)"
+            onPointerDown={startResize("bottom")}
+          />
+          <div
+            className="hb-resize-handle hb-resize-handle--corner"
+            role="separator"
+            aria-label="표 크기 조절 (모서리)"
+            onPointerDown={startResize("corner")}
+          />
           </div>
           <div className="hb-board-foot">완료자를 먼저 선택한 뒤 체크해주세요. 완료된 항목은 메인보드에서 사라지고 전체보기와 카테고리 화면에 보관됩니다.</div>
         </section>
