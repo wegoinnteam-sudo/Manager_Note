@@ -343,7 +343,7 @@ export function PageView({
 
   return (
     <div className="page-shell">
-      <div className="page-view">
+      <div className={`page-view${page.contentJson.blocks.some((block) => block.type === "table") ? " page-view--with-table" : ""}`}>
         {!autoSave && canEdit && (
           <div className="page-view__manual-save">
             <button type="button" onClick={saveNow} disabled={saveState === "saving"}>

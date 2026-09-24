@@ -823,6 +823,11 @@ code {
   margin: 0 auto;
 }
 
+.page-shell > .page-view--with-table {
+  max-width: none;
+  padding-inline: 0.5rem;
+}
+
 .page-side {
   width: 260px;
   position: fixed;
@@ -1117,6 +1122,8 @@ code {
 
 .table-block {
   width: 100%;
+  min-width: 0;
+  overflow-x: auto;
 }
 
 .table-block table {

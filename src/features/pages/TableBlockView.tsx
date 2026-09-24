@@ -165,7 +165,10 @@ export function TableBlockView({
     if (e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
-    resizeRef.current = { c, startX: e.clientX, startWidth: colWidth(c), pointerId: e.pointerId };
+    const tableRow = e.currentTarget.closest("tr");
+    const widths = rows[0].map((_, ci) => tableRow?.cells[ci]?.getBoundingClientRect().width ?? colWidth(ci));
+    onPatch({ colWidths: widths });
+    resizeRef.current = { c, startX: e.clientX, startWidth: widths[c], pointerId: e.pointerId };
     e.currentTarget.setPointerCapture(e.pointerId);
   };
   const stopResize = (e: React.PointerEvent<HTMLSpanElement>) => {
@@ -286,7 +289,7 @@ export function TableBlockView({
   return (
     <div className="block-row">
       <div className="table-block">
-        <table style={{ tableLayout: "fixed" }}>
+        <table style={{ tableLayout: "fixed", minWidth: rows[0].reduce((width, _, c) => width + colWidth(c), editable ? 20 : 0) }}>
           <colgroup>
             {rows[0].map((_, c) => (
               <col key={c} style={{ width: colWidth(c) }} />
