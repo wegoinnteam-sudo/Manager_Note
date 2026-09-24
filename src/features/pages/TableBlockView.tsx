@@ -40,6 +40,7 @@ export function TableBlockView({
 }) {
   const rows = block.rows;
   const [selection, setSelection] = useState<Selection | null>(null);
+  const [fontSizeInput, setFontSizeInput] = useState("10");
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const anchorRef = useRef<CellPos | null>(null);
   const draggingRef = useRef(false);
@@ -148,7 +149,7 @@ export function TableBlockView({
     setMenu(null);
   };
 
-  const applyStyle = (sel: Selection, patch: Partial<{ color: string; bg: string | undefined; fontSize: FontSize }>) => {
+  const applyStyle = (sel: Selection, patch: Partial<{ color: string; bg: string | undefined; fontSize: FontSize; fontSizePt: number | undefined }>) => {
     const next = { ...(block.cellStyles ?? {}) };
     for (let r = sel.r1; r <= sel.r2; r++) {
       for (let c = sel.c1; c <= sel.c2; c++) {
@@ -160,6 +161,11 @@ export function TableBlockView({
   };
 
   const colWidth = (c: number) => block.colWidths?.[c] ?? DEFAULT_COL_WIDTH;
+  const applyFontSize = () => {
+    const size = Number(fontSizeInput);
+    if (!Number.isFinite(size) || size < 1 || size > 200) return;
+    applyStyle(selection ?? { r1: 0, c1: 0, r2: rows.length - 1, c2: rows[0].length - 1 }, { fontSizePt: size });
+  };
 
   const startResize = (e: React.PointerEvent<HTMLSpanElement>, c: number) => {
     if (e.button !== 0) return;
@@ -287,12 +293,35 @@ export function TableBlockView({
   };
 
   return (
-    <div className="block-row">
-      <div className="table-block">
-        <table style={{ tableLayout: "fixed", minWidth: rows[0].reduce((width, _, c) => width + colWidth(c), editable ? 20 : 0) }}>
+    <div className="block-row table-block-row">
+      <div className="table-block-layout">
+        {editable && (
+          <div className="table-block__toolbar" role="group" aria-label="표 서식">
+            <label>표 너비
+              <input aria-label="표 너비" type="range" min="10" max="100" value={block.width ?? 100}
+                onChange={(e) => onPatch({ width: Number(e.target.value), colWidths: undefined })} />
+              <span>{block.width ?? 100}%</span>
+            </label>
+            <label>표 정렬
+              <select aria-label="표 정렬" value={block.align ?? "left"} onChange={(e) => onPatch({ align: e.target.value as TableBlock["align"] })}>
+                <option value="left">왼쪽</option><option value="center">가운데</option><option value="right">오른쪽</option>
+              </select>
+            </label>
+            <label>글자 크기
+              <input aria-label="글자 크기 (pt)" type="number" min="1" max="200" step="0.5" value={fontSizeInput}
+                onChange={(e) => setFontSizeInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applyFontSize(); } }} />pt
+            </label>
+            <button type="button" onClick={applyFontSize} disabled={!Number.isFinite(Number(fontSizeInput)) || Number(fontSizeInput) < 1 || Number(fontSizeInput) > 200}>적용</button>
+            <span>{selection ? "선택한 셀에 적용" : "표 전체에 적용"}</span>
+            {selection && <button type="button" onClick={() => setSelection(null)}>전체 셀 선택</button>}
+          </div>
+        )}
+      <div className="table-block" style={{ width: `${block.width ?? 100}%`, marginLeft: block.align === "center" || block.align === "right" ? "auto" : 0, marginRight: block.align === "center" ? "auto" : 0 }}>
+        <table style={{ tableLayout: "fixed", minWidth: block.width !== undefined && !block.colWidths ? rows[0].length * 60 + (editable ? 20 : 0) : rows[0].reduce((width, _, c) => width + colWidth(c), editable ? 20 : 0) }}>
           <colgroup>
             {rows[0].map((_, c) => (
-              <col key={c} style={{ width: colWidth(c) }} />
+              <col key={c} style={{ width: block.width !== undefined && !block.colWidths ? undefined : colWidth(c) }} />
             ))}
             {editable && <col style={{ width: 20 }} />}
           </colgroup>
@@ -320,10 +349,10 @@ export function TableBlockView({
                           value={cell}
                           onChange={(e) => updateCell(r, c, e.target.value)}
                           onKeyDown={(e) => handleCellKeyDown(e, r, c)}
-                          style={{ color: style?.color, fontSize: FONT_SIZE_PX[style?.fontSize ?? "md"] }}
+                          style={{ color: style?.color, fontSize: style?.fontSizePt !== undefined ? `${style.fontSizePt}pt` : FONT_SIZE_PX[style?.fontSize ?? "md"] }}
                         />
                       ) : (
-                        <span style={{ color: style?.color, fontSize: FONT_SIZE_PX[style?.fontSize ?? "md"] }}>{cell}</span>
+                        <span style={{ color: style?.color, fontSize: style?.fontSizePt !== undefined ? `${style.fontSizePt}pt` : FONT_SIZE_PX[style?.fontSize ?? "md"] }}>{cell}</span>
                       )}
                       {editable && r === 0 && (
                         <span
@@ -419,18 +448,19 @@ export function TableBlockView({
             </div>
             <div className="table-context-menu__label">글자 크기</div>
             <div className="table-context-menu__row">
-              <button type="button" onClick={() => applyStyle(selection, { fontSize: "sm" })}>
+              <button type="button" onClick={() => applyStyle(selection, { fontSize: "sm", fontSizePt: undefined })}>
                 작게
               </button>
-              <button type="button" onClick={() => applyStyle(selection, { fontSize: "md" })}>
+              <button type="button" onClick={() => applyStyle(selection, { fontSize: "md", fontSizePt: undefined })}>
                 보통
               </button>
-              <button type="button" onClick={() => applyStyle(selection, { fontSize: "lg" })}>
+              <button type="button" onClick={() => applyStyle(selection, { fontSize: "lg", fontSizePt: undefined })}>
                 크게
               </button>
             </div>
           </div>
         )}
+      </div>
       </div>
       {editable && (
         <button type="button" className="block-row__handle" onClick={onRemoveBlock} title="블록 제거">

@@ -33,6 +33,8 @@ export const pageBlockSchema = z.discriminatedUnion("type", [
     type: z.literal("table"),
     rows: z.array(z.array(z.string().max(2000)).max(20)).max(200),
     colWidths: z.array(z.number().min(20).max(2000)).max(20).optional(),
+    width: z.number().min(10).max(100).optional(),
+    align: z.enum(["left", "center", "right"]).optional(),
     cellStyles: z
       .record(
         z.string(),
@@ -40,6 +42,7 @@ export const pageBlockSchema = z.discriminatedUnion("type", [
           color: z.string().max(20).optional(),
           bg: z.string().max(20).optional(),
           fontSize: z.enum(["sm", "md", "lg"]).optional(),
+          fontSizePt: z.number().min(1).max(200).optional(),
         }),
       )
       .optional(),

@@ -231,7 +231,9 @@ type PageBlockVariant =
       type: "table";
       rows: string[][];
       colWidths?: number[];
-      cellStyles?: Record<string, { color?: string; bg?: string; fontSize?: "sm" | "md" | "lg" }>;
+      width?: number;
+      align?: "left" | "center" | "right";
+      cellStyles?: Record<string, { color?: string; bg?: string; fontSize?: "sm" | "md" | "lg"; fontSizePt?: number }>;
     }
   | { id: string; type: "embed"; url: string }
   | { id: string; type: "bookmark"; url: string }
