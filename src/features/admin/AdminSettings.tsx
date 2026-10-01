@@ -268,19 +268,27 @@ export function AdminSettings({
     <div className="page-view">
       <h2>설정</h2>
 
+      <div className="section">
+        <div className="section__title">Google 연동</div>
+        <p style={{ fontSize: 12, color: "var(--color-text-muted)", margin: "0 0 8px" }}>
+          Google Drive 연동이 필요하거나 연동이 끊어졌을 때 아래 버튼으로 연동해주세요.
+        </p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <a href="/api/auth/google/login" style={{ fontSize: 13, padding: "6px 14px", borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-text)", textDecoration: "none" }}>
+            Google 연동 / 재연동
+          </a>
+          <button type="button" disabled={syncing} onClick={runSync} style={{ fontSize: 13, padding: "6px 14px", borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--color-surface)", cursor: "pointer" }}>
+            {syncing ? "동기화 중…" : "지금 동기화"}
+          </button>
+        </div>
+        {syncMessage && <p style={{ fontSize: 12, marginTop: 8 }}>{syncMessage}</p>}
+      </div>
+
       <MyNameSection guestName={guestName} onChangeGuestName={onChangeGuestName} />
 
       <DisplaySettingsSection settings={displaySettings} />
 
       <HandoverAckRosterSection />
-
-      <div className="section">
-        <div className="section__title">Google Drive 동기화</div>
-        <button type="button" disabled={syncing} onClick={runSync} style={{ fontSize: 13, padding: "6px 14px", borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--color-surface)", cursor: "pointer" }}>
-          {syncing ? "동기화 중…" : "지금 동기화"}
-        </button>
-        {syncMessage && <p style={{ fontSize: 12, marginTop: 8 }}>{syncMessage}</p>}
-      </div>
 
       <div className="section">
         <div className="section__title">팀원 초대</div>
