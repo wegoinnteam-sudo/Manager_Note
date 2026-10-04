@@ -16,6 +16,8 @@ import { api } from "@/lib/api";
 import { Sidebar } from "@/features/sidebar/Sidebar";
 import { WegoinnBoard } from "@/features/board/WegoinnBoard";
 import { HandoverBoard } from "@/features/handover/HandoverBoard";
+import { CancellationBoard } from "@/features/cancellations/CancellationBoard";
+import { isCancellationPath } from "@/features/cancellations/cancellationUtils";
 import { PageView } from "@/features/pages/PageView";
 import { Trash } from "@/features/trash/Trash";
 import { AdminSettings } from "@/features/admin/AdminSettings";
@@ -210,6 +212,8 @@ function AppShell({ user, identity, onChangeGuestName }: { user: UserDTO; identi
         onNoticesChanged={refreshHandoverNotices}
       />
     );
+  } else if (isCancellationPath(path)) {
+    content = <CancellationBoard />;
   } else if (path === "/trash") {
     content = <Trash canRestore={canEdit} onOpenPage={openPage} onRestored={refreshPages} />;
   } else if (path === "/admin") {

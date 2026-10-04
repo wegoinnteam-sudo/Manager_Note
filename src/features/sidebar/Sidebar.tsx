@@ -5,6 +5,7 @@ import type { PresenceUser } from "@/hooks/usePresence";
 import type { ThemePreference } from "@/hooks/useTheme";
 import { api } from "@/lib/api";
 import { defaultAuthorColor } from "@/lib/authorColors";
+import { CANCELLATION_PATH } from "@/features/cancellations/cancellationUtils";
 
 const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
   { value: "light", label: "☀️ 라이트" },
@@ -610,6 +611,9 @@ export function Sidebar({
             {newHandoverCount > 99 ? "99+" : newHandoverCount}
           </span>
         )}
+      </button>
+      <button type="button" className="sidebar__link" onClick={() => onNavigate(encodeURI(CANCELLATION_PATH))}>
+        🧾 취소확인
       </button>
 
       <button type="button" className="sidebar__new-page" onClick={onCreatePage}>
