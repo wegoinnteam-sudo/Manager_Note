@@ -2,6 +2,7 @@ import type { Env } from "../types";
 import type { HandoffStatus, PageBlock, PageCategory, PageContent } from "../../shared/types";
 import { newId, nowIso } from "../lib/ids";
 import { Errors } from "../lib/errors";
+import { hasRemovedPageContent } from "../lib/contentChanges";
 import { UNTITLED_PAGE_TITLE } from "../../shared/types";
 
 export interface PageRow {
@@ -232,11 +233,12 @@ export async function updatePageMeta(
 export async function updatePageContent(
   db: Env["DB"],
   params: { pageId: string; expectedVersion: number; content: PageContent; updatedBy: string },
-): Promise<PageContentRow> {
+): Promise<PageContentRow & { contentRemoved: boolean }> {
   const current = await getPageContent(db, params.pageId);
   if (!current) throw Errors.notFound();
   if (current.version !== params.expectedVersion) throw Errors.conflict();
 
+  const contentRemoved = hasRemovedPageContent(current.content_json, params.content);
   const now = nowIso();
   await db
     .prepare(
@@ -248,7 +250,7 @@ export async function updatePageContent(
 
   const updated = await getPageContent(db, params.pageId);
   if (!updated || updated.version !== params.expectedVersion + 1) throw Errors.conflict();
-  return updated;
+  return { ...updated, contentRemoved };
 }
 
 export async function softDeletePage(db: Env["DB"], teamId: string, id: string): Promise<void> {

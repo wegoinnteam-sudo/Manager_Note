@@ -335,7 +335,9 @@ export interface ActivityFeedItemDTO {
   // actually identifies who made the edit. Null for legacy rows logged
   // before this existed.
   actorName: string | null;
-  action: "page.created" | "content.updated" | "page.updated" | "status.changed" | "attachment.uploaded";
+  action: "page.created" | "content.updated" | "page.updated" | "status.changed" |
+    "attachment.uploaded" | "page.deleted" | "attachment.deleted";
+  historyPage?: { title: string; deleted: boolean; contentUnavailable: boolean };
   metadata: Record<string, unknown>;
   createdAt: string;
   acked: boolean;

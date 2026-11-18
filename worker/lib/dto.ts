@@ -1,4 +1,5 @@
 import type { PageRow, PageContentRow } from "../db/pages";
+import { isPageContentEmpty } from "./contentChanges";
 import type { AttachmentRow } from "../db/attachments";
 import type { CommentRow } from "../db/comments";
 import type { StatusHistoryRow } from "../db/statusHistory";
@@ -121,6 +122,15 @@ export function toActivityFeedItemDTO(row: ActivityFeedRow): ActivityFeedItemDTO
     metadata,
     createdAt: row.created_at,
     acked: !!row.acked,
+    ...(row.page_title === undefined ? {} : {
+      historyPage: {
+        title: row.page_title,
+        deleted: !!row.page_deleted,
+        contentUnavailable: !!row.page_deleted || row.action === "page.deleted" ||
+          row.action === "attachment.deleted" || metadata.contentRemoved === true ||
+          isPageContentEmpty(row.page_content_json),
+      },
+    }),
   };
 }
 

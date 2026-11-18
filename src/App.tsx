@@ -46,6 +46,9 @@ function AppShell({ user, identity, onChangeGuestName }: { user: UserDTO; identi
   // back through them one level at a time instead of losing the trail.
   const [peekStack, setPeekStack] = useState<Array<{ id: string; label: string | null; anchorLeft: number | null }>>([]);
   const peekDepthRef = useRef(0);
+  const savePeekBeforeCloseRef = useRef<(() => Promise<boolean>) | null>(null);
+  const closingPeekRef = useRef(false);
+  const [closingPeek, setClosingPeek] = useState(false);
   const dropHandlerRef = useRef<(files: FileList) => void>(() => {});
 
   const peekPage = useCallback((id: string, label?: string, anchorLeft?: number) => {
@@ -64,6 +67,19 @@ function AppShell({ user, identity, onChangeGuestName }: { user: UserDTO; identi
       setPeekStack([]);
     }
   }, []);
+
+  const saveAndClosePeek = useCallback(async () => {
+    if (closingPeekRef.current) return;
+    const save = savePeekBeforeCloseRef.current;
+    closingPeekRef.current = true;
+    setClosingPeek(true);
+    try {
+      if ((!save || await save()) && savePeekBeforeCloseRef.current === save) closePeek();
+    } finally {
+      closingPeekRef.current = false;
+      setClosingPeek(false);
+    }
+  }, [closePeek]);
 
   // Silent reset used when a real route change makes the whole peek trail
   // moot — no history unwinding, since the route change already pushed its
@@ -176,11 +192,11 @@ function AppShell({ user, identity, onChangeGuestName }: { user: UserDTO; identi
     if (!peekPageId) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || event.defaultPrevented) return;
-      closePeek();
+      void saveAndClosePeek();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [peekPageId, closePeek]);
+  }, [peekPageId, saveAndClosePeek]);
 
   let content: React.ReactNode;
   if (path === "/ai") {
@@ -303,14 +319,15 @@ function AppShell({ user, identity, onChangeGuestName }: { user: UserDTO; identi
               onClick={(e) => e.stopPropagation()}
             >
               <div className="wdb-peek-panel__header">
-                <button type="button" className="wdb-peek-panel__back" onClick={closePeek}>
-                  {path === "/db" ? "🗂 Wegoinn DB" : "✕ 닫기"}
+                <button type="button" className="wdb-peek-panel__back" onClick={saveAndClosePeek} disabled={closingPeek}>
+                  {closingPeek ? "저장 중…" : path === "/db" ? "🗂 Wegoinn DB" : "✕ 닫기"}
                 </button>
                 {peekLabel && <span className="wdb-peek-panel__label">{peekLabel}</span>}
               </div>
               <div className="wdb-peek-panel__body">
                 <PageView
                   key={peekPageId}
+                  saveBeforeCloseRef={savePeekBeforeCloseRef}
                   pageId={peekPageId}
                   canEdit={canEdit}
                   canDelete={canDeleteAll}
@@ -336,7 +353,7 @@ function AppShell({ user, identity, onChangeGuestName }: { user: UserDTO; identi
           // Docked (calendar-triggered) peeks skip the dimming backdrop so the
           // calendar itself stays fully visible and clickable next to the panel.
           return peekAnchorLeft != null ? panel : (
-            <div className="wdb-peek-overlay" onClick={closePeek}>
+            <div className="wdb-peek-overlay" onClick={saveAndClosePeek}>
               {panel}
             </div>
           );

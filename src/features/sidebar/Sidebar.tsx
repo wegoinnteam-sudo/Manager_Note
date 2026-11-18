@@ -410,7 +410,7 @@ export function Sidebar({
 
       setBusy(true);
       try {
-        await Promise.all(selected.map((page) => api.deletePage(page.id)));
+        await Promise.all(selected.map((page) => api.deletePage(page.id, guestName)));
         setSelectedPageIds(new Set());
         selectionAnchorRef.current = null;
         await onPagesChanged();
@@ -509,7 +509,7 @@ export function Sidebar({
 
   const trashPage = async (page: PageSummaryDTO) => {
     if (!window.confirm(`"${page.title}" 페이지를 휴지통으로 이동할까요?`)) return;
-    await api.deletePage(page.id);
+    await api.deletePage(page.id, guestName);
     setContextMenu(null);
     await onPagesChanged();
     if (activePageId === page.id) onNavigate("/");

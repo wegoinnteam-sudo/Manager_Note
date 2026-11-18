@@ -169,7 +169,10 @@ pagesRoute.patch("/:id/content", requireRole("editor"), async (c) => {
     updatedBy: user.id,
   });
 
-  await logActivity(c.env.DB, { teamId: c.var.teamId, pageId: id, actorId: user.id, action: "content.updated", actorName: body.guestName });
+  await logActivity(c.env.DB, {
+    teamId: c.var.teamId, pageId: id, actorId: user.id, action: "content.updated",
+    actorName: body.guestName, metadata: { contentRemoved: content.contentRemoved },
+  });
 
   return c.json(toPageDetailDTO(page, content));
 });
@@ -184,7 +187,10 @@ pagesRoute.delete("/:id", requireRole("editor"), async (c) => {
     throw Errors.forbidden("본인이 작성한 일정만 삭제할 수 있습니다.");
   }
   await softDeletePage(c.env.DB, c.var.teamId, id);
-  await logActivity(c.env.DB, { teamId: c.var.teamId, pageId: id, actorId: c.var.user!.id, action: "page.deleted" });
+  await logActivity(c.env.DB, {
+    teamId: c.var.teamId, pageId: id, actorId: user.id, action: "page.deleted",
+    actorName: c.req.query("guestName")?.trim().slice(0, 60),
+  });
   return c.json({ ok: true });
 });
 

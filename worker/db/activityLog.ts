@@ -55,6 +55,7 @@ export async function listActivityForPage(db: Env["DB"], pageId: string, limit =
 // someone else might want to be notified about. Reorders (orderKey/parentId
 // only) and comment/question chatter are deliberately excluded as noise.
 const FEED_ACTIONS = ["page.created", "content.updated", "page.updated", "status.changed", "attachment.uploaded"];
+const HISTORY_ACTIONS = [...FEED_ACTIONS, "page.deleted", "attachment.deleted"];
 
 // "Is this row the viewer's own edit?" Prefer the guest name (reliable even
 // under the shared login); fall back to actor_id only for rows logged
@@ -68,6 +69,9 @@ const NOT_SELF_CLAUSE = `
 
 export interface ActivityFeedRow extends ActivityLogRow {
   acked: number;
+  page_title?: string;
+  page_deleted?: number;
+  page_content_json?: string | null;
 }
 
 export async function listActivityFeed(
@@ -77,6 +81,39 @@ export async function listActivityFeed(
   limit = 100,
   includeAcknowledged = false,
 ): Promise<ActivityFeedRow[]> {
+  if (includeAcknowledged) {
+    const { results } = await db
+      .prepare(
+        `WITH ranked AS (
+          SELECT a.*, a.rowid AS log_order, ROW_NUMBER() OVER (
+            PARTITION BY a.page_id, a.actor_name, CASE WHEN a.actor_name IS NULL THEN a.actor_id END
+            ORDER BY a.created_at DESC, a.rowid DESC
+          ) AS edit_rank
+          FROM activity_logs a
+          INNER JOIN pages p ON p.id = a.page_id AND p.team_id = a.team_id
+          WHERE a.team_id = ?
+            AND a.actor_id IS NOT NULL
+            AND a.action IN (${HISTORY_ACTIONS.map(() => "?").join(", ")})
+        ), recent AS (
+          SELECT * FROM ranked
+          WHERE edit_rank = 1
+          ORDER BY created_at DESC, log_order DESC
+          LIMIT ?
+        )
+        SELECT a.*, p.title AS page_title, p.is_deleted AS page_deleted,
+          pc.content_json AS page_content_json,
+          CASE WHEN k.guest_name IS NULL THEN 0 ELSE 1 END AS acked
+        FROM recent a
+        INNER JOIN pages p ON p.id = a.page_id
+        LEFT JOIN page_contents pc ON pc.page_id = a.page_id
+        LEFT JOIN activity_acks k ON k.activity_id = a.id AND k.guest_name = ?
+        ORDER BY a.created_at DESC, a.log_order DESC`,
+      )
+      .bind(teamId, ...HISTORY_ACTIONS, limit, viewer.guestName)
+      .all<ActivityFeedRow>();
+    return results ?? [];
+  }
+
   const { results } = await db
     .prepare(
       `SELECT a.*, CASE WHEN k.guest_name IS NULL THEN 0 ELSE 1 END AS acked
@@ -86,7 +123,7 @@ export async function listActivityFeed(
        WHERE a.team_id = ?3
          AND a.page_id IS NOT NULL
          AND a.actor_id IS NOT NULL
-         ${includeAcknowledged ? "" : "AND k.guest_name IS NULL"}
+         AND k.guest_name IS NULL
          AND ${NOT_SELF_CLAUSE}
          AND a.action IN (?4, ?5, ?6, ?7, ?8)
        ORDER BY a.created_at DESC, a.rowid DESC
@@ -94,8 +131,6 @@ export async function listActivityFeed(
     )
     .bind(viewer.guestName, viewer.userId, teamId, ...FEED_ACTIONS, limit)
     .all<ActivityFeedRow>();
-
-  if (includeAcknowledged) return results ?? [];
 
   // Every save creates its own row (one per PATCH), so a page edited several
   // times before anyone acks piles up as that many "process" entries here.

@@ -330,7 +330,7 @@ export function WegoinnBoard({
     const ids = [...selected];
     setSelected(new Set());
     for (const id of ids) {
-      await api.deletePage(id);
+      await api.deletePage(id, guestName);
     }
     await onPagesChanged();
   };
@@ -791,7 +791,7 @@ function ActivityFeedBar({
   const activePages = new Map(pages.filter((page) => !page.isDeleted).map((page) => [page.id, page]));
   const visibleItems = (showHistory ? historyItems : items).flatMap((item) => {
     const page = item.pageId ? activePages.get(item.pageId) : undefined;
-    return page ? [{ item, page }] : [];
+    return page || (showHistory && item.historyPage) ? [{ item, page }] : [];
   });
   if (!guestName) return null;
   return (
@@ -846,7 +846,9 @@ function ActivityFeedBar({
               <button
                 type="button"
                 className="wdb-activity-bar__body"
+                disabled={!page || item.historyPage?.deleted}
                 onClick={() => {
+                  if (!page || item.historyPage?.deleted) return;
                   // A schedule (calendar-view page) always carries an endDate;
                   // only ScheduleModal ever sets that field, so this alone
                   // tells a schedule edit apart from a regular page edit.
@@ -857,8 +859,10 @@ function ActivityFeedBar({
                 <span className="wdb-activity-bar__category" style={{ color: categoryColor, background: `${categoryColor}1f` }}>
                   {categoryLabel}
                 </span>
-                <span className="wdb-activity-bar__page">{page.title}</span>
-                <span className="wdb-activity-bar__desc">{describeActivity(item)}</span>
+                <span className="wdb-activity-bar__page">{item.historyPage?.title ?? page?.title}</span>
+                <span className="wdb-activity-bar__desc">
+                  {item.historyPage?.contentUnavailable ? "수정된 페이지 및 삭제된 내용" : describeActivity(item)}
+                </span>
                 <span className="wdb-activity-bar__actor">
                   {item.actorName || (item.actorId ? memberName(members, item.actorId) : "알 수 없음")}
                 </span>

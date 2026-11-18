@@ -290,7 +290,7 @@ export function PageView({
   const handleDelete = async () => {
     if (!page) return;
     if (!confirm("이 페이지를 휴지통으로 이동할까요?")) return;
-    await api.deletePage(page.id);
+    await api.deletePage(page.id, guestName);
     onPagesChanged();
     onDeleted();
   };

@@ -347,7 +347,7 @@ export function DatabaseView({
   };
 
   const deleteSchedule = async (pageId: string) => {
-    await api.deletePage(pageId);
+    await api.deletePage(pageId, guestName);
     onPagesChanged();
   };
 

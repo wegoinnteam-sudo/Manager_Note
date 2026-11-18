@@ -107,7 +107,8 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ expectedVersion, content, guestName }),
     }),
-  deletePage: (id: string) => request<{ ok: true }>(`/api/pages/${id}`, { method: "DELETE" }),
+  deletePage: (id: string, guestName?: string) =>
+    request<{ ok: true }>(`/api/pages/${id}${guestName ? `?guestName=${encodeURIComponent(guestName)}` : ""}`, { method: "DELETE" }),
   restorePage: (id: string) => request<{ ok: true }>(`/api/pages/${id}/restore`, { method: "POST" }),
 
   getSecretValue: (pageId: string, blockId: string) =>
