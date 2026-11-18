@@ -524,7 +524,7 @@ export const Editor = forwardRef<EditorHandle, {
   const startMarqueeSelect = (e: React.MouseEvent) => {
     if (!editable || e.button !== 0) return;
     const target = e.target as HTMLElement;
-    if (target.closest("textarea, input, button, a, select, [contenteditable]")) return;
+    if (target.closest("textarea, input, button, a, select, [contenteditable], .table-block-layout")) return;
     setSelectedBlockIds(new Set());
     setMarquee({ startX: e.clientX, startY: e.clientY, x: e.clientX, y: e.clientY });
   };

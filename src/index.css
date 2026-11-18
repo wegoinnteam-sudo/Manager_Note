@@ -1,5 +1,5 @@
 :root {
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Pretendard", "Roboto", "Noto Sans KR", sans-serif;
+  --font-sans: "Pretendard Variable", "Pretendard", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Noto Sans KR", sans-serif;
   --color-bg: #ffffff;
   --color-bg-sidebar: #f7f6f4;
   --color-border: #e6e4e0;
@@ -1008,6 +1008,35 @@ code {
   margin-bottom: var(--space-6);
 }
 
+/* Quiet autosave indicator, pinned to the page's top-right while scrolling. */
+.page-save-status {
+  position: sticky;
+  top: var(--space-2);
+  z-index: 5;
+  float: right;
+  margin: calc(-1 * var(--space-6)) 0 0 var(--space-3);
+  padding: 2px var(--space-2);
+  border-radius: 999px;
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.page-save-status--saved {
+  animation: page-save-fade 2.4s ease forwards;
+}
+
+@keyframes page-save-fade {
+  0%, 60% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-save-status--saved {
+    animation: none;
+  }
+}
+
 /* Save-state notices above the editor (conflict / failed save). */
 .page-notice {
   display: flex;
@@ -1276,106 +1305,439 @@ code {
   overflow: hidden;
 }
 
+/* ===== Table block (Notion-style database table) =====
+   Quiet grid: hairline rules, gray header, white rows. Header row and the
+   first column stay pinned while the table scrolls inside its own box. */
 .table-block-layout {
+  --tb-line: color-mix(in srgb, var(--color-border) 80%, transparent);
+  --tb-head: color-mix(in srgb, var(--color-text) 4%, var(--color-surface));
+  --tb-row-hover: color-mix(in srgb, var(--color-text) 2.5%, var(--color-surface));
+  --tb-select: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  position: relative;
   flex: 1;
   min-width: 0;
 }
 
+/* Toolbar: search, active sort/filter chips, view settings. */
 .table-block__toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 12px;
-  margin-bottom: 8px;
-  font-size: 12px;
+  gap: var(--space-1) var(--space-2);
+  margin-bottom: var(--space-2);
+  font-size: var(--text-xs);
   color: var(--color-text-muted);
 }
 
-.table-block__toolbar label {
+.table-block__search {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius);
+  color: var(--color-text-muted);
+  transition: background-color 120ms ease;
+}
+
+.table-block__search:hover,
+.table-block__search:focus-within {
+  background: var(--color-hover);
+}
+
+.table-block__search input {
+  width: 9rem;
+  border: none;
+  outline: none;
+  padding: 0;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-sm);
+}
+
+.table-block__search input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.table-chip,
+.table-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.table-tool-btn:hover:not(:disabled),
+.table-tool-btn[aria-expanded="true"] {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+
+.table-tool-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.table-tool-btn--quiet {
+  padding-inline: var(--space-1);
+}
+
+.table-chip {
+  border-color: color-mix(in srgb, var(--color-accent) 30%, transparent);
+  background: var(--color-accent-bg);
+  color: var(--color-accent);
+}
+
+.table-chip span {
+  opacity: 0.7;
+}
+
+.table-block__count {
+  font-variant-numeric: tabular-nums;
+}
+
+.table-block__settings-wrap {
+  position: relative;
+  margin-left: auto;
+}
+
+/* Shared popover surface: column menu, view settings, context menu. */
+.table-popover {
+  z-index: 100;
+  min-width: 200px;
+  padding: var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+}
+
+.table-settings {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 264px;
+  padding: var(--space-2) var(--space-3);
+}
+
+.table-settings__row {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 32px;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.table-settings__row > :nth-child(2):last-child {
+  grid-column: 2 / 4;
+}
+
+.table-settings__row input[type="range"] {
+  width: 100%;
+  accent-color: var(--color-accent);
+}
+
+.table-settings__value {
+  min-width: 3ch;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.table-settings__inline {
+  grid-column: 2 / 4;
   display: flex;
   align-items: center;
   gap: 6px;
+  color: var(--color-text-muted);
 }
 
-.table-block__toolbar input[type="range"] { width: 100px; }
-.table-block__toolbar input[type="number"] { width: 64px; }
-
-.table-block__toolbar input,
-.table-block__toolbar select,
-.table-block__toolbar button {
-  color: var(--color-text);
-  background: var(--color-surface);
+.table-settings select,
+.table-settings input[type="number"] {
+  height: 28px;
+  padding: 0 6px;
   border: 1px solid var(--color-border);
-  border-radius: 4px;
-  padding: 4px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
   font: inherit;
+  font-size: var(--text-sm);
 }
 
+.table-settings input[type="number"] {
+  width: 64px;
+}
+
+.table-settings__inline .table-tool-btn {
+  margin-left: auto;
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+
+.table-settings__hint {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding-top: var(--space-1);
+  border-top: 1px solid var(--tb-line);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.table-settings__link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.table-settings__link:hover {
+  text-decoration: underline;
+}
+
+/* The scroll box. Header/first column stick inside it. */
 .table-block {
+  position: relative;
   width: 100%;
   min-width: 0;
-  overflow-x: auto;
+  max-height: calc(100vh - 180px);
+  overflow: auto;
+  border-top: 1px solid var(--tb-line);
+  scrollbar-width: thin;
 }
 
 .table-block table {
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   width: 100%;
   font-variant-numeric: tabular-nums;
 }
 
 .table-block td {
-  border: 1px solid var(--color-border);
+  position: relative;
   padding: 0;
+  border-right: 1px solid var(--tb-line);
+  border-bottom: 1px solid var(--tb-line);
+  background-color: var(--color-surface);
   vertical-align: top;
 }
 
-.table-block input {
+.table-block tr > td:last-child,
+.table-block tr > td:has(+ .table-block__row-actions) {
+  border-right: none;
+}
+
+.table-block tbody tr:not(.table-block__head):not(.table-block__col-actions-row):hover > td:not(.table-block__row-actions) {
+  background-color: var(--tb-row-hover);
+}
+
+/* Sticky header row. */
+.table-block__head > td {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background-color: var(--tb-head);
+}
+
+/* Sticky first column (e.g. 객실 번호). */
+.table-block--sticky-col tr > td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  box-shadow: inset -1px 0 0 var(--color-border);
+}
+
+.table-block--sticky-col .table-block__head > td:first-child {
+  z-index: 3;
+}
+
+/* Cell content: display mode and the single live editor share metrics so
+   opening a cell doesn't shift anything. */
+.table-block__cell,
+.table-block__editor {
+  display: block;
   width: 100%;
+  min-height: calc(1.5em + 2 * 7px);
+  margin: 0;
+  padding: 7px 10px;
   border: none;
-  outline: none;
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--text-sm);
   font-family: inherit;
+  font-size: var(--text-sm);
   line-height: 1.5;
-  color: inherit;
+  color: var(--color-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.table-block__cell {
+  outline: none;
+  cursor: default;
+}
+
+.table-block__cell[tabindex] {
+  cursor: text;
+}
+
+.table-block__editor {
+  resize: none;
+  overflow: hidden;
+  outline: none;
   background: transparent;
 }
 
-.table-block td span {
-  display: block;
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--text-sm);
-  line-height: 1.5;
+.table-block__head .table-block__cell,
+.table-block__head .table-block__editor {
+  color: var(--color-text-muted);
 }
 
-/* First row reads as the header (e.g. 취소 시점 / 환불 비율). Per-cell
-   colors set from the context menu are inline and still win. */
-.table-block tbody tr:first-child td:not(.table-block__row-actions, .table-block__col-actions) {
-  background: var(--color-surface-muted);
-}
-
-.app-root .table-block tbody tr:first-child td:not(.table-block__row-actions, .table-block__col-actions) :is(input, span) {
+.app-root .table-block__head :is(.table-block__cell, .table-block__editor),
+.app-root .table-block__head .table-block__cell * {
   font-weight: max(var(--weight-semibold), var(--user-font-weight, 400)) !important;
 }
 
-.table-block td:focus-within:not(.table-block__cell--selected) {
-  box-shadow: inset 0 0 0 2px var(--color-accent);
+.table-block__cell--with-btn {
+  padding-right: 30px;
 }
 
-.table-block__row-actions,
-.table-block__col-actions {
-  border: none !important;
-  width: 20px;
+.table-block__cell--selected {
+  background-image: linear-gradient(var(--tb-select), var(--tb-select)) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 55%, transparent) !important;
+}
+
+.table-block__cell--editing {
+  z-index: 4 !important;
+  box-shadow: inset 0 0 0 2px var(--color-accent) !important;
+}
+
+/* Status pills and dates. */
+.table-block__status {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.92em;
+  line-height: 1.45;
+  white-space: nowrap;
+  --tone: #64748b;
+  background: color-mix(in srgb, var(--tone) 15%, var(--color-surface));
+  color: color-mix(in srgb, var(--tone) 78%, var(--color-text));
+}
+
+.table-block__status--done { --tone: #16a34a; }
+.table-block__status--progress { --tone: #2563eb; }
+.table-block__status--pending { --tone: #d97706; }
+.table-block__status--problem { --tone: #dc2626; }
+
+.table-block__date {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Header column menu button (sort / filter). */
+.table-block__col-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.table-block__head > td:hover .table-block__col-btn,
+.table-block__col-btn:focus-visible,
+.table-block__col-btn[aria-expanded="true"],
+.table-block__col-btn--active {
+  opacity: 1;
+}
+
+.table-block__col-btn:hover,
+.table-block__col-btn[aria-expanded="true"] {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+
+.table-block__col-btn--active {
+  color: var(--color-accent);
+}
+
+@media (hover: none) {
+  .table-block__col-btn {
+    opacity: 1;
+  }
+}
+
+.table-block__col-resize {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  z-index: 2;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.table-block__col-resize:hover {
+  background: var(--color-accent);
+  opacity: 0.5;
+}
+
+/* Row / column delete affordances (edit mode only, revealed on hover). */
+.table-block td.table-block__row-actions,
+.table-block td.table-block__col-actions {
+  border: none;
+  background: var(--color-bg);
   text-align: center;
+  vertical-align: middle;
+}
+
+.table-block__head > td.table-block__row-actions {
+  background: var(--color-bg);
 }
 
 .table-block__row-actions button,
 .table-block__col-actions button {
+  width: 22px;
+  height: 22px;
+  padding: 0;
   border: none;
+  border-radius: var(--radius-sm);
   background: none;
   color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 1;
   cursor: pointer;
-  font-size: 11px;
   opacity: 0;
 }
 
@@ -1386,102 +1748,153 @@ code {
   opacity: 1;
 }
 
+.table-block__row-actions button:hover,
+.table-block__col-actions button:hover {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.table-block__empty {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
 .table-block__actions {
   display: flex;
-  gap: 6px;
-  margin-top: 6px;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
 }
 
 .table-block__actions button {
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  border-radius: var(--radius);
-  padding: 3px 8px;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.table-block__cell--selected {
-  background: rgba(37, 99, 235, 0.14) !important;
-  outline: 1px solid var(--color-accent);
-  outline-offset: -1px;
-}
-
-.table-block__col-resize {
-  position: absolute;
-  top: 0;
-  right: -3px;
-  width: 6px;
-  height: 100%;
-  cursor: col-resize;
-  z-index: 1;
-  touch-action: none;
-}
-
-.table-block__col-resize:hover {
-  background: var(--color-accent);
-  opacity: 0.5;
-}
-
-.table-context-menu {
-  position: fixed;
-  z-index: 100;
-  min-width: 180px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
-  padding: 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.table-context-menu button {
-  text-align: left;
+  height: 28px;
+  padding: 0 var(--space-2);
   border: none;
+  border-radius: var(--radius);
   background: none;
-  padding: 6px 8px;
-  border-radius: 4px;
-  font-size: 12px;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--text-xs);
   cursor: pointer;
+}
+
+.table-block__actions button:hover {
+  background: var(--color-hover);
   color: var(--color-text);
 }
 
-.table-context-menu button:hover {
-  background: var(--color-hover, rgba(0, 0, 0, 0.06));
+.table-block-layout :is(button, input, select, [tabindex]):focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.table-block__cell:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--color-accent) !important;
+}
+
+/* Column menu (fixed, anchored under the header button). */
+.table-colmenu {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  width: 220px;
+}
+
+.table-colmenu > button,
+.table-context-menu > button {
+  height: 30px;
+  padding: 0 var(--space-2);
+  border: none;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.table-colmenu > button:hover,
+.table-context-menu > button:hover {
+  background: var(--color-hover);
+}
+
+.table-colmenu > button[aria-pressed="true"] {
+  color: var(--color-accent);
+}
+
+.table-colmenu__sep {
+  height: 1px;
+  margin: var(--space-1) 0;
+  background: var(--tb-line);
+}
+
+.table-colmenu__filter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2) var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.table-colmenu__filter input {
+  height: 30px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-sm);
+}
+
+/* Right-click menu. */
+.table-context-menu {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
 .table-context-menu__label {
-  font-size: 11px;
+  padding: var(--space-2) var(--space-2) 2px;
   color: var(--color-text-muted);
-  padding: 4px 8px 0;
+  font-size: 11px;
 }
 
 .table-context-menu__row {
   display: flex;
-  gap: 4px;
-  padding: 0 8px 4px;
+  gap: var(--space-1);
+  padding: 2px var(--space-2) var(--space-1);
 }
 
 .table-context-menu__row button {
   flex: 1;
-  padding: 4px;
+  height: 26px;
+  padding: 0 var(--space-1);
   border: 1px solid var(--color-border);
-}
-
-.table-context-menu__swatch {
-  width: 20px;
-  height: 20px;
-  border-radius: 4px;
-  border: 1px solid var(--color-border);
-  padding: 0;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-xs);
   cursor: pointer;
-  flex: none;
 }
 
-.table-context-menu__swatch--bg {
-  width: 20px;
+.table-context-menu__row button:hover {
+  background: var(--color-hover);
+}
+
+.table-context-menu__row .table-context-menu__swatch {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: var(--radius-sm);
 }
 
 .embed-block {

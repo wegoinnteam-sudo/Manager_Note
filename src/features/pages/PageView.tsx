@@ -316,6 +316,12 @@ export function PageView({
           </div>
         )}
 
+        {autoSave && canEdit && (saveState === "saving" || saveState === "saved") && (
+          <div className={`page-save-status page-save-status--${saveState}`} role="status" aria-live="polite">
+            {saveState === "saving" ? "저장 중…" : "저장됨"}
+          </div>
+        )}
+
         {saveState === "conflict" && (
           <div className="page-notice page-notice--warn" role="alert">
             <span>다른 사람이 먼저 이 페이지를 수정해서 내 변경 내용이 저장되지 않았습니다.</span>

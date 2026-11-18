@@ -1,28 +1,59 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { PageBlock } from "@shared/types";
 
 type TableBlock = Extract<PageBlock, { type: "table" }>;
 type CellPos = { r: number; c: number };
-type Selection = { r1: number; c1: number; r2: number; c2: number };
+type Selection = { rowIds: number[]; c1: number; c2: number };
 type FontSize = "sm" | "md" | "lg";
+type SortState = { col: number; dir: "asc" | "desc" } | null;
+type CaretMode = "end" | "all";
+type StatusTone = "done" | "progress" | "pending" | "problem";
 
 const FONT_SIZE_PX: Record<FontSize, number> = { sm: 12, md: 13, lg: 16 };
 const DEFAULT_COL_WIDTH = 140;
 const TEXT_SWATCHES = ["#111827", "#dc2626", "#d97706", "#16a34a", "#2563eb", "#7c3aed"];
 const BG_SWATCHES = [null, "#fef3c7", "#dcfce7", "#dbeafe", "#fee2e2", "#ede9fe"];
+// Tables shorter than this stay toolbar-free for read-only viewers: there is
+// nothing to search in a five-row reference table.
+const TOOLBAR_MIN_ROWS = 7;
 
-function normalize(a: CellPos, b: CellPos): Selection {
-  return { r1: Math.min(a.r, b.r), r2: Math.max(a.r, b.r), c1: Math.min(a.c, b.c), c2: Math.max(a.c, b.c) };
+// Cell values that read as a status get a colored pill. Matching is on the
+// whole (trimmed) cell value only, so free text is never decorated.
+const STATUS_WORDS: Record<StatusTone, string[]> = {
+  done: ["완료", "처리 완료", "수리 완료", "해결", "정상", "사용 가능", "확인 완료", "done"],
+  progress: ["진행 중", "진행중", "수리 중", "수리중", "확인 중", "확인중", "처리 중", "처리중", "청소 중", "청소중"],
+  pending: ["접수", "대기", "예정", "수리 예정", "보류", "미정", "확인 필요"],
+  problem: ["고장", "긴급", "불가", "사용 불가", "미처리", "지연", "취소"],
+};
+const STATUS_TONE = new Map<string, StatusTone>(
+  (Object.entries(STATUS_WORDS) as [StatusTone, string[]][]).flatMap(([tone, words]) => words.map((w) => [w.toLowerCase(), tone] as const)),
+);
+const DATE_RE = /^\d{4}[-./]\s?\d{1,2}[-./]\s?\d{1,2}\.?(\s*\(.\))?$/;
+const collator = new Intl.Collator("ko", { numeric: true, sensitivity: "base" });
+
+function singleCell(r: number, c: number): Selection {
+  return { rowIds: [r], c1: c, c2: c };
 }
+
 function inSelection(sel: Selection | null, r: number, c: number): boolean {
-  return !!sel && r >= sel.r1 && r <= sel.r2 && c >= sel.c1 && c <= sel.c2;
+  return !!sel && sel.rowIds.includes(r) && c >= sel.c1 && c <= sel.c2;
 }
+
 function cellKey(r: number, c: number): string {
   return `${r}-${c}`;
 }
-
 function pad2(n: number): string {
   return n < 10 ? `0${n}` : `${n}`;
+}
+
+function CellContent({ value, header, plain }: { value: string; header: boolean; plain: boolean }) {
+  if (!header && !plain) {
+    const text = value.trim();
+    const tone = STATUS_TONE.get(text.toLowerCase());
+    if (tone) return <span className={`table-block__status table-block__status--${tone}`}>{text}</span>;
+    if (DATE_RE.test(text)) return <span className="table-block__date">{value}</span>;
+  }
+  return <>{value}</>;
 }
 
 export function TableBlockView({
@@ -39,67 +70,140 @@ export function TableBlockView({
   onInsertParagraphAfter: () => void;
 }) {
   const rows = block.rows;
+  const colCount = rows[0]?.length ?? 0;
   const [selection, setSelection] = useState<Selection | null>(null);
+  const [editing, setEditing] = useState<CellPos | null>(null);
   const [fontSizeInput, setFontSizeInput] = useState("10");
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
-  const anchorRef = useRef<CellPos | null>(null);
-  const draggingRef = useRef(false);
-  const resizeRef = useRef<{ c: number; startX: number; startWidth: number; pointerId: number } | null>(null);
-  const cellRefs = useRef(new Map<string, HTMLInputElement>());
-  const pendingCellFocusRef = useRef<CellPos | null>(null);
-  const selectionRef = useRef<Selection | null>(null);
-  selectionRef.current = selection;
+  const [colMenu, setColMenu] = useState<{ c: number; x: number; y: number } | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<SortState>(null);
+  const [filters, setFilters] = useState<Record<number, string>>({});
 
-  const isRange = !!selection && (selection.r1 !== selection.r2 || selection.c1 !== selection.c2);
+  const dragRef = useRef<{ anchor: CellPos; fromEditor: boolean; moved: boolean } | null>(null);
+  const resizeRef = useRef<{ c: number; startX: number; startWidth: number; pointerId: number } | null>(null);
+  const editorRef = useRef<HTMLTextAreaElement | null>(null);
+  const caretModeRef = useRef<CaretMode | null>(null);
+  const tableRef = useRef<HTMLDivElement | null>(null);
+  const isRange = !!selection && (selection.rowIds.length > 1 || selection.c1 !== selection.c2);
+
+  // ---- View (search / filter / sort): display order only, never saved ----
+  const activeFilters = Object.entries(filters).filter(([c, v]) => v.trim() && Number(c) < colCount);
+  const viewActive = !!query.trim() || !!sort || activeFilters.length > 0;
+
+  // While a cell is being edited, keep the on-screen order frozen so the row
+  // doesn't jump (sort) or vanish (filter) under the caret as you type.
+  const frozenOrderRef = useRef<{ len: number; order: number[] } | null>(null);
+  const displayRows = useMemo(() => {
+    if (rows.length === 0) return [];
+    const frozen = frozenOrderRef.current;
+    if (editing && viewActive && frozen && frozen.len === rows.length) return frozen.order;
+    const q = query.trim().toLowerCase();
+    let body = rows.map((_, i) => i).slice(1);
+    if (q) body = body.filter((r) => rows[r].some((cell) => cell.toLowerCase().includes(q)));
+    for (const [c, v] of Object.entries(filters)) {
+      const needle = v.trim().toLowerCase();
+      if (!needle) continue;
+      body = body.filter((r) => (rows[r][Number(c)] ?? "").toLowerCase().includes(needle));
+    }
+    if (sort && sort.col < colCount) {
+      const dir = sort.dir === "asc" ? 1 : -1;
+      body = [...body].sort((a, b) => {
+        const va = rows[a][sort.col] ?? "";
+        const vb = rows[b][sort.col] ?? "";
+        if (!va.trim() !== !vb.trim()) return va.trim() ? -1 : 1; // blanks always last
+        return collator.compare(va, vb) * dir || a - b;
+      });
+    }
+    const order = [0, ...body];
+    frozenOrderRef.current = { len: rows.length, order };
+    return order;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, query, filters, sort, colCount, editing]);
 
   useEffect(() => {
+    setSelection(null);
+  }, [query, sort, filters]);
+
+  const displayIndex = useMemo(() => new Map(displayRows.map((r, i) => [r, i])), [displayRows]);
+  const nextRow = (r: number) => displayRows[(displayIndex.get(r) ?? -2) + 1];
+  const prevRow = (r: number) => {
+    const i = displayIndex.get(r);
+    return i === undefined || i === 0 ? undefined : displayRows[i - 1];
+  };
+
+  // ---- Closing popovers on outside click ----
+  useEffect(() => {
+    if (!menu && !colMenu && !settingsOpen) return;
+    const close = () => {
+      setMenu(null);
+      setColMenu(null);
+      setSettingsOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    window.addEventListener("mousedown", close);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", close);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [menu, colMenu, settingsOpen]);
+
+  // ---- Editing: focus + auto-height for the single live textarea ----
+  useLayoutEffect(() => {
+    const el = editorRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+    const mode = caretModeRef.current;
+    if (mode && editing) {
+      caretModeRef.current = null;
+      el.focus({ preventScroll: false });
+      if (mode === "all") el.select();
+      else el.setSelectionRange(el.value.length, el.value.length);
+    }
+  }, [editing, rows]);
+
+  const startEdit = (r: number, c: number, caret: CaretMode) => {
+    if (!editable) return;
+    caretModeRef.current = caret;
+    setSelection(singleCell(r, c));
+    setEditing({ r, c });
+  };
+  const startEditRef = useRef(startEdit);
+  startEditRef.current = startEdit;
+
+  const focusCellBox = (r: number, c: number) => {
+    requestAnimationFrame(() => {
+      tableRef.current?.querySelector<HTMLElement>(`[data-cell="${cellKey(r, c)}"]`)?.focus({ preventScroll: false });
+    });
+  };
+
+  const stopEdit = (keepFocus: boolean) => {
+    const cur = editing;
+    setEditing(null);
+    if (keepFocus && cur) focusCellBox(cur.r, cur.c);
+  };
+
+  // A plain click (mousedown + mouseup on the same cell, no drag) opens the
+  // cell for editing; a drag leaves a range selected for delete/merge/style.
+  useEffect(() => {
     const onUp = () => {
-      if (!draggingRef.current) return;
-      draggingRef.current = false;
-      // A real multi-cell drag still leaves the anchor cell's <input> focused
-      // (native click-to-focus on mousedown) — blur it so the Delete/Backspace
-      // listener below (which defers to normal in-input editing whenever an
-      // input is focused) is free to clear the whole selected range instead.
-      const sel = selectionRef.current;
-      if (sel && (sel.r1 !== sel.r2 || sel.c1 !== sel.c2) && document.activeElement instanceof HTMLInputElement) {
-        document.activeElement.blur();
-      }
+      const drag = dragRef.current;
+      dragRef.current = null;
+      if (!drag) return;
+      const { r, c } = drag.anchor;
+      if (drag.moved) focusCellBox(r, c);
+      else if (!drag.fromEditor) startEditRef.current(r, c, "end");
     };
     window.addEventListener("mouseup", onUp);
     return () => window.removeEventListener("mouseup", onUp);
   }, []);
 
-  useEffect(() => {
-    if (!menu) return;
-    const close = () => setMenu(null);
-    window.addEventListener("mousedown", close);
-    return () => window.removeEventListener("mousedown", close);
-  }, [menu]);
-
-  useEffect(() => {
-    const pending = pendingCellFocusRef.current;
-    if (!pending) return;
-    const input = cellRefs.current.get(cellKey(pending.r, pending.c));
-    if (!input) return;
-    pendingCellFocusRef.current = null;
-    input.focus();
-    input.select();
-  }, [rows]);
-
-  useEffect(() => {
-    if (!isRange || !selection) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (document.activeElement instanceof HTMLInputElement) return;
-      if (e.key === "Delete" || e.key === "Backspace") {
-        e.preventDefault();
-        clearRange(selection);
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRange, selection, rows]);
-
+  // ---- Data edits (all go through onPatch; shape unchanged) ----
   const updateCell = (r: number, c: number, value: string) => {
     onPatch({ rows: rows.map((row, ri) => (ri === r ? row.map((cell, ci) => (ci === c ? value : cell)) : row)) });
   };
@@ -107,14 +211,15 @@ export function TableBlockView({
   const clearRange = (sel: Selection) => {
     onPatch({
       rows: rows.map((row, ri) =>
-        ri >= sel.r1 && ri <= sel.r2 ? row.map((cell, ci) => (ci >= sel.c1 && ci <= sel.c2 ? "" : cell)) : row,
+        sel.rowIds.includes(ri) ? row.map((cell, ci) => (ci >= sel.c1 && ci <= sel.c2 ? "" : cell)) : row,
       ),
     });
   };
 
   const mergeRange = (sel: Selection) => {
+    const firstRow = sel.rowIds[0];
     const parts: string[] = [];
-    for (let r = sel.r1; r <= sel.r2; r++) {
+    for (const r of sel.rowIds) {
       for (let c = sel.c1; c <= sel.c2; c++) {
         if (rows[r][c]) parts.push(rows[r][c]);
       }
@@ -122,36 +227,48 @@ export function TableBlockView({
     const joined = parts.join(" ");
     onPatch({
       rows: rows.map((row, ri) =>
-        ri >= sel.r1 && ri <= sel.r2
-          ? row.map((cell, ci) => (ci >= sel.c1 && ci <= sel.c2 ? (ri === sel.r1 && ci === sel.c1 ? joined : "") : cell))
+        sel.rowIds.includes(ri)
+          ? row.map((cell, ci) => (ci >= sel.c1 && ci <= sel.c2 ? (ri === firstRow && ci === sel.c1 ? joined : "") : cell))
           : row,
       ),
     });
-    setSelection({ r1: sel.r1, c1: sel.c1, r2: sel.r1, c2: sel.c1 });
+    setSelection(singleCell(firstRow, sel.c1));
     setMenu(null);
   };
 
   const addRow = () => onPatch({ rows: [...rows, rows[0].map(() => "")] });
   const addColumn = () => onPatch({ rows: rows.map((row) => [...row, ""]) });
-  const removeRow = (r: number) => rows.length > 1 && onPatch({ rows: rows.filter((_, ri) => ri !== r) });
-  const removeColumn = (c: number) => rows[0].length > 1 && onPatch({ rows: rows.map((row) => row.filter((_, ci) => ci !== c)) });
+  const removeRow = (r: number) => {
+    if (rows.length <= 1) return;
+    onPatch({ rows: rows.filter((_, ri) => ri !== r) });
+    setEditing(null);
+    setSelection(null);
+  };
+  const removeColumn = (c: number) => {
+    if (rows[0].length <= 1) return;
+    onPatch({ rows: rows.map((row) => row.filter((_, ci) => ci !== c)) });
+    setEditing(null);
+    setSelection(null);
+  };
 
   const removeRows = (sel: Selection) => {
-    if (rows.length - (sel.r2 - sel.r1 + 1) < 1) return;
-    onPatch({ rows: rows.filter((_, ri) => ri < sel.r1 || ri > sel.r2) });
+    if (rows.length - sel.rowIds.length < 1) return;
+    onPatch({ rows: rows.filter((_, ri) => !sel.rowIds.includes(ri)) });
     setSelection(null);
+    setEditing(null);
     setMenu(null);
   };
   const removeColumns = (sel: Selection) => {
     if (rows[0].length - (sel.c2 - sel.c1 + 1) < 1) return;
     onPatch({ rows: rows.map((row) => row.filter((_, ci) => ci < sel.c1 || ci > sel.c2)) });
     setSelection(null);
+    setEditing(null);
     setMenu(null);
   };
 
   const applyStyle = (sel: Selection, patch: Partial<{ color: string; bg: string | undefined; fontSize: FontSize; fontSizePt: number | undefined }>) => {
     const next = { ...(block.cellStyles ?? {}) };
-    for (let r = sel.r1; r <= sel.r2; r++) {
+    for (const r of sel.rowIds) {
       for (let c = sel.c1; c <= sel.c2; c++) {
         const key = cellKey(r, c);
         next[key] = { ...next[key], ...patch };
@@ -161,12 +278,13 @@ export function TableBlockView({
   };
 
   const colWidth = (c: number) => block.colWidths?.[c] ?? DEFAULT_COL_WIDTH;
+  const fontSizeValid = Number.isFinite(Number(fontSizeInput)) && Number(fontSizeInput) >= 1 && Number(fontSizeInput) <= 200;
   const applyFontSize = () => {
-    const size = Number(fontSizeInput);
-    if (!Number.isFinite(size) || size < 1 || size > 200) return;
-    applyStyle(selection ?? { r1: 0, c1: 0, r2: rows.length - 1, c2: rows[0].length - 1 }, { fontSizePt: size });
+    if (!fontSizeValid) return;
+    applyStyle(selection ?? { rowIds: rows.map((_, r) => r), c1: 0, c2: colCount - 1 }, { fontSizePt: Number(fontSizeInput) });
   };
 
+  // ---- Column resize (header handle) ----
   const startResize = (e: React.PointerEvent<HTMLSpanElement>, c: number) => {
     if (e.button !== 0) return;
     e.preventDefault();
@@ -195,221 +313,530 @@ export function TableBlockView({
     onPatch({ colWidths: widths });
   };
 
+  // ---- Mouse ----
   const onCellMouseDown = (r: number, c: number, e: React.MouseEvent) => {
-    if (!editable) return;
-    if ((e.target as HTMLElement).classList.contains("table-block__col-resize")) return;
-    anchorRef.current = { r, c };
-    draggingRef.current = true;
-    setSelection({ r1: r, c1: c, r2: r, c2: c });
+    if (!editable || e.button !== 0) return;
+    const target = e.target as HTMLElement;
+    if (target.closest(".table-block__col-resize, .table-block__col-btn")) return;
+    const fromEditor = !!target.closest("textarea");
+    dragRef.current = { anchor: { r, c }, fromEditor, moved: false };
+    if (fromEditor) return; // Allow text selection while the pointer stays in this cell.
+    e.preventDefault();
+    setEditing(null);
+    setSelection(singleCell(r, c));
   };
   const onCellMouseEnter = (r: number, c: number) => {
-    if (!draggingRef.current || !anchorRef.current) return;
-    setSelection(normalize(anchorRef.current, { r, c }));
+    const drag = dragRef.current;
+    if (!drag) return;
+    const { anchor } = drag;
+    if (!drag.moved && r === anchor.r && c === anchor.c) return;
+    const start = displayIndex.get(anchor.r);
+    const end = displayIndex.get(r);
+    if (start === undefined || end === undefined) return;
+    if (!drag.moved && drag.fromEditor) {
+      window.getSelection()?.removeAllRanges();
+      setEditing(null);
+    }
+    drag.moved = true;
+    setSelection({
+      rowIds: displayRows.slice(Math.min(start, end), Math.max(start, end) + 1),
+      c1: Math.min(anchor.c, c),
+      c2: Math.max(anchor.c, c),
+    });
   };
   const onCellContextMenu = (e: React.MouseEvent, r: number, c: number) => {
     if (!editable) return;
     e.preventDefault();
-    if (!inSelection(selection, r, c)) {
-      setSelection({ r1: r, c1: c, r2: r, c2: c });
-    }
+    if (!inSelection(selection, r, c)) setSelection(singleCell(r, c));
+    setColMenu(null);
+    setSettingsOpen(false);
     setMenu({ x: e.clientX, y: e.clientY });
   };
 
-  const focusCell = (r: number, c: number) => {
-    const input = cellRefs.current.get(cellKey(r, c));
-    if (!input) return;
-    input.focus();
-    input.select();
+  // ---- Keyboard while a cell is open for editing ----
+  const moveEditTo = (target: CellPos | undefined, caret: CaretMode) => {
+    if (target) startEdit(target.r, target.c, caret);
   };
 
-  const handleCellKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, r: number, c: number) => {
+  const handleEditorKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>, r: number, c: number) => {
+    e.stopPropagation(); // the table's own selection-mode handler must not see these
+    if (e.nativeEvent.isComposing) return; // Korean IME: let the composition commit first
+
+    const input = e.currentTarget;
+    const value = input.value;
+    const caretStart = input.selectionStart ?? 0;
+    const caretEnd = input.selectionEnd ?? 0;
+
     if ((e.ctrlKey || e.metaKey) && e.key === ";") {
       e.preventDefault();
       const now = new Date();
       const stamp = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
-      const input = e.currentTarget;
-      const start = input.selectionStart ?? input.value.length;
-      const end = input.selectionEnd ?? start;
-      const nextValue = input.value.slice(0, start) + stamp + input.value.slice(end);
-      const nextCaret = start + stamp.length;
+      const nextValue = value.slice(0, caretStart) + stamp + value.slice(caretEnd);
+      const nextCaret = caretStart + stamp.length;
       updateCell(r, c, nextValue);
-      requestAnimationFrame(() => {
-        input.setSelectionRange(nextCaret, nextCaret);
-      });
+      requestAnimationFrame(() => input.setSelectionRange(nextCaret, nextCaret));
       return;
     }
 
-    if (e.key === "Backspace" && e.currentTarget.value === "" && rows.length > 1 && rows[r].every((cell) => cell === "")) {
+    if (e.key === "Escape") {
       e.preventDefault();
-      const targetRow = Math.max(0, r - 1);
-      pendingCellFocusRef.current = { r: targetRow, c };
+      stopEdit(true);
+      return;
+    }
+
+    if (e.key === "Backspace" && value === "" && rows.length > 1 && rows[r].every((cell) => cell === "")) {
+      e.preventDefault();
+      let target = prevRow(r) ?? nextRow(r) ?? 0;
+      if (target > r) target -= 1; // indices after the removed row shift up
       onPatch({ rows: rows.filter((_, ri) => ri !== r) });
+      startEdit(target, c, "end");
       return;
     }
 
-    if (e.key === "Enter") {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      if (r < rows.length - 1) {
-        focusCell(r + 1, c);
-        return;
+      const below = nextRow(r);
+      if (below !== undefined) {
+        startEdit(below, c, "all");
+      } else if (!viewActive) {
+        onPatch({ rows: [...rows, rows[0].map(() => "")] });
+        startEdit(rows.length, c, "all");
+      } else {
+        stopEdit(true);
       }
-      pendingCellFocusRef.current = { r: rows.length, c };
-      onPatch({ rows: [...rows, rows[0].map(() => "")] });
       return;
     }
 
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      if (r < rows.length - 1) focusCell(r + 1, c);
-      else onInsertParagraphAfter();
-      return;
-    }
-    if (e.key === "ArrowUp" && r > 0) {
-      e.preventDefault();
-      focusCell(r - 1, c);
+    if (e.key === "Tab") {
+      let target: CellPos | undefined;
+      if (e.shiftKey) {
+        const up = prevRow(r);
+        target = c > 0 ? { r, c: c - 1 } : up !== undefined ? { r: up, c: colCount - 1 } : undefined;
+      } else {
+        const down = nextRow(r);
+        target = c < colCount - 1 ? { r, c: c + 1 } : down !== undefined ? { r: down, c: 0 } : undefined;
+      }
+      if (target) {
+        e.preventDefault();
+        moveEditTo(target, "all");
+      } else {
+        setEditing(null); // let Tab leave the table naturally
+      }
       return;
     }
 
-    const caretStart = e.currentTarget.selectionStart ?? 0;
-    const caretEnd = e.currentTarget.selectionEnd ?? 0;
-    if (e.key === "ArrowRight" && caretStart === e.currentTarget.value.length && caretEnd === caretStart) {
-      const nextColumn = c + 1;
-      if (nextColumn < rows[r].length) {
+    if ((e.key === "ArrowDown" || e.key === "ArrowUp") && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      const target = e.key === "ArrowDown" ? nextRow(r) : prevRow(r);
+      if (target !== undefined) startEdit(target, c, "all");
+      else if (e.key === "ArrowDown" && !viewActive) {
+        setEditing(null);
+        onInsertParagraphAfter();
+      }
+      return;
+    }
+
+    if (e.key === "ArrowRight" && caretStart === value.length && caretEnd === caretStart) {
+      const down = nextRow(r);
+      const target = c + 1 < colCount ? { r, c: c + 1 } : down !== undefined ? { r: down, c: 0 } : undefined;
+      if (target) {
         e.preventDefault();
-        focusCell(r, nextColumn);
-      } else if (r < rows.length - 1) {
-        e.preventDefault();
-        focusCell(r + 1, 0);
+        startEdit(target.r, target.c, "end");
       }
     } else if (e.key === "ArrowLeft" && caretStart === 0 && caretEnd === 0) {
-      if (c > 0) {
+      const up = prevRow(r);
+      const target = c > 0 ? { r, c: c - 1 } : up !== undefined ? { r: up, c: colCount - 1 } : undefined;
+      if (target) {
         e.preventDefault();
-        focusCell(r, c - 1);
-      } else if (r > 0) {
-        e.preventDefault();
-        focusCell(r - 1, rows[r - 1].length - 1);
+        startEdit(target.r, target.c, "end");
       }
     }
+  };
+
+  // ---- Keyboard while cells are selected but not being edited ----
+  const handleTableKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!editable || editing || !selection) return;
+    const target = e.target as HTMLElement;
+    if (!target.closest("[data-cell]")) return;
+    const { rowIds, c1: c } = selection;
+    const r = rowIds[0];
+    const moveSel = (nr: number | undefined, nc: number) => {
+      if (nr === undefined || nc < 0 || nc >= colCount) return;
+      e.preventDefault();
+      setSelection(singleCell(nr, nc));
+      focusCellBox(nr, nc);
+    };
+    switch (e.key) {
+      case "ArrowDown":
+        return moveSel(nextRow(rowIds[rowIds.length - 1]), c);
+      case "ArrowUp":
+        return moveSel(prevRow(r), c);
+      case "ArrowRight":
+        return moveSel(r, selection.c2 + 1);
+      case "ArrowLeft":
+        return moveSel(r, c - 1);
+      case "Enter":
+      case "F2":
+        e.preventDefault();
+        return startEdit(r, c, "end");
+      case "Delete":
+      case "Backspace":
+        e.preventDefault();
+        return clearRange(selection);
+      case "Escape":
+        e.preventDefault();
+        setSelection(null);
+        (document.activeElement as HTMLElement | null)?.blur();
+        return;
+      default:
+    }
+  };
+
+  // ---- Toolbar helpers ----
+  const headerName = (c: number) => rows[0]?.[c]?.trim() || `${c + 1}열`;
+  const openColMenu = (e: React.MouseEvent<HTMLButtonElement>, c: number) => {
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    setMenu(null);
+    setSettingsOpen(false);
+    setColMenu((cur) => (cur?.c === c ? null : { c, x: Math.min(rect.left, window.innerWidth - 232), y: rect.bottom + 4 }));
+  };
+  const setFilter = (c: number, value: string) => setFilters((prev) => ({ ...prev, [c]: value }));
+  const clearFilter = (c: number) =>
+    setFilters((prev) => {
+      const next = { ...prev };
+      delete next[c];
+      return next;
+    });
+  const clearView = () => {
+    setQuery("");
+    setSort(null);
+    setFilters({});
+  };
+
+  const showToolbar = editable || rows.length >= TOOLBAR_MIN_ROWS;
+  const stickyCol = colCount > 1;
+  const bodyCount = Math.max(0, rows.length - 1);
+
+  const cellTextStyle = (r: number, c: number) => {
+    const style = block.cellStyles?.[cellKey(r, c)];
+    return {
+      color: style?.color,
+      fontSize: style?.fontSizePt !== undefined ? `${style.fontSizePt}pt` : FONT_SIZE_PX[style?.fontSize ?? "md"],
+    };
   };
 
   return (
     <div className="block-row table-block-row">
       <div className="table-block-layout">
-        {editable && (
-          <div className="table-block__toolbar" role="group" aria-label="표 서식">
-            <label>표 너비
-              <input aria-label="표 너비" type="range" min="10" max="100" value={block.width ?? 100}
-                onChange={(e) => onPatch({ width: Number(e.target.value), colWidths: undefined })} />
-              <span>{block.width ?? 100}%</span>
+        {showToolbar && (
+          <div className="table-block__toolbar" role="toolbar" aria-label="표 도구">
+            <label className="table-block__search">
+              <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                <circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                <path d="m10.5 10.5 3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+              <input type="search" aria-label="표에서 검색" placeholder="검색" value={query} onChange={(e) => setQuery(e.target.value)} />
             </label>
-            <label>표 정렬
-              <select aria-label="표 정렬" value={block.align ?? "left"} onChange={(e) => onPatch({ align: e.target.value as TableBlock["align"] })}>
-                <option value="left">왼쪽</option><option value="center">가운데</option><option value="right">오른쪽</option>
-              </select>
-            </label>
-            <label>글자 크기
-              <input aria-label="글자 크기 (pt)" type="number" min="1" max="200" step="0.5" value={fontSizeInput}
-                onChange={(e) => setFontSizeInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applyFontSize(); } }} />pt
-            </label>
-            <button type="button" onClick={applyFontSize} disabled={!Number.isFinite(Number(fontSizeInput)) || Number(fontSizeInput) < 1 || Number(fontSizeInput) > 200}>적용</button>
-            <span>{selection ? "선택한 셀에 적용" : "표 전체에 적용"}</span>
-            {selection && <button type="button" onClick={() => setSelection(null)}>전체 셀 선택</button>}
+
+            {sort && sort.col < colCount && (
+              <button type="button" className="table-chip" onClick={() => setSort(null)} aria-label={`${headerName(sort.col)} 정렬 해제`}>
+                {headerName(sort.col)} {sort.dir === "asc" ? "↑" : "↓"}
+                <span aria-hidden="true">×</span>
+              </button>
+            )}
+            {activeFilters.map(([c, v]) => (
+              <button key={c} type="button" className="table-chip" onClick={() => clearFilter(Number(c))} aria-label={`${headerName(Number(c))} 필터 해제`}>
+                {headerName(Number(c))}: {v}
+                <span aria-hidden="true">×</span>
+              </button>
+            ))}
+            {viewActive && (
+              <>
+                <span className="table-block__count">
+                  {bodyCount}행 중 {displayRows.length - 1}행
+                </span>
+                <button type="button" className="table-tool-btn table-tool-btn--quiet" onClick={clearView}>
+                  모두 해제
+                </button>
+              </>
+            )}
+
+            {editable && (
+              <div className="table-block__settings-wrap" onMouseDown={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  className="table-tool-btn"
+                  aria-expanded={settingsOpen}
+                  aria-haspopup="dialog"
+                  onClick={() => {
+                    setMenu(null);
+                    setColMenu(null);
+                    setSettingsOpen((open) => !open);
+                  }}
+                >
+                  보기 설정
+                </button>
+                {settingsOpen && (
+                  <div className="table-popover table-settings" role="dialog" aria-label="표 보기 설정">
+                    <label className="table-settings__row">
+                      <span>표 너비</span>
+                      <input
+                        aria-label="표 너비"
+                        type="range"
+                        min="10"
+                        max="100"
+                        value={block.width ?? 100}
+                        onChange={(e) => onPatch({ width: Number(e.target.value), colWidths: undefined })}
+                      />
+                      <span className="table-settings__value">{block.width ?? 100}%</span>
+                    </label>
+                    <label className="table-settings__row">
+                      <span>표 정렬</span>
+                      <select aria-label="표 정렬" value={block.align ?? "left"} onChange={(e) => onPatch({ align: e.target.value as TableBlock["align"] })}>
+                        <option value="left">왼쪽</option>
+                        <option value="center">가운데</option>
+                        <option value="right">오른쪽</option>
+                      </select>
+                    </label>
+                    <div className="table-settings__row">
+                      <label htmlFor={`${block.id}-font-pt`}>글자 크기</label>
+                      <span className="table-settings__inline">
+                        <input
+                          id={`${block.id}-font-pt`}
+                          aria-label="글자 크기 (pt)"
+                          type="number"
+                          min="1"
+                          max="200"
+                          step="0.5"
+                          value={fontSizeInput}
+                          onChange={(e) => setFontSizeInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              applyFontSize();
+                            }
+                          }}
+                        />
+                        pt
+                        <button type="button" className="table-tool-btn" onClick={applyFontSize} disabled={!fontSizeValid}>
+                          적용
+                        </button>
+                      </span>
+                    </div>
+                    <p className="table-settings__hint">
+                      {selection ? "선택한 셀에 적용됩니다." : "표 전체에 적용됩니다."}
+                      {selection && (
+                        <button type="button" className="table-settings__link" onClick={() => setSelection(null)}>
+                          표 전체로 바꾸기
+                        </button>
+                      )}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
-      <div className="table-block" style={{ width: `${block.width ?? 100}%`, marginLeft: block.align === "center" || block.align === "right" ? "auto" : 0, marginRight: block.align === "center" ? "auto" : 0 }}>
-        <table style={{ tableLayout: "fixed", minWidth: block.width !== undefined && !block.colWidths ? rows[0].length * 60 + (editable ? 20 : 0) : rows[0].reduce((width, _, c) => width + colWidth(c), editable ? 20 : 0) }}>
-          <colgroup>
-            {rows[0].map((_, c) => (
-              <col key={c} style={{ width: block.width !== undefined && !block.colWidths ? undefined : colWidth(c) }} />
-            ))}
-            {editable && <col style={{ width: 20 }} />}
-          </colgroup>
-          <tbody>
-            {rows.map((row, r) => (
-              <tr key={r}>
-                {row.map((cell, c) => {
-                  const style = block.cellStyles?.[cellKey(r, c)];
-                  return (
-                    <td
-                      key={c}
-                      className={isRange && inSelection(selection, r, c) ? "table-block__cell--selected" : undefined}
-                      style={{ background: style?.bg, position: "relative" }}
-                      onMouseDown={(e) => onCellMouseDown(r, c, e)}
-                      onMouseEnter={() => onCellMouseEnter(r, c)}
-                      onContextMenu={(e) => onCellContextMenu(e, r, c)}
-                    >
-                      {editable ? (
-                        <input
-                          ref={(input) => {
-                            const key = cellKey(r, c);
-                            if (input) cellRefs.current.set(key, input);
-                            else cellRefs.current.delete(key);
-                          }}
-                          value={cell}
-                          onChange={(e) => updateCell(r, c, e.target.value)}
-                          onKeyDown={(e) => handleCellKeyDown(e, r, c)}
-                          style={{ color: style?.color, fontSize: style?.fontSizePt !== undefined ? `${style.fontSizePt}pt` : FONT_SIZE_PX[style?.fontSize ?? "md"] }}
-                        />
-                      ) : (
-                        <span style={{ color: style?.color, fontSize: style?.fontSizePt !== undefined ? `${style.fontSizePt}pt` : FONT_SIZE_PX[style?.fontSize ?? "md"] }}>{cell}</span>
-                      )}
-                      {editable && r === 0 && (
-                        <span
-                          className="table-block__col-resize"
-                          onPointerDown={(e) => startResize(e, c)}
-                          onPointerMove={doResize}
-                          onPointerUp={stopResize}
-                          onPointerCancel={stopResize}
-                        />
-                      )}
+
+        <div
+          ref={tableRef}
+          className={`table-block${stickyCol ? " table-block--sticky-col" : ""}`}
+          onKeyDown={handleTableKeyDown}
+          style={{ width: `${block.width ?? 100}%`, marginLeft: block.align === "center" || block.align === "right" ? "auto" : 0, marginRight: block.align === "center" ? "auto" : 0 }}
+        >
+          <table style={{ tableLayout: "fixed", minWidth: block.width !== undefined && !block.colWidths ? rows[0].length * 60 + (editable ? 28 : 0) : rows[0].reduce((width, _, c) => width + colWidth(c), editable ? 28 : 0) }}>
+            <colgroup>
+              {rows[0].map((_, c) => (
+                <col key={c} style={{ width: block.width !== undefined && !block.colWidths ? undefined : colWidth(c) }} />
+              ))}
+              {editable && <col style={{ width: 28 }} />}
+            </colgroup>
+            <tbody>
+              {displayRows.map((r) => {
+                const row = rows[r];
+                const header = r === 0;
+                return (
+                  <tr key={r} className={header ? "table-block__head" : undefined}>
+                    {row.map((cell, c) => {
+                      const style = block.cellStyles?.[cellKey(r, c)];
+                      const isEditing = !!editing && editing.r === r && editing.c === c;
+                      const selected = inSelection(selection, r, c);
+                      const sortDir = header && sort?.col === c ? sort.dir : null;
+                      const filtered = header && !!filters[c]?.trim();
+                      const classes = [
+                        selected && (isRange || !isEditing) ? "table-block__cell--selected" : "",
+                        isEditing ? "table-block__cell--editing" : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ");
+                      return (
+                        <td
+                          key={c}
+                          className={classes || undefined}
+                          style={style?.bg ? { background: style.bg } : undefined}
+                          onMouseDown={(e) => onCellMouseDown(r, c, e)}
+                          onMouseEnter={() => onCellMouseEnter(r, c)}
+                          onContextMenu={(e) => onCellContextMenu(e, r, c)}
+                        >
+                          {isEditing ? (
+                            <textarea
+                              ref={editorRef}
+                              className="table-block__editor"
+                              rows={1}
+                              value={cell}
+                              aria-label={header ? `${c + 1}열 제목` : `${headerName(c)} 셀`}
+                              onChange={(e) => {
+                                updateCell(r, c, e.target.value);
+                                e.currentTarget.style.height = "auto";
+                                e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
+                              }}
+                              onKeyDown={(e) => handleEditorKeyDown(e, r, c)}
+                              onDragStart={(e) => e.preventDefault()}
+                              onBlur={() => setEditing((cur) => (cur && cur.r === r && cur.c === c ? null : cur))}
+                              style={cellTextStyle(r, c)}
+                            />
+                          ) : (
+                            <div
+                              className={`table-block__cell${header && (editable || showToolbar) ? " table-block__cell--with-btn" : ""}`}
+                              data-cell={cellKey(r, c)}
+                              tabIndex={editable ? -1 : undefined}
+                              style={cellTextStyle(r, c)}
+                            >
+                              <CellContent value={cell} header={header} plain={!!style?.color} />
+                            </div>
+                          )}
+                          {header && showToolbar && (
+                            <button
+                              type="button"
+                              className={`table-block__col-btn${sortDir || filtered ? " table-block__col-btn--active" : ""}`}
+                              aria-label={`${headerName(c)} 열 정렬·필터`}
+                              aria-haspopup="dialog"
+                              aria-expanded={colMenu?.c === c}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={(e) => openColMenu(e, c)}
+                            >
+                              {sortDir === "asc" ? "↑" : sortDir === "desc" ? "↓" : filtered ? "≡" : "⌄"}
+                            </button>
+                          )}
+                          {editable && header && (
+                            <span
+                              className="table-block__col-resize"
+                              aria-hidden="true"
+                              onPointerDown={(e) => startResize(e, c)}
+                              onPointerMove={doResize}
+                              onPointerUp={stopResize}
+                              onPointerCancel={stopResize}
+                            />
+                          )}
+                        </td>
+                      );
+                    })}
+                    {editable && (
+                      <td className="table-block__row-actions">
+                        <button type="button" onClick={() => removeRow(r)} title="행 삭제" aria-label={header ? "머리글 행 삭제" : `${displayIndex.get(r)}번째 행 삭제`}>
+                          ×
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+              {editable && (
+                <tr className="table-block__col-actions-row">
+                  {rows[0].map((_, c) => (
+                    <td key={c} className="table-block__col-actions">
+                      <button type="button" onClick={() => removeColumn(c)} title="열 삭제" aria-label={`${headerName(c)} 열 삭제`}>
+                        ×
+                      </button>
                     </td>
-                  );
-                })}
-                {editable && (
-                  <td className="table-block__row-actions">
-                    <button type="button" onClick={() => removeRow(r)} title="행 삭제">
-                      ✕
-                    </button>
-                  </td>
-                )}
-              </tr>
-            ))}
-            {editable && (
-              <tr>
-                {rows[0].map((_, c) => (
-                  <td key={c} className="table-block__col-actions">
-                    <button type="button" onClick={() => removeColumn(c)} title="열 삭제">
-                      ✕
-                    </button>
-                  </td>
-                ))}
-                <td />
-              </tr>
-            )}
-          </tbody>
-        </table>
+                  ))}
+                  <td className="table-block__col-actions" />
+                </tr>
+              )}
+            </tbody>
+          </table>
+          {viewActive && displayRows.length === 1 && (
+            <div className="table-block__empty">
+              조건에 맞는 행이 없습니다.
+              <button type="button" className="table-settings__link" onClick={clearView}>
+                검색·필터 해제
+              </button>
+            </div>
+          )}
+        </div>
+
         {editable && (
           <div className="table-block__actions">
             <button type="button" onClick={addRow}>
-              + 행
+              + 행 추가
             </button>
             <button type="button" onClick={addColumn}>
-              + 열
+              + 열 추가
             </button>
           </div>
         )}
+
+        {colMenu && colMenu.c < colCount && (
+          <div
+            className="table-popover table-colmenu"
+            role="dialog"
+            aria-label={`${headerName(colMenu.c)} 열 옵션`}
+            style={{ left: colMenu.x, top: colMenu.y }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              aria-pressed={sort?.col === colMenu.c && sort.dir === "asc"}
+              onClick={() => setSort({ col: colMenu.c, dir: "asc" })}
+            >
+              오름차순 정렬
+            </button>
+            <button
+              type="button"
+              aria-pressed={sort?.col === colMenu.c && sort.dir === "desc"}
+              onClick={() => setSort({ col: colMenu.c, dir: "desc" })}
+            >
+              내림차순 정렬
+            </button>
+            {sort?.col === colMenu.c && (
+              <button type="button" onClick={() => setSort(null)}>
+                정렬 해제
+              </button>
+            )}
+            <div className="table-colmenu__sep" />
+            <label className="table-colmenu__filter">
+              <span>이 열에서 필터</span>
+              <input
+                type="search"
+                autoFocus
+                placeholder="포함할 내용"
+                value={filters[colMenu.c] ?? ""}
+                onChange={(e) => setFilter(colMenu.c, e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") setColMenu(null);
+                }}
+              />
+            </label>
+            {filters[colMenu.c]?.trim() && (
+              <button type="button" onClick={() => clearFilter(colMenu.c)}>
+                필터 지우기
+              </button>
+            )}
+          </div>
+        )}
+
         {menu && selection && (
-          <div className="table-context-menu" style={{ left: menu.x, top: menu.y }} onMouseDown={(e) => e.stopPropagation()}>
+          <div className="table-popover table-context-menu" style={{ left: menu.x, top: menu.y }} onMouseDown={(e) => e.stopPropagation()}>
             <button type="button" onClick={() => removeRows(selection)}>
-              🗑 행 삭제
+              행 삭제
             </button>
             <button type="button" onClick={() => removeColumns(selection)}>
-              🗑 열 삭제
+              열 삭제
             </button>
             {isRange && (
               <button type="button" onClick={() => mergeRange(selection)}>
-                🔗 선택 병합·합치기
+                선택한 셀 합치기
               </button>
             )}
             <button
@@ -429,6 +856,7 @@ export function TableBlockView({
                   type="button"
                   className="table-context-menu__swatch"
                   style={{ background: c }}
+                  aria-label={`글자색 ${c}`}
                   onClick={() => applyStyle(selection, { color: c })}
                 />
               ))}
@@ -442,6 +870,7 @@ export function TableBlockView({
                   className="table-context-menu__swatch table-context-menu__swatch--bg"
                   style={{ background: c ?? "var(--color-surface)" }}
                   title={c ?? "배경 없음"}
+                  aria-label={c ? `배경색 ${c}` : "배경 없음"}
                   onClick={() => applyStyle(selection, { bg: c ?? undefined })}
                 />
               ))}
@@ -461,9 +890,8 @@ export function TableBlockView({
           </div>
         )}
       </div>
-      </div>
       {editable && (
-        <button type="button" className="block-row__handle" onClick={onRemoveBlock} title="블록 제거">
+        <button type="button" className="block-row__handle" onClick={onRemoveBlock} title="블록 제거" aria-label="표 블록 제거">
           ✕
         </button>
       )}
