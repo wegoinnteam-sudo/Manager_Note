@@ -103,6 +103,19 @@ describe("table editing", () => {
     expect(screen.getByDisplayValue("D")).toHaveFocus();
   });
 
+  it("keeps a drag within a displayed cell from opening the cell editor", () => {
+    const { container } = render(<Harness />);
+    const table = container.querySelector<HTMLElement>("[data-table-selection]")!;
+    table.getBoundingClientRect = () => new DOMRect(0, 0, 200, 60);
+    const cell = screen.getByText("A").closest("td")!;
+    cell.getBoundingClientRect = () => new DOMRect(0, 0, 100, 30);
+    fireEvent.mouseDown(cell, { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.mouseUp(window, { clientX: 30, clientY: 10 });
+
+    expect(cell).toHaveClass("table-block__cell--selected");
+    expect(screen.queryByDisplayValue("A")).toBeNull();
+  });
+
   it("adds a row when Enter is pressed on the last row", () => {
     render(<Harness />);
     clickCell("D");
@@ -164,10 +177,16 @@ describe("table view tools", () => {
     fireEvent.click(screen.getByRole("button", { name: "객실 열 정렬·필터" }));
     fireEvent.click(screen.getByRole("button", { name: "내림차순 정렬" }));
     clickCell("205");
+    const table = container.querySelector<HTMLElement>("[data-table-selection]")!;
+    table.getBoundingClientRect = () => new DOMRect(0, 0, 200, 90);
+    const cells = table.querySelectorAll<HTMLElement>("[data-table-cell]");
+    cells.forEach((cell, index) => {
+      cell.getBoundingClientRect = () => new DOMRect((index % 2) * 100, Math.floor(index / 2) * 30, 100, 30);
+    });
     const editor = screen.getByDisplayValue("205");
-    fireEvent.mouseDown(editor, { button: 0 });
-    fireEvent.mouseOver(screen.getByText("101"));
-    fireEvent.mouseUp(window);
+    fireEvent.mouseDown(editor, { button: 0, clientX: 15, clientY: 40 });
+    fireEvent.mouseMove(window, { clientX: 15, clientY: 85 });
+    fireEvent.mouseUp(window, { clientX: 15, clientY: 110 });
 
     expect(container.querySelectorAll(".table-block__cell--selected")).toHaveLength(2);
     const anchor = screen.getByText("205");

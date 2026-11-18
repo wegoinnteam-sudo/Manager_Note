@@ -3221,14 +3221,6 @@ button.breadcrumb-block__item:hover {
   gap: 2px;
 }
 
-.block-wrapper--image-movable .image-block__frame {
-  cursor: grab;
-}
-
-.block-wrapper--image-movable .image-block__frame:active {
-  cursor: grabbing;
-}
-
 .block-wrapper--file-movable .block-row {
   cursor: grab;
 }

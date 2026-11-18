@@ -1,9 +1,10 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { PageBlock } from "@shared/types";
+import { selectionRect, tableCellRange, type TableCellRange } from "./marqueeSelection";
 
 type TableBlock = Extract<PageBlock, { type: "table" }>;
 type CellPos = { r: number; c: number };
-type Selection = { rowIds: number[]; c1: number; c2: number };
+type Selection = TableCellRange;
 type FontSize = "sm" | "md" | "lg";
 type SortState = { col: number; dir: "asc" | "desc" } | null;
 type CaretMode = "end" | "all";
@@ -32,11 +33,11 @@ const DATE_RE = /^\d{4}[-./]\s?\d{1,2}[-./]\s?\d{1,2}\.?(\s*\(.\))?$/;
 const collator = new Intl.Collator("ko", { numeric: true, sensitivity: "base" });
 
 function singleCell(r: number, c: number): Selection {
-  return { rowIds: [r], c1: c, c2: c };
+  return { rowIds: [r], columnIds: [c] };
 }
 
 function inSelection(sel: Selection | null, r: number, c: number): boolean {
-  return !!sel && sel.rowIds.includes(r) && c >= sel.c1 && c <= sel.c2;
+  return !!sel && sel.rowIds.includes(r) && sel.columnIds.includes(c);
 }
 
 function cellKey(r: number, c: number): string {
@@ -62,12 +63,16 @@ export function TableBlockView({
   onPatch,
   onRemoveBlock,
   onInsertParagraphAfter,
+  marqueeRange,
+  focusMarqueeRange,
 }: {
   block: TableBlock;
   editable: boolean;
   onPatch: (patch: Partial<PageBlock>) => void;
   onRemoveBlock: () => void;
   onInsertParagraphAfter: () => void;
+  marqueeRange?: TableCellRange;
+  focusMarqueeRange?: boolean;
 }) {
   const rows = block.rows;
   const colCount = rows[0]?.length ?? 0;
@@ -81,12 +86,12 @@ export function TableBlockView({
   const [sort, setSort] = useState<SortState>(null);
   const [filters, setFilters] = useState<Record<number, string>>({});
 
-  const dragRef = useRef<{ anchor: CellPos; fromEditor: boolean; moved: boolean } | null>(null);
+  const dragRef = useRef<{ anchor: CellPos; x: number; y: number; fromEditor: boolean; moved: boolean } | null>(null);
   const resizeRef = useRef<{ c: number; startX: number; startWidth: number; pointerId: number } | null>(null);
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
   const caretModeRef = useRef<CaretMode | null>(null);
   const tableRef = useRef<HTMLDivElement | null>(null);
-  const isRange = !!selection && (selection.rowIds.length > 1 || selection.c1 !== selection.c2);
+  const isRange = !!selection && (selection.rowIds.length > 1 || selection.columnIds.length > 1);
 
   // ---- View (search / filter / sort): display order only, never saved ----
   const activeFilters = Object.entries(filters).filter(([c, v]) => v.trim() && Number(c) < colCount);
@@ -176,11 +181,19 @@ export function TableBlockView({
   const startEditRef = useRef(startEdit);
   startEditRef.current = startEdit;
 
-  const focusCellBox = (r: number, c: number) => {
+  const focusCellBox = useCallback((r: number, c: number) => {
     requestAnimationFrame(() => {
       tableRef.current?.querySelector<HTMLElement>(`[data-cell="${cellKey(r, c)}"]`)?.focus({ preventScroll: false });
     });
-  };
+  }, []);
+
+  useEffect(() => {
+    if (marqueeRange) {
+      setEditing(null);
+      if (focusMarqueeRange) focusCellBox(marqueeRange.rowIds[0], marqueeRange.columnIds[0]);
+    }
+    setSelection(marqueeRange ?? null);
+  }, [marqueeRange, focusMarqueeRange, focusCellBox]);
 
   const stopEdit = (keepFocus: boolean) => {
     const cur = editing;
@@ -191,17 +204,37 @@ export function TableBlockView({
   // A plain click (mousedown + mouseup on the same cell, no drag) opens the
   // cell for editing; a drag leaves a range selected for delete/merge/style.
   useEffect(() => {
-    const onUp = () => {
+    const updateRange = (event: MouseEvent) => {
       const drag = dragRef.current;
-      dragRef.current = null;
+      const table = tableRef.current;
+      if (!drag || !table) return;
+      const distance = Math.max(Math.abs(event.clientX - drag.x), Math.abs(event.clientY - drag.y));
+      if (!drag.moved && distance <= 4) return;
+      const range = tableCellRange(table, selectionRect(drag.x, drag.y, event.clientX, event.clientY));
+      if (drag.fromEditor && range?.rowIds.length === 1 && range.columnIds.length === 1 && !drag.moved) return;
+      if (!drag.moved) {
+        window.getSelection()?.removeAllRanges();
+        setEditing(null);
+      }
+      drag.moved = true;
+      setSelection(range);
+    };
+    const onUp = (event: MouseEvent) => {
+      const drag = dragRef.current;
       if (!drag) return;
+      updateRange(event);
+      dragRef.current = null;
       const { r, c } = drag.anchor;
       if (drag.moved) focusCellBox(r, c);
       else if (!drag.fromEditor) startEditRef.current(r, c, "end");
     };
+    window.addEventListener("mousemove", updateRange);
     window.addEventListener("mouseup", onUp);
-    return () => window.removeEventListener("mouseup", onUp);
-  }, []);
+    return () => {
+      window.removeEventListener("mousemove", updateRange);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [focusCellBox]);
 
   // ---- Data edits (all go through onPatch; shape unchanged) ----
   const updateCell = (r: number, c: number, value: string) => {
@@ -211,7 +244,7 @@ export function TableBlockView({
   const clearRange = (sel: Selection) => {
     onPatch({
       rows: rows.map((row, ri) =>
-        sel.rowIds.includes(ri) ? row.map((cell, ci) => (ci >= sel.c1 && ci <= sel.c2 ? "" : cell)) : row,
+        sel.rowIds.includes(ri) ? row.map((cell, ci) => (sel.columnIds.includes(ci) ? "" : cell)) : row,
       ),
     });
   };
@@ -220,7 +253,7 @@ export function TableBlockView({
     const firstRow = sel.rowIds[0];
     const parts: string[] = [];
     for (const r of sel.rowIds) {
-      for (let c = sel.c1; c <= sel.c2; c++) {
+      for (const c of sel.columnIds) {
         if (rows[r][c]) parts.push(rows[r][c]);
       }
     }
@@ -228,11 +261,11 @@ export function TableBlockView({
     onPatch({
       rows: rows.map((row, ri) =>
         sel.rowIds.includes(ri)
-          ? row.map((cell, ci) => (ci >= sel.c1 && ci <= sel.c2 ? (ri === firstRow && ci === sel.c1 ? joined : "") : cell))
+          ? row.map((cell, ci) => (sel.columnIds.includes(ci) ? (ri === firstRow && ci === sel.columnIds[0] ? joined : "") : cell))
           : row,
       ),
     });
-    setSelection(singleCell(firstRow, sel.c1));
+    setSelection(singleCell(firstRow, sel.columnIds[0]));
     setMenu(null);
   };
 
@@ -259,8 +292,8 @@ export function TableBlockView({
     setMenu(null);
   };
   const removeColumns = (sel: Selection) => {
-    if (rows[0].length - (sel.c2 - sel.c1 + 1) < 1) return;
-    onPatch({ rows: rows.map((row) => row.filter((_, ci) => ci < sel.c1 || ci > sel.c2)) });
+    if (rows[0].length - sel.columnIds.length < 1) return;
+    onPatch({ rows: rows.map((row) => row.filter((_, ci) => !sel.columnIds.includes(ci))) });
     setSelection(null);
     setEditing(null);
     setMenu(null);
@@ -269,7 +302,7 @@ export function TableBlockView({
   const applyStyle = (sel: Selection, patch: Partial<{ color: string; bg: string | undefined; fontSize: FontSize; fontSizePt: number | undefined }>) => {
     const next = { ...(block.cellStyles ?? {}) };
     for (const r of sel.rowIds) {
-      for (let c = sel.c1; c <= sel.c2; c++) {
+      for (const c of sel.columnIds) {
         const key = cellKey(r, c);
         next[key] = { ...next[key], ...patch };
       }
@@ -281,7 +314,7 @@ export function TableBlockView({
   const fontSizeValid = Number.isFinite(Number(fontSizeInput)) && Number(fontSizeInput) >= 1 && Number(fontSizeInput) <= 200;
   const applyFontSize = () => {
     if (!fontSizeValid) return;
-    applyStyle(selection ?? { rowIds: rows.map((_, r) => r), c1: 0, c2: colCount - 1 }, { fontSizePt: Number(fontSizeInput) });
+    applyStyle(selection ?? { rowIds: rows.map((_, r) => r), columnIds: rows[0].map((_, c) => c) }, { fontSizePt: Number(fontSizeInput) });
   };
 
   // ---- Column resize (header handle) ----
@@ -319,30 +352,11 @@ export function TableBlockView({
     const target = e.target as HTMLElement;
     if (target.closest(".table-block__col-resize, .table-block__col-btn")) return;
     const fromEditor = !!target.closest("textarea");
-    dragRef.current = { anchor: { r, c }, fromEditor, moved: false };
+    dragRef.current = { anchor: { r, c }, x: e.clientX, y: e.clientY, fromEditor, moved: false };
     if (fromEditor) return; // Allow text selection while the pointer stays in this cell.
     e.preventDefault();
     setEditing(null);
     setSelection(singleCell(r, c));
-  };
-  const onCellMouseEnter = (r: number, c: number) => {
-    const drag = dragRef.current;
-    if (!drag) return;
-    const { anchor } = drag;
-    if (!drag.moved && r === anchor.r && c === anchor.c) return;
-    const start = displayIndex.get(anchor.r);
-    const end = displayIndex.get(r);
-    if (start === undefined || end === undefined) return;
-    if (!drag.moved && drag.fromEditor) {
-      window.getSelection()?.removeAllRanges();
-      setEditing(null);
-    }
-    drag.moved = true;
-    setSelection({
-      rowIds: displayRows.slice(Math.min(start, end), Math.max(start, end) + 1),
-      c1: Math.min(anchor.c, c),
-      c2: Math.max(anchor.c, c),
-    });
   };
   const onCellContextMenu = (e: React.MouseEvent, r: number, c: number) => {
     if (!editable) return;
@@ -458,7 +472,8 @@ export function TableBlockView({
     if (!editable || editing || !selection) return;
     const target = e.target as HTMLElement;
     if (!target.closest("[data-cell]")) return;
-    const { rowIds, c1: c } = selection;
+    const { rowIds, columnIds } = selection;
+    const c = columnIds[0];
     const r = rowIds[0];
     const moveSel = (nr: number | undefined, nc: number) => {
       if (nr === undefined || nc < 0 || nc >= colCount) return;
@@ -472,7 +487,7 @@ export function TableBlockView({
       case "ArrowUp":
         return moveSel(prevRow(r), c);
       case "ArrowRight":
-        return moveSel(r, selection.c2 + 1);
+        return moveSel(r, columnIds[columnIds.length - 1] + 1);
       case "ArrowLeft":
         return moveSel(r, c - 1);
       case "Enter":
@@ -641,6 +656,7 @@ export function TableBlockView({
 
         <div
           ref={tableRef}
+          data-table-selection
           className={`table-block${stickyCol ? " table-block--sticky-col" : ""}`}
           onKeyDown={handleTableKeyDown}
           style={{ width: `${block.width ?? 100}%`, marginLeft: block.align === "center" || block.align === "right" ? "auto" : 0, marginRight: block.align === "center" ? "auto" : 0 }}
@@ -675,8 +691,8 @@ export function TableBlockView({
                           key={c}
                           className={classes || undefined}
                           style={style?.bg ? { background: style.bg } : undefined}
+                          data-table-cell={cellKey(r, c)}
                           onMouseDown={(e) => onCellMouseDown(r, c, e)}
-                          onMouseEnter={() => onCellMouseEnter(r, c)}
                           onContextMenu={(e) => onCellContextMenu(e, r, c)}
                         >
                           {isEditing ? (

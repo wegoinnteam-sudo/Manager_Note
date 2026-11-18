@@ -9,6 +9,7 @@ import { FormBlockView } from "./FormBlockView";
 import { ImageBlockView } from "./ImageBlockView";
 import { FileBlockView } from "./FileBlockView";
 import { TableBlockView } from "./TableBlockView";
+import type { TableCellRange } from "./marqueeSelection";
 import { SecretBlockView } from "./SecretBlockView";
 import { RemoteCaretMarkers, RemotePresenceBadge } from "./RemoteCursors";
 import type { TemplateKey } from "./templates";
@@ -84,8 +85,12 @@ export function Block({
   guestName,
   guestColors,
   categories,
+  marqueeRange,
+  focusMarqueeRange,
 }: {
   block: PageBlock;
+  marqueeRange?: TableCellRange;
+  focusMarqueeRange?: boolean;
   index: number;
   listNumber: number;
   active: boolean;
@@ -386,6 +391,8 @@ export function Block({
           onPatch={onPatch}
           onRemoveBlock={onRemoveBlock}
           onInsertParagraphAfter={onInsertParagraphAfter}
+          marqueeRange={marqueeRange}
+          focusMarqueeRange={focusMarqueeRange}
         />
       </div>
     );

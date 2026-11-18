@@ -1,4 +1,5 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { overlaps, selectionRect, tableCellRange, type TableCellRange } from "./marqueeSelection";
 import type { AttachmentDTO, PageBlock, PageCategoryDTO, PageContent, PageSummaryDTO, TeamMemberDTO } from "@shared/types";
 import { ALLOWED_UPLOAD_EXTENSIONS } from "@shared/types";
 import { Block, type HeadingRef } from "./Block";
@@ -302,6 +303,7 @@ export const Editor = forwardRef<EditorHandle, {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selectedBlockIds, setSelectedBlockIds] = useState<Set<string>>(() => new Set());
   const [marquee, setMarquee] = useState<{ startX: number; startY: number; x: number; y: number } | null>(null);
+  const [marqueeRanges, setMarqueeRanges] = useState(() => new Map<string, TableCellRange>());
   const editorRef = useRef<HTMLDivElement>(null);
   const [picker, setPicker] = useState<"image" | "file" | "template" | "button_template" | "form" | "page_picker" | "replace_image" | null>(null);
   const [templateTargetId, setTemplateTargetId] = useState<string | null>(null);
@@ -518,17 +520,16 @@ export const Editor = forwardRef<EditorHandle, {
     registerFileDropHandler((files) => droppedFilesHandlerRef.current(files));
   }, [registerFileDropHandler]);
 
-  // Click-and-drag on the editor's empty background draws a selection
-  // rectangle; any block it overlaps gets added to selectedBlockIds, same set
-  // used by Ctrl+A/Escape select. A drag that starts on a block (its text,
-  // image, table…) is left to the browser so it behaves like normal text
-  // selection — no rectangle, no block selection, copy works as usual.
+  // The editor marquee can start in the gutter or on an image. Grabbing a
+  // block's dedicated handle is reserved for moving that block.
   const startMarqueeSelect = (e: React.MouseEvent) => {
     if (!editable || e.button !== 0) return;
     const target = e.target as HTMLElement;
-    if (target.closest("textarea, input, button, a, select, [contenteditable], .table-block-layout")) return;
+    if (target.closest("textarea, input, button, a, select, [contenteditable], [data-table-cell], .block-drag-handle, .image-block__handle")) return;
     setSelectedBlockIds(new Set());
-    if (target.closest("[data-block-id]")) return;
+    setMarqueeRanges((current) => current.size ? new Map() : current);
+    if (target.closest("[data-block-id]:not(.block-wrapper--image)") && !target.closest(".table-block-layout")) return;
+    e.preventDefault();
     setMarquee({ startX: e.clientX, startY: e.clientY, x: e.clientX, y: e.clientY });
   };
 
@@ -551,20 +552,23 @@ export const Editor = forwardRef<EditorHandle, {
     const onUp = (e: MouseEvent) => {
       const current = marqueeRef.current;
       if (!current) return;
-      const left = Math.min(current.startX, e.clientX);
-      const right = Math.max(current.startX, e.clientX);
-      const top = Math.min(current.startY, e.clientY);
-      const bottom = Math.max(current.startY, e.clientY);
-      const moved = right - left > 4 || bottom - top > 4;
+      const moved = Math.max(Math.abs(e.clientX - current.startX), Math.abs(e.clientY - current.startY)) > 4;
       if (moved && editorRef.current) {
-        const hits = new Set<string>();
-        editorRef.current.querySelectorAll<HTMLElement>("[data-block-id]").forEach((el) => {
-          const rect = el.getBoundingClientRect();
-          if (rect.left < right && rect.right > left && rect.top < bottom && rect.bottom > top) {
-            hits.add(el.dataset.blockId!);
+        const rect = selectionRect(current.startX, current.startY, e.clientX, e.clientY);
+        const ranges = new Map<string, TableCellRange>();
+        for (const table of editorRef.current.querySelectorAll<HTMLElement>("[data-table-selection]")) {
+          const range = tableCellRange(table, rect);
+          const id = table.closest<HTMLElement>("[data-block-id]")?.dataset.blockId;
+          if (range && id) ranges.set(id, range);
+        }
+        setMarqueeRanges(ranges);
+        if (ranges.size === 0) {
+          const hits = new Set<string>();
+          for (const block of editorRef.current.querySelectorAll<HTMLElement>("[data-block-id]:not(.block-wrapper--image, .block-wrapper--file, .block-wrapper--table)")) {
+            if (overlaps(rect, block.getBoundingClientRect())) hits.add(block.dataset.blockId!);
           }
-        });
-        setSelectedBlockIds(hits);
+          setSelectedBlockIds(hits);
+        }
       }
       setMarquee(null);
     };
@@ -1487,7 +1491,7 @@ export const Editor = forwardRef<EditorHandle, {
             data-block-id={block.id}
             className={[
               "block-wrapper",
-              block.type === "image" && editable ? "block-wrapper--image-movable" : "",
+              `block-wrapper--${block.type}`,
               block.type === "file" && editable ? "block-wrapper--file-movable" : "",
               draggedId === block.id ? "block-wrapper--dragging" : "",
               dragTarget?.id === block.id ? `block-wrapper--drop-${dragTarget.position}` : "",
@@ -1497,20 +1501,13 @@ export const Editor = forwardRef<EditorHandle, {
               .filter(Boolean)
               .join(" ")}
             style={block.indent ? { marginLeft: block.indent * 24 } : undefined}
-            draggable={editable && (block.type === "image" || block.type === "file")}
+            draggable={editable && block.type === "file"}
             onDragStart={(e) => {
-              if (!editable || (block.type !== "image" && block.type !== "file")) return;
-              const target = e.target as HTMLElement;
-              if (
-                target.closest("button, input, .image-block__handle") ||
-                (block.type === "image" && target.closest("a"))
-              ) {
+              if (!editable || block.type !== "file") return;
+              if ((e.target as HTMLElement).closest("button, input")) {
                 e.preventDefault();
                 return;
               }
-              // A file name/preview is normally draggable as a browser URL.
-              // Remove that native payload so an uploaded attachment can only
-              // move its existing block inside the editor.
               e.dataTransfer.clearData();
               e.dataTransfer.effectAllowed = "move";
               e.dataTransfer.setData("text/plain", block.id);
@@ -1581,6 +1578,8 @@ export const Editor = forwardRef<EditorHandle, {
                 onPasteBlock={(e) => handlePasteImage(block, e)}
                 onRemoveBlock={() => removeBlock(block.id)}
                 onInsertParagraphAfter={() => insertBlock(block.id, "paragraph")}
+                marqueeRange={marqueeRanges.get(block.id)}
+                focusMarqueeRange={marqueeRanges.size === 1 && marqueeRanges.has(block.id)}
                 onDuplicateBlock={() => duplicateBlock(block.id)}
                 onPatch={(patch) => updateBlock(block.id, patch)}
                 onOpenPage={onOpenPage}
