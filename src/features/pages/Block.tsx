@@ -437,7 +437,6 @@ export function Block({
               className="toggle-block__body"
               rows={2}
               value={block.body}
-              placeholder="내용을 입력하세요…"
               disabled={!editable}
               onChange={(e) => onPatch({ body: e.target.value })}
               onPaste={onPasteBlock}
@@ -649,7 +648,6 @@ export function Block({
               className={cls}
               rows={1}
               value={block.text}
-              placeholder={block.type === "paragraph" ? "내용을 입력하세요…" : ""}
               onFocus={onFocus}
               onChange={(e) => onChangeText(e.target.value, e.target.selectionStart ?? e.target.value.length)}
               onKeyDown={onKeyDownBlock}
@@ -659,7 +657,7 @@ export function Block({
             />
           ) : (
             <div className={cls} onClick={editable ? focusUnlessSelectingText : undefined} style={{ minHeight: 24, cursor: editable ? "text" : "default" }}>
-              {block.text ? renderInline(block.text) : <span style={{ opacity: 0.35 }}>{editable ? "내용을 입력하세요…" : ""}</span>}
+              {block.text ? renderInline(block.text) : null}
             </div>
           )}
           {remoteMarkers}
