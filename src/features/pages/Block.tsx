@@ -616,13 +616,13 @@ export function Block({
   }
 
   if (TEXTAREA_TYPES.has(block.type)) {
-    const prefix = block.type === "bulleted_list_item" ? "● " : block.type === "numbered_list_item" ? `${listNumber}. ` : "";
+    const prefix = block.type === "bulleted_list_item" ? "•" : block.type === "numbered_list_item" ? `${listNumber}.` : "";
     const cls =
       block.type === "heading1" ? "block-input block-input--h1" : block.type === "heading2" ? "block-input block-input--h2" : block.type === "heading3" ? "block-input block-input--h3" : "block-input";
 
     return (
       <div id={domId} className="block-row">
-        {prefix && <span style={{ paddingTop: 6, color: "var(--color-text-muted)" }}>{prefix}</span>}
+        {prefix && <span className="block-row__marker">{prefix}</span>}
         <div style={{ position: "relative", flex: 1 }}>
           {editable && active ? (
             <textarea

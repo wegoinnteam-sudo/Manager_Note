@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 import type { AttachmentDTO, PageCategoryDTO, PageDetailDTO, PageSummaryDTO, TeamMemberDTO } from "@shared/types";
 import { api, ApiClientError } from "@/lib/api";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
@@ -38,6 +38,7 @@ export function PageView({
   canViewSensitive,
   autoSave = true,
   categories,
+  saveBeforeCloseRef,
 }: {
   pageId: string;
   canEdit: boolean;
@@ -61,6 +62,7 @@ export function PageView({
   // silently dropped if the panel was closed before the button was pressed.
   autoSave?: boolean;
   categories: PageCategoryDTO[];
+  saveBeforeCloseRef?: Ref<() => Promise<boolean>>;
 }) {
   const [page, setPage] = useState<PageDetailDTO | null>(null);
   const [attachments, setAttachments] = useState<AttachmentDTO[]>([]);
@@ -85,10 +87,15 @@ export function PageView({
   const editorRef = useRef<EditorHandle>(null);
   const referencePanelRef = useRef<HTMLElement>(null);
   const loadedPageId = useRef<string | null>(null);
+  const versionsRef = useRef({ version: 0, contentVersion: 0 });
+  const pendingEditsRef = useRef<Partial<Pick<PageDetailDTO, "title" | "contentJson">>>({});
+  const savingRef = useRef<Promise<boolean> | null>(null);
 
   const load = useCallback(async () => {
     try {
       const [detail, { attachments: rows }] = await Promise.all([api.getPage(pageId), api.listAttachments(pageId)]);
+      versionsRef.current = { version: detail.version, contentVersion: detail.contentVersion };
+      pendingEditsRef.current = {};
       setPage(detail);
       setAttachments(rows);
       const offlineKey = `${OFFLINE_KEY_PREFIX}${pageId}`;
@@ -100,6 +107,7 @@ export function PageView({
       if (!cached) throw error;
       const parsed = JSON.parse(cached) as { page?: PageDetailDTO };
       if (!parsed.page) throw error;
+      versionsRef.current = { version: parsed.page.version, contentVersion: parsed.page.contentVersion };
       setPage(parsed.page);
       setAttachments([]);
       setSaveState("error");
@@ -120,104 +128,58 @@ export function PageView({
     }
   }, [page, autoFocusTitle, onConsumedAutoFocus]);
 
-  // Guards against overlapping in-flight requests: if a save is already in
-  // the air when the next one is triggered, the latest patch/content is
-  // queued and re-sent right after the current request settles instead of
-  // firing a second concurrent request (which could race and spuriously
-  // conflict on `expectedVersion`).
-  const savingMetaRef = useRef(false);
-  const pendingMetaRef = useRef<Omit<Parameters<typeof api.updatePageMeta>[1], "expectedVersion"> | null>(null);
+  const savePendingEdits = useCallback((): Promise<boolean> => {
+    if (savingRef.current) return savingRef.current;
+    const edits = pendingEditsRef.current;
+    if (edits.title === undefined && edits.contentJson === undefined) return Promise.resolve(true);
 
-  const saveMeta = useCallback(
-    async (patch: Omit<Parameters<typeof api.updatePageMeta>[1], "expectedVersion">) => {
-      if (!page) return;
-      if (savingMetaRef.current) {
-        pendingMetaRef.current = { ...pendingMetaRef.current, ...patch };
-        return;
-      }
-      savingMetaRef.current = true;
+    const save = async () => {
       setSaveState("saving");
       try {
-        const updated = await api.updatePageMeta(page.id, { expectedVersion: page.version, guestName, ...patch });
-        // Local state already has whatever we just sent (applied optimistically
-        // at input time), possibly plus even newer edits typed during this
-        // request's round trip. Only take version/timestamp bookkeeping from the
-        // response — re-applying the echoed patch would revert those newer edits.
-        setPage((current) =>
-          current && current.id === updated.id
-            ? { ...current, version: updated.version, updatedAt: updated.updatedAt, updatedBy: updated.updatedBy }
-            : current,
-        );
+        // Drain edits made during a request using the version returned by that request.
+        while (edits.title !== undefined || edits.contentJson !== undefined) {
+          const { title, contentJson } = edits;
+          if (title !== undefined) {
+            const updated = await api.updatePageMeta(pageId, {
+              expectedVersion: versionsRef.current.version, guestName, title,
+            });
+            versionsRef.current.version = updated.version;
+            if (edits.title === title) delete edits.title;
+            setPage((current) => current && {
+              ...current, version: updated.version, updatedAt: updated.updatedAt, updatedBy: updated.updatedBy,
+            });
+            onPagesChanged();
+          }
+          if (contentJson !== undefined) {
+            const updated = await api.updatePageContent(pageId, versionsRef.current.contentVersion, contentJson, guestName);
+            versionsRef.current.contentVersion = updated.contentVersion;
+            if (edits.contentJson === contentJson) delete edits.contentJson;
+            setPage((current) => current && {
+              ...current, contentVersion: updated.contentVersion, updatedAt: updated.updatedAt, updatedBy: updated.updatedBy,
+            });
+          }
+        }
         setSaveState("saved");
-        onPagesChanged();
+        return true;
       } catch (err) {
-        if (err instanceof ApiClientError && err.status === 409) {
-          setSaveState("conflict");
-        } else {
-          setSaveState("error");
-        }
-      } finally {
-        savingMetaRef.current = false;
-        if (pendingMetaRef.current) {
-          const next = pendingMetaRef.current;
-          pendingMetaRef.current = null;
-          void saveMeta(next);
-        }
+        setSaveState(err instanceof ApiClientError && err.status === 409 ? "conflict" : "error");
+        return false;
       }
-    },
-    [page, onPagesChanged, guestName],
-  );
+    };
+    savingRef.current = save().finally(() => { savingRef.current = null; });
+    return savingRef.current;
+  }, [pageId, guestName, onPagesChanged]);
 
-  const debouncedSaveTitle = useDebouncedCallback((title: string) => saveMeta({ title }), 400);
-
-  const savingContentRef = useRef(false);
-  const pendingContentRef = useRef<PageDetailDTO["contentJson"] | null>(null);
-
-  const saveContent = useCallback(
-    async (content: PageDetailDTO["contentJson"]) => {
-      if (!page) return;
-      if (savingContentRef.current) {
-        pendingContentRef.current = content;
-        return;
-      }
-      savingContentRef.current = true;
-      setSaveState("saving");
-      try {
-        const updated = await api.updatePageContent(page.id, page.contentVersion, content, guestName);
-        // Same reasoning as saveMeta: only take the version/timestamp bookkeeping
-        // from the response, never overwrite contentJson with the (possibly
-        // now-stale) echo — the user may have kept typing during the round trip.
-        setPage((current) =>
-          current && current.id === updated.id
-            ? { ...current, contentVersion: updated.contentVersion, updatedAt: updated.updatedAt, updatedBy: updated.updatedBy }
-            : current,
-        );
-        setSaveState("saved");
-      } catch (err) {
-        if (err instanceof ApiClientError && err.status === 409) {
-          setSaveState("conflict");
-        } else {
-          setSaveState("error");
-        }
-      } finally {
-        savingContentRef.current = false;
-        if (pendingContentRef.current !== null) {
-          const next = pendingContentRef.current;
-          pendingContentRef.current = null;
-          void saveContent(next);
-        }
-      }
-    },
-    [page, guestName],
-  );
-  const debouncedSaveContent = useDebouncedCallback(saveContent, 500);
+  const debouncedSaveTitle = useDebouncedCallback(savePendingEdits, 400);
+  const debouncedSaveContent = useDebouncedCallback(savePendingEdits, 500);
 
   const saveNow = useCallback(() => {
-    if (!page) return;
     debouncedSaveTitle.cancel();
     debouncedSaveContent.cancel();
-    void Promise.all([saveMeta({ title: page.title }), saveContent(page.contentJson)]);
-  }, [page, debouncedSaveTitle, debouncedSaveContent, saveMeta, saveContent]);
+    return savePendingEdits();
+  }, [debouncedSaveTitle, debouncedSaveContent, savePendingEdits]);
+
+  useImperativeHandle(saveBeforeCloseRef, () => saveNow, [saveNow]);
 
   useEffect(() => {
     if (!canEdit || !page) return;
@@ -248,13 +210,14 @@ export function PageView({
   // the best we can do is stop the user from leaving accidentally.
   useEffect(() => {
     const warnBeforeUnload = (event: BeforeUnloadEvent) => {
-      if (!debouncedSaveTitle.isPending() && !debouncedSaveContent.isPending() && saveState !== "saving") return;
+      const { title, contentJson } = pendingEditsRef.current;
+      if (title === undefined && contentJson === undefined && !savingRef.current) return;
       event.preventDefault();
       event.returnValue = "";
     };
     window.addEventListener("beforeunload", warnBeforeUnload);
     return () => window.removeEventListener("beforeunload", warnBeforeUnload);
-  }, [debouncedSaveTitle, debouncedSaveContent, saveState]);
+  }, []);
 
   const clampReferencePosition = useCallback((position: ReferencePosition): ReferencePosition => {
     const panel = referencePanelRef.current;
@@ -349,15 +312,15 @@ export function PageView({
             <button type="button" onClick={saveNow} disabled={saveState === "saving"}>
               {saveState === "saving" ? "저장 중…" : "저장"}
             </button>
-            <span className="page-view__manual-save-hint">자동 저장됩니다 — 즉시 저장하려면 누르세요</span>
+            <span className="page-view__manual-save-hint">수정한 내용은 자동으로 저장됩니다. 바로 저장하려면 누르세요.</span>
           </div>
         )}
 
         {saveState === "conflict" && (
-          <div style={{ background: "var(--color-warn-bg)", border: "1px solid #f59e0b", borderRadius: 6, padding: "8px 12px", marginBottom: 12, fontSize: 13 }}>
-            다른 사용자가 먼저 이 페이지를 수정했습니다.{" "}
-            <button type="button" onClick={load} style={{ textDecoration: "underline", border: "none", background: "none", cursor: "pointer" }}>
-              새로고침해서 최신 내용 보기
+          <div className="page-notice page-notice--warn" role="alert">
+            <span>다른 사람이 먼저 이 페이지를 수정해서 내 변경 내용이 저장되지 않았습니다.</span>
+            <button type="button" className="page-notice__action" onClick={load}>
+              최신 내용 불러오기
             </button>
           </div>
         )}
@@ -368,8 +331,10 @@ export function PageView({
           value={page.title}
           disabled={!canEdit}
           onChange={(e) => {
-            setPage({ ...page, title: e.target.value });
-            debouncedSaveTitle(e.target.value);
+            const title = e.target.value;
+            pendingEditsRef.current.title = title;
+            setPage((current) => current && { ...current, title });
+            debouncedSaveTitle();
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
@@ -390,8 +355,8 @@ export function PageView({
         />
 
         {saveState === "error" && (
-          <div style={{ fontSize: 12, color: "var(--color-danger)", marginBottom: 12 }}>
-            저장 실패 — 네트워크를 확인하세요
+          <div className="page-notice page-notice--danger" role="alert">
+            저장하지 못했습니다. 인터넷 연결을 확인한 뒤 다시 저장해 주세요.
           </div>
         )}
 
@@ -402,8 +367,9 @@ export function PageView({
           attachments={attachments}
           editable={canEdit}
           onChange={(content) => {
-            setPage({ ...page, contentJson: content });
-            debouncedSaveContent(content);
+            pendingEditsRef.current.contentJson = content;
+            setPage((current) => current && { ...current, contentJson: content });
+            debouncedSaveContent();
           }}
           onOpenPage={onOpenPage}
           onPagesChanged={onPagesChanged}
@@ -423,9 +389,9 @@ export function PageView({
         <History pageId={page.id} members={members} />
 
         {canDelete && (
-          <div style={{ marginTop: 24 }}>
-            <button type="button" onClick={handleDelete} style={{ fontSize: 12, color: "var(--color-danger)", background: "none", border: "1px solid var(--color-danger)", borderRadius: 6, padding: "6px 12px", cursor: "pointer" }}>
-              페이지 삭제
+          <div className="page-view__footer">
+            <button type="button" className="page-btn page-btn--danger" onClick={handleDelete}>
+              휴지통으로 이동
             </button>
           </div>
         )}

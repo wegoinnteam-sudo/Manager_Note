@@ -40,15 +40,10 @@ export function Comments({ pageId, canComment, guestName }: { pageId: string; ca
         </div>
       ))}
       {canComment && (
-        <div style={{ marginTop: 10 }}>
-          <textarea className="comment-input" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="댓글을 입력하세요" />
-          <button
-            type="button"
-            disabled={submitting || !draft.trim()}
-            onClick={submit}
-            style={{ marginTop: 6, fontSize: 12, padding: "6px 12px", borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--color-surface)", cursor: "pointer" }}
-          >
-            등록
+        <div className="comment-form">
+          <textarea className="comment-input" aria-label="댓글" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="댓글을 입력하세요" />
+          <button type="button" className="page-btn" disabled={submitting || !draft.trim()} onClick={submit}>
+            {submitting ? "등록 중…" : "댓글 등록"}
           </button>
         </div>
       )}

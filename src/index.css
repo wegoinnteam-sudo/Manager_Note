@@ -19,6 +19,39 @@
   --radius: 6px;
   --sidebar-width: 280px;
   color-scheme: light;
+
+  /* Design tokens. Theme-independent: colors above stay per-theme, these
+     scales are shared. New/refactored rules should use these instead of
+     raw px values. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 15px;
+  --text-md: 17px;
+  --text-lg: 21px;
+  --text-xl: 26px;
+  --text-2xl: 32px;
+  --leading-tight: 1.3;
+  --leading-body: 1.7;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  --radius-sm: 4px;
+  --radius-lg: 10px;
+
+  --shadow-sm: 0 1px 2px color-mix(in srgb, var(--color-shadow) 35%, transparent);
+  --shadow-md: 0 8px 24px var(--color-shadow);
+  --shadow-lg: 0 16px 42px var(--color-shadow);
+  --focus-ring: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent);
   /* Per-device display preferences (see useDisplaySettings.ts / AdminSettings
      "글꼴 설정"). JS overrides these on :root via style.setProperty on load;
      these are just the defaults for the first paint before that runs. */
@@ -965,9 +998,93 @@ code {
   width: 100%;
   border: none;
   outline: none;
-  font-size: 32px;
-  font-weight: 700;
-  margin-bottom: 12px;
+  padding: 0;
+  background: transparent;
+  color: var(--color-text);
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  letter-spacing: -0.02em;
+  margin-bottom: var(--space-6);
+}
+
+/* Save-state notices above the editor (conflict / failed save). */
+.page-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  margin-bottom: var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  border-left: 3px solid currentColor;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.page-notice--warn {
+  background: var(--color-warn-bg);
+  color: var(--color-text);
+  border-left-color: #f59e0b;
+}
+
+.page-notice--danger {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.page-notice__action {
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.page-view__footer {
+  margin-top: var(--space-8);
+}
+
+.page-btn {
+  min-height: 32px;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.page-btn:hover:not(:disabled) {
+  background: var(--color-hover);
+}
+
+.page-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.page-btn--danger {
+  border-color: color-mix(in srgb, var(--color-danger) 45%, transparent);
+  background: transparent;
+  color: var(--color-danger);
+}
+
+.page-btn--danger:hover:not(:disabled) {
+  background: var(--color-danger-bg);
+}
+
+/* Keyboard focus for controls on document pages. Text-entry blocks keep
+   their caret as the focus cue, so only buttons/links/selects get a ring. */
+.page-view :is(button, a, select, [tabindex]):focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
 }
 
 .editor {
@@ -1013,17 +1130,56 @@ code {
   border: none;
   outline: none;
   resize: none;
-  font-size: 15px;
-  line-height: 1.6;
+  font-size: var(--text-base);
+  line-height: var(--leading-body);
   font-family: inherit;
-  padding: 4px 2px;
+  color: var(--color-text);
+  padding: 2px 2px;
   background: transparent;
   overflow: hidden;
 }
 
-.block-input--h1 { font-size: 28px; font-weight: 700; }
-.block-input--h2 { font-size: 22px; font-weight: 700; }
-.block-input--h3 { font-size: 18px; font-weight: 700; }
+.block-input--h1,
+.block-input--h2,
+.block-input--h3 {
+  line-height: var(--leading-tight);
+  letter-spacing: -0.01em;
+  padding-block: var(--space-1);
+}
+
+.block-input--h1 { font-size: var(--text-xl); }
+.block-input--h2 { font-size: var(--text-lg); }
+.block-input--h3 { font-size: var(--text-md); }
+
+/* Headings must stay heavier than body text even when the per-device
+   "글씨 굵기" preference forces a weight on every element (.app-root *). */
+.app-root :is(.block-input--h1, .block-input--h2, .block-input--h3, .page-view__title),
+.app-root :is(.block-input--h1, .block-input--h2, .block-input--h3) * {
+  font-weight: max(var(--weight-bold), var(--user-font-weight, 400)) !important;
+}
+
+/* Section rhythm: a heading opens a new section, so it gets air above it
+   and sits close to the content it introduces. */
+.editor .block-row:has(.block-input--h1, .block-input--h2, .block-input--h3) {
+  margin-bottom: var(--space-1);
+}
+
+/* Each block sits in an unnamed wrapper div; "preceded by another block"
+   means not the first block, so the page's opening heading stays flush. */
+.editor > div:not(.editor__marquee) ~ div .block-row:has(.block-input--h1, .block-input--h2, .block-input--h3) {
+  margin-top: var(--space-6);
+}
+
+.block-row__marker {
+  flex-shrink: 0;
+  min-width: 1.25em;
+  padding-top: 2px;
+  color: var(--color-text-muted);
+  font-size: var(--text-base);
+  line-height: var(--leading-body);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
 
 .slash-menu {
   display: flex;
@@ -1164,27 +1320,46 @@ code {
 .table-block table {
   border-collapse: collapse;
   width: 100%;
+  font-variant-numeric: tabular-nums;
 }
 
 .table-block td {
   border: 1px solid var(--color-border);
   padding: 0;
+  vertical-align: top;
 }
 
 .table-block input {
   width: 100%;
   border: none;
   outline: none;
-  padding: 6px 8px;
-  font-size: 13px;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
   font-family: inherit;
+  line-height: 1.5;
+  color: inherit;
   background: transparent;
 }
 
 .table-block td span {
   display: block;
-  padding: 6px 8px;
-  font-size: 13px;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+/* First row reads as the header (e.g. 취소 시점 / 환불 비율). Per-cell
+   colors set from the context menu are inline and still win. */
+.table-block tbody tr:first-child td:not(.table-block__row-actions, .table-block__col-actions) {
+  background: var(--color-surface-muted);
+}
+
+.app-root .table-block tbody tr:first-child td:not(.table-block__row-actions, .table-block__col-actions) :is(input, span) {
+  font-weight: max(var(--weight-semibold), var(--user-font-weight, 400)) !important;
+}
+
+.table-block td:focus-within:not(.table-block__cell--selected) {
+  box-shadow: inset 0 0 0 2px var(--color-accent);
 }
 
 .table-block__row-actions,
@@ -1205,7 +1380,9 @@ code {
 }
 
 .table-block tr:hover .table-block__row-actions button,
-.table-block__col-actions button:hover {
+.table-block__col-actions button:hover,
+.table-block__row-actions button:focus-visible,
+.table-block__col-actions button:focus-visible {
   opacity: 1;
 }
 
@@ -3228,12 +3405,18 @@ button.breadcrumb-block__item:hover {
 }
 
 .section__title {
-  font-size: 13px;
-  font-weight: 600;
-  margin-bottom: 12px;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  margin-bottom: var(--space-3);
   color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+}
+
+.comment-form {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
 }
 
 .display-settings {
@@ -3317,9 +3500,11 @@ button.breadcrumb-block__item:hover {
   width: 100%;
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  padding: 8px 10px;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface);
+  color: var(--color-text);
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--text-sm);
   resize: vertical;
   min-height: 60px;
 }
