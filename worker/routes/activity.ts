@@ -24,7 +24,14 @@ function requireGuestName(raw: string | undefined): string {
 // per-guest acked flag so each visitor can dismiss entries independently.
 activityRoute.get("/", async (c) => {
   const guestName = requireGuestName(c.req.query("guestName"));
-  const rows = await listActivityFeed(c.env.DB, c.var.teamId, { userId: c.var.user!.id, guestName });
+  const history = c.req.query("history") === "true";
+  const rows = await listActivityFeed(
+    c.env.DB,
+    c.var.teamId,
+    { userId: c.var.user!.id, guestName },
+    history ? 30 : undefined,
+    history,
+  );
   return c.json({ items: rows.map(toActivityFeedItemDTO) });
 });
 

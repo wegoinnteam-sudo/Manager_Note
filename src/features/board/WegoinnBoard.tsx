@@ -134,12 +134,12 @@ export function WegoinnBoard({
   const [activityScheduleFields, setActivityScheduleFields] = useState<Set<string>>(new Set());
   const [activityScheduleItemId, setActivityScheduleItemId] = useState<string | null>(null);
 
-  const openActivitySchedule = (page: PageSummaryDTO, item: ActivityFeedItemDTO) => {
+  const openActivitySchedule = (page: PageSummaryDTO, item: ActivityFeedItemDTO, history = false) => {
     setActivitySchedule(page);
     setActivityScheduleReadOnly(!canEdit || !canManageSchedule(page, user));
     const fields = item.action === "page.updated" && Array.isArray(item.metadata.fields) ? (item.metadata.fields as string[]) : [];
     setActivityScheduleFields(new Set(fields));
-    setActivityScheduleItemId(item.id);
+    setActivityScheduleItemId(history ? null : item.id);
   };
 
   const closeActivitySchedule = () => {
@@ -665,6 +665,8 @@ export function WegoinnBoard({
       )}
     </div>
     <ActivityFeedBar
+      key={guestName}
+      guestName={guestName}
       items={activityItems}
       pages={pages}
       members={members}
@@ -749,6 +751,7 @@ function describeActivity(item: ActivityFeedItemDTO): string {
 // clicked it (see useActivityFeed) — teammates who haven't acked it yet
 // keep seeing it.
 function ActivityFeedBar({
+  guestName,
   items,
   pages,
   members,
@@ -758,6 +761,7 @@ function ActivityFeedBar({
   onOpenPage,
   onOpenSchedule,
 }: {
+  guestName: string;
   items: ActivityFeedItemDTO[];
   pages: PageSummaryDTO[];
   members: TeamMemberDTO[];
@@ -765,61 +769,108 @@ function ActivityFeedBar({
   onAck: (id: string) => void;
   onAckAll: () => void;
   onOpenPage: (id: string) => void;
-  onOpenSchedule: (page: PageSummaryDTO, item: ActivityFeedItemDTO) => void;
+  onOpenSchedule: (page: PageSummaryDTO, item: ActivityFeedItemDTO, history: boolean) => void;
 }) {
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyItems, setHistoryItems] = useState<ActivityFeedItemDTO[]>([]);
+  const [historyStatus, setHistoryStatus] = useState<"loading" | "ready" | "error">("loading");
+
+  useEffect(() => {
+    if (!showHistory || !guestName) return;
+    let cancelled = false;
+    api.listActivityFeed(guestName, true).then(({ items }) => {
+      if (cancelled) return;
+      setHistoryItems(items);
+      setHistoryStatus("ready");
+    }).catch(() => {
+      if (!cancelled) setHistoryStatus("error");
+    });
+    return () => { cancelled = true; };
+  }, [guestName, showHistory]);
+
   const activePages = new Map(pages.filter((page) => !page.isDeleted).map((page) => [page.id, page]));
-  const visibleItems = items.flatMap((item) => {
+  const visibleItems = (showHistory ? historyItems : items).flatMap((item) => {
     const page = item.pageId ? activePages.get(item.pageId) : undefined;
     return page ? [{ item, page }] : [];
   });
-  if (visibleItems.length === 0) return null;
+  if (!guestName) return null;
   return (
     <div className="wdb-activity-bar" role="region" aria-label="최근 수정 알림">
       <div className="wdb-activity-bar__header">
-        <span className="wdb-activity-bar__title">최근 수정 {visibleItems.length}건</span>
-        <button type="button" className="wdb-activity-bar__ack-all" onClick={onAckAll}>
-          ✓ 전체 확인
-        </button>
+        <span className="wdb-activity-bar__title">
+          {showHistory ? "과거 수정 내역" : `최근 수정 ${visibleItems.length}건`}
+        </span>
+        <div className="wdb-activity-bar__actions">
+          <button
+            type="button"
+            className="wdb-activity-bar__ack-all"
+            aria-expanded={showHistory}
+            onClick={() => {
+              if (!showHistory) {
+                setHistoryItems([]);
+                setHistoryStatus("loading");
+              }
+              setShowHistory(!showHistory);
+            }}
+          >
+            {showHistory ? "과거 수정 내역 닫기" : "과거 수정건 확인하기"}
+          </button>
+          <button type="button" className="wdb-activity-bar__ack-all" onClick={onAckAll} disabled={items.length === 0 || showHistory}>
+            ✓ 전체 확인
+          </button>
+        </div>
       </div>
       <div className="wdb-activity-bar__rows">
-      {visibleItems.map(({ item, page }) => {
-        const categoryDef = categories.find((c) => c.key === page?.category);
-        const categoryLabel = categoryDef?.label ?? (page?.category ? page.category : UNCATEGORIZED_LABEL);
-        const categoryColor = categoryDef?.color ?? UNCATEGORIZED_COLOR;
-        return (
-          <div key={item.id} className="wdb-activity-bar__row">
-            <button
-              type="button"
-              className="wdb-activity-bar__ack"
-              aria-label="확인 (목록에서 지우기)"
-              title="확인"
-              onClick={() => onAck(item.id)}
-            >
-              ✓
-            </button>
-            <button
-              type="button"
-              className="wdb-activity-bar__body"
-              onClick={() => {
-                // A schedule (calendar-view page) always carries an endDate;
-                // only ScheduleModal ever sets that field, so this alone
-                // tells a schedule edit apart from a regular page edit.
-                if (page.endDate != null) onOpenSchedule(page, item);
-                else onOpenPage(page.id);
-              }}
-            >
-              <span className="wdb-activity-bar__category" style={{ color: categoryColor, background: `${categoryColor}1f` }}>
-                {categoryLabel}
-              </span>
-              <span className="wdb-activity-bar__page">{page.title}</span>
-              <span className="wdb-activity-bar__desc">{describeActivity(item)}</span>
-              <span className="wdb-activity-bar__actor">
-                {item.actorName || (item.actorId ? memberName(members, item.actorId) : "알 수 없음")}
-              </span>
-            </button>
-          </div>
-        );
-      })}
+        {showHistory && visibleItems.length === 0 && (
+          <p className="wdb-activity-bar__message" role="status">
+            {historyStatus === "loading" && "수정 내역을 불러오는 중입니다."}
+            {historyStatus === "error" && "수정 내역을 불러오지 못했습니다. 닫고 다시 열어주세요."}
+            {historyStatus === "ready" && "최근 수정 내역이 없습니다."}
+          </p>
+        )}
+        {visibleItems.map(({ item, page }) => {
+          const categoryDef = categories.find((c) => c.key === page?.category);
+          const categoryLabel = categoryDef?.label ?? (page?.category ? page.category : UNCATEGORIZED_LABEL);
+          const categoryColor = categoryDef?.color ?? UNCATEGORIZED_COLOR;
+          return (
+            <div key={item.id} className="wdb-activity-bar__row">
+              {!showHistory && <button
+                type="button"
+                className="wdb-activity-bar__ack"
+                aria-label="확인 (목록에서 지우기)"
+                title="확인"
+                onClick={() => onAck(item.id)}
+              >
+                ✓
+              </button>}
+              <button
+                type="button"
+                className="wdb-activity-bar__body"
+                onClick={() => {
+                  // A schedule (calendar-view page) always carries an endDate;
+                  // only ScheduleModal ever sets that field, so this alone
+                  // tells a schedule edit apart from a regular page edit.
+                  if (page.endDate != null) onOpenSchedule(page, item, showHistory);
+                  else onOpenPage(page.id);
+                }}
+              >
+                <span className="wdb-activity-bar__category" style={{ color: categoryColor, background: `${categoryColor}1f` }}>
+                  {categoryLabel}
+                </span>
+                <span className="wdb-activity-bar__page">{page.title}</span>
+                <span className="wdb-activity-bar__desc">{describeActivity(item)}</span>
+                <span className="wdb-activity-bar__actor">
+                  {item.actorName || (item.actorId ? memberName(members, item.actorId) : "알 수 없음")}
+                </span>
+                {showHistory && (
+                  <time className="wdb-activity-bar__actor" dateTime={item.createdAt}>
+                    {new Date(item.createdAt).toLocaleString("ko-KR")}
+                  </time>
+                )}
+              </button>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

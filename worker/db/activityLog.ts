@@ -75,6 +75,7 @@ export async function listActivityFeed(
   teamId: string,
   viewer: { userId: string; guestName: string },
   limit = 100,
+  includeAcknowledged = false,
 ): Promise<ActivityFeedRow[]> {
   const { results } = await db
     .prepare(
@@ -85,14 +86,16 @@ export async function listActivityFeed(
        WHERE a.team_id = ?3
          AND a.page_id IS NOT NULL
          AND a.actor_id IS NOT NULL
-         AND k.guest_name IS NULL
+         ${includeAcknowledged ? "" : "AND k.guest_name IS NULL"}
          AND ${NOT_SELF_CLAUSE}
          AND a.action IN (?4, ?5, ?6, ?7, ?8)
-       ORDER BY a.created_at DESC
+       ORDER BY a.created_at DESC, a.rowid DESC
        LIMIT ?9`,
     )
     .bind(viewer.guestName, viewer.userId, teamId, ...FEED_ACTIONS, limit)
     .all<ActivityFeedRow>();
+
+  if (includeAcknowledged) return results ?? [];
 
   // Every save creates its own row (one per PATCH), so a page edited several
   // times before anyone acks piles up as that many "process" entries here.

@@ -143,8 +143,8 @@ export const api = {
 
   listTeamMembers: () => request<{ members: TeamMemberDTO[] }>("/api/team/members"),
 
-  listActivityFeed: (guestName: string) =>
-    request<{ items: ActivityFeedItemDTO[] }>(`/api/activity?guestName=${encodeURIComponent(guestName)}`),
+  listActivityFeed: (guestName: string, history = false) =>
+    request<{ items: ActivityFeedItemDTO[] }>(`/api/activity?guestName=${encodeURIComponent(guestName)}${history ? "&history=true" : ""}`),
   ackActivity: (id: string, guestName: string) =>
     request<{ ok: true }>(`/api/activity/${id}/ack`, { method: "POST", body: JSON.stringify({ guestName }) }),
   ackAllActivity: (guestName: string) =>
