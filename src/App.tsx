@@ -328,6 +328,7 @@ function AppShell({ user, identity, onChangeGuestName }: { user: UserDTO; identi
                 <PageView
                   key={peekPageId}
                   saveBeforeCloseRef={savePeekBeforeCloseRef}
+                  enablePageMargins
                   pageId={peekPageId}
                   canEdit={canEdit}
                   canDelete={canDeleteAll}

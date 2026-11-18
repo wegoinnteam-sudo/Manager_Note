@@ -6,6 +6,7 @@ import { Editor, type EditorHandle } from "./Editor";
 import { Comments } from "@/features/comments/Comments";
 import { History } from "@/features/history/History";
 import { HandoffTools } from "./HandoffTools";
+import { usePageMargins } from "./PageMargins";
 import type { PresenceUser } from "@/hooks/usePresence";
 
 type SaveState = "idle" | "saving" | "saved" | "error" | "conflict";
@@ -39,6 +40,7 @@ export function PageView({
   autoSave = true,
   categories,
   saveBeforeCloseRef,
+  enablePageMargins = false,
 }: {
   pageId: string;
   canEdit: boolean;
@@ -63,8 +65,10 @@ export function PageView({
   autoSave?: boolean;
   categories: PageCategoryDTO[];
   saveBeforeCloseRef?: Ref<() => Promise<boolean>>;
+  enablePageMargins?: boolean;
 }) {
   const [page, setPage] = useState<PageDetailDTO | null>(null);
+  const margins = usePageMargins(pageId, enablePageMargins && !!page);
   const [attachments, setAttachments] = useState<AttachmentDTO[]>([]);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [referenceWidth, setReferenceWidth] = useState(() => {
@@ -306,7 +310,12 @@ export function PageView({
 
   return (
     <div className="page-shell">
-      <div className={`page-view${page.contentJson.blocks.some((block) => block.type === "table") ? " page-view--with-table" : ""}`}>
+      {margins.dialog}
+      <div
+        ref={margins.contentRef}
+        style={margins.style}
+        className={`page-view${page.contentJson.blocks.some((block) => block.type === "table") ? " page-view--with-table" : ""}`}
+      >
         {!autoSave && canEdit && (
           <div className="page-view__manual-save">
             <button type="button" onClick={saveNow} disabled={saveState === "saving"}>
