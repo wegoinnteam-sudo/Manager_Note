@@ -99,10 +99,12 @@ function AppShell({ user, identity, onChangeGuestName }: { user: UserDTO; identi
   // handlers (which call preventDefault) still take priority.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Backspace" || event.defaultPrevented) return;
-      const active = document.activeElement;
-      if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) return;
-      window.history.back();
+      if (event.key !== "Backspace" || event.defaultPrevented || event.isComposing ||
+          event.altKey || event.ctrlKey || event.metaKey) return;
+      if (document.activeElement?.closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])") ||
+          document.querySelector("dialog[open]")) return;
+      event.preventDefault();
+      if (!event.repeat) window.history.back();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);

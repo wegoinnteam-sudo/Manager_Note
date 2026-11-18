@@ -425,7 +425,7 @@ export function Block({
                 autoFocus={active}
               />
             ) : (
-              <div className="block-input block-input--toggle-title" onClick={editable ? focusUnlessSelectingText : undefined} style={{ minHeight: 24, cursor: editable ? "text" : "default", fontWeight: 600 }}>
+              <div className="block-input block-input--toggle-title" data-inline-block-text onClick={editable ? focusUnlessSelectingText : undefined} style={{ minHeight: 24, cursor: editable ? "text" : "default", fontWeight: 600 }}>
                 {block.text ? renderInline(block.text) : <span style={{ opacity: 0.35 }}>{editable ? "토글 제목" : ""}</span>}
               </div>
             )}
@@ -476,7 +476,7 @@ export function Block({
                 autoFocus={active}
               />
             ) : (
-              <div className="block-input" onClick={editable ? focusUnlessSelectingText : undefined} style={{ minHeight: 24, cursor: editable ? "text" : "default" }}>
+              <div className="block-input" data-inline-block-text onClick={editable ? focusUnlessSelectingText : undefined} style={{ minHeight: 24, cursor: editable ? "text" : "default" }}>
                 {block.text ? renderInline(block.text) : <span style={{ opacity: 0.35 }}>{editable ? "강조할 내용을 입력하세요" : ""}</span>}
               </div>
             )}
@@ -509,7 +509,7 @@ export function Block({
               autoFocus={active}
             />
           ) : (
-            <div className="block-input" onClick={editable ? focusUnlessSelectingText : undefined} style={{ minHeight: 24, cursor: editable ? "text" : "default" }}>
+            <div className="block-input" data-inline-block-text onClick={editable ? focusUnlessSelectingText : undefined} style={{ minHeight: 24, cursor: editable ? "text" : "default" }}>
               {block.text ? renderInline(block.text) : <span style={{ opacity: 0.35 }}>{editable ? "인용할 내용을 입력하세요" : ""}</span>}
             </div>
           )}
@@ -620,7 +620,7 @@ export function Block({
               autoFocus={active}
             />
           ) : (
-            <div className="block-input" onClick={editable ? focusUnlessSelectingText : undefined} style={{ textDecoration: block.checked ? "line-through" : undefined, color: block.checked ? "var(--color-text-muted)" : undefined }}>
+            <div className="block-input" data-inline-block-text onClick={editable ? focusUnlessSelectingText : undefined} style={{ textDecoration: block.checked ? "line-through" : undefined, color: block.checked ? "var(--color-text-muted)" : undefined }}>
               {renderInline(block.text) || <span style={{ opacity: 0.4 }}>{index === 0 ? "체크리스트" : ""}</span>}
             </div>
           )}
@@ -656,7 +656,7 @@ export function Block({
               onInput={(e) => fitTextareaToContent(e.currentTarget)}
             />
           ) : (
-            <div className={cls} onClick={editable ? focusUnlessSelectingText : undefined} style={{ minHeight: 24, cursor: editable ? "text" : "default" }}>
+            <div className={cls} data-inline-block-text onClick={editable ? focusUnlessSelectingText : undefined} style={{ minHeight: 24, cursor: editable ? "text" : "default" }}>
               {block.text ? renderInline(block.text) : null}
             </div>
           )}

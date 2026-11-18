@@ -1,5 +1,7 @@
 import { Fragment, type ReactNode } from "react";
 
+const INLINE_TOKEN = /(@\[[^\]]+\]\((?:user|date):[^)]+\)|\*\*[^*]+\*\*|__[^_]+__|~[^~]+~|`[^`]+`|\*[^*]+\*|\[[^\]]+\]\([^)]+\)|https?:\/\/[^\s]+)/g;
+
 /**
  * Tiny, whitelist-only inline formatter: **bold**, *italic*, __underline__,
  * ~strikethrough~, `code`, [text](url), @[text](user:id|date:iso), and bare
@@ -9,8 +11,7 @@ import { Fragment, type ReactNode } from "react";
  * types.
  */
 export function renderInline(text: string): ReactNode {
-  const tokenRe = /(@\[[^\]]+\]\((?:user|date):[^)]+\)|\*\*[^*]+\*\*|__[^_]+__|~[^~]+~|`[^`]+`|\*[^*]+\*|\[[^\]]+\]\([^)]+\)|https?:\/\/[^\s]+)/g;
-  const parts = text.split(tokenRe).filter((p) => p !== undefined && p !== "");
+  const parts = text.split(INLINE_TOKEN).filter((p) => p !== undefined && p !== "");
 
   return parts.map((part, i) => {
     const mentionMatch = part.match(/^@\[([^\]]+)\]\((user|date):[^)]+\)$/);
@@ -63,4 +64,27 @@ export function renderInline(text: string): ReactNode {
     }
     return <Fragment key={i}>{part}</Fragment>;
   });
+}
+
+/** Removes a visible text range while keeping the source formatting around it. */
+export function deleteInlineRange(text: string, start: number, end: number): string {
+  let offset = 0;
+  return text.split(INLINE_TOKEN).map((part, index) => {
+    const token = index % 2 === 1 ? part : "";
+    const mention = token.match(/^@\[([^\]]+)\]\((user|date):[^)]+\)$/);
+    const formatted = token.match(/^(\*\*|__|~|`|\*)([\s\S]+)\1$/);
+    const link = token.match(/^\[([^\]]+)\](\([^)]+\))$/);
+    const visible = mention ? `${mention[2] === "user" ? "👤" : "📅"} ${mention[1]}` : formatted?.[2] ?? link?.[1] ?? part;
+    const length = visible.length;
+    const from = Math.max(start - offset, 0);
+    const to = Math.min(end - offset, length);
+    offset += length;
+    if (from >= to) return part;
+    if (mention) return "";
+    const remaining = visible.slice(0, from) + visible.slice(to);
+    if (!remaining) return "";
+    if (formatted) return formatted[1] + remaining + formatted[1];
+    if (link) return `[${remaining}]${link[2]}`;
+    return remaining;
+  }).join("");
 }

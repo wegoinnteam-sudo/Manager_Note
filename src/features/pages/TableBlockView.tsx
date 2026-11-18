@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { PageBlock } from "@shared/types";
-import { selectionRect, tableCellRange, type TableCellRange } from "./marqueeSelection";
+import { clearTableCells, coversTable, selectionRect, tableCellRange, type TableCellRange } from "./marqueeSelection";
 import { DEFAULT_COL_WIDTH, tableNaturalWidth } from "./tableDefaults";
 
 type TableBlock = Extract<PageBlock, { type: "table" }>;
@@ -243,6 +243,7 @@ export function TableBlockView({
       if (drag.fromEditor && range?.rowIds.length === 1 && range.columnIds.length === 1 && !drag.moved) return;
       if (!drag.moved) {
         window.getSelection()?.removeAllRanges();
+        table.focus({ preventScroll: true });
         setEditing(null);
       }
       drag.moved = true;
@@ -270,13 +271,7 @@ export function TableBlockView({
     onPatch({ rows: rows.map((row, ri) => (ri === r ? row.map((cell, ci) => (ci === c ? value : cell)) : row)) });
   };
 
-  const clearRange = (sel: Selection) => {
-    onPatch({
-      rows: rows.map((row, ri) =>
-        sel.rowIds.includes(ri) ? row.map((cell, ci) => (sel.columnIds.includes(ci) ? "" : cell)) : row,
-      ),
-    });
-  };
+  const clearRange = (sel: Selection) => onPatch({ rows: clearTableCells(rows, sel) });
 
   const mergeRange = (sel: Selection) => {
     const firstRow = sel.rowIds[0];
@@ -537,7 +532,7 @@ export function TableBlockView({
   const handleTableKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (!editable || editing || !selection) return;
     const target = e.target as HTMLElement;
-    if (!target.closest("[data-cell]")) return;
+    if (target !== e.currentTarget && !target.closest("[data-cell]")) return;
     const { rowIds, columnIds } = selection;
     const c = columnIds[0];
     const r = rowIds[0];
@@ -561,9 +556,15 @@ export function TableBlockView({
         e.preventDefault();
         return startEdit(r, c, "end");
       case "Delete":
-      case "Backspace":
+      case "Backspace": {
         e.preventDefault();
-        return clearRange(selection);
+        if (e.repeat) return;
+        const removeTable = coversTable(rows, selection);
+        if (!window.confirm(removeTable ? "정말 이 표를 삭제할까요?" : "선택한 표 셀의 내용을 지울까요?")) return;
+        if (removeTable) onRemoveBlock();
+        else clearRange(selection);
+        return;
+      }
       case "Escape":
         e.preventDefault();
         setSelection(null);
@@ -655,6 +656,7 @@ export function TableBlockView({
         <div
           ref={tableRef}
           data-table-selection
+          tabIndex={-1}
           className={`table-block${stickyCol ? " table-block--sticky-col" : ""}`}
           onKeyDown={handleTableKeyDown}
           style={{ width: `${block.width ?? 100}%`, marginLeft: block.align === "center" || block.align === "right" ? "auto" : 0, marginRight: block.align === "center" ? "auto" : 0 }}

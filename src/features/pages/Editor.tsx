@@ -1,5 +1,5 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { overlaps, selectionRect, tableCellRange, type TableCellRange } from "./marqueeSelection";
+import { clearTableCells, coversTable, overlaps, selectionRect, tableCellRange, type TableCellRange } from "./marqueeSelection";
 import type { AttachmentDTO, PageBlock, PageCategoryDTO, PageContent, PageSummaryDTO, TeamMemberDTO } from "@shared/types";
 import { ALLOWED_UPLOAD_EXTENSIONS } from "@shared/types";
 import { Block, type HeadingRef } from "./Block";
@@ -11,6 +11,7 @@ import type { DatabaseViewType } from "./DatabaseView";
 import { api, uploadAttachment } from "@/lib/api";
 import { compressImageForUpload } from "@/lib/imageCompression";
 import { htmlToBlocks } from "./notionPaste";
+import { deleteInlineRange } from "./inlineMarkdown";
 import { TABLE_PRESETS, type TablePresetKey } from "./tableDefaults";
 import type { PresenceUser } from "@/hooks/usePresence";
 
@@ -531,11 +532,18 @@ export const Editor = forwardRef<EditorHandle, {
   const startMarqueeSelect = (e: React.MouseEvent) => {
     if (!editable || e.button !== 0) return;
     const target = e.target as HTMLElement;
-    if (target.closest("textarea, input, button, a, select, [contenteditable], [data-table-cell], .block-drag-handle, .image-block__handle")) return;
+    if (target.closest("[data-table-cell]") && !target.closest("button, input, .table-block__col-resize")) {
+      setSelectedBlockIds(new Set());
+      setMarqueeRanges((current) => current.size ? new Map() : current);
+      return;
+    }
+    if (target.closest("textarea, input, button, a, select, [contenteditable], .block-drag-handle, .image-block__handle")) return;
     setSelectedBlockIds(new Set());
     setMarqueeRanges((current) => current.size ? new Map() : current);
     if (target.closest("[data-block-id]:not(.block-wrapper--image)") && !target.closest(".table-block-layout")) return;
     e.preventDefault();
+    window.getSelection()?.removeAllRanges();
+    editorRef.current?.focus({ preventScroll: true });
     setMarquee({ startX: e.clientX, startY: e.clientY, x: e.clientX, y: e.clientY });
   };
 
@@ -568,13 +576,11 @@ export const Editor = forwardRef<EditorHandle, {
           if (range && id) ranges.set(id, range);
         }
         setMarqueeRanges(ranges);
-        if (ranges.size === 0) {
-          const hits = new Set<string>();
-          for (const block of editorRef.current.querySelectorAll<HTMLElement>("[data-block-id]:not(.block-wrapper--image, .block-wrapper--file, .block-wrapper--table)")) {
-            if (overlaps(rect, block.getBoundingClientRect())) hits.add(block.dataset.blockId!);
-          }
-          setSelectedBlockIds(hits);
+        const hits = new Set<string>();
+        for (const block of editorRef.current.querySelectorAll<HTMLElement>("[data-block-id]:not(.block-wrapper--image, .block-wrapper--file, .block-wrapper--table)")) {
+          if (overlaps(rect, block.getBoundingClientRect())) hits.add(block.dataset.blockId!);
         }
+        setSelectedBlockIds(hits);
       }
       setMarquee(null);
     };
@@ -614,25 +620,93 @@ export const Editor = forwardRef<EditorHandle, {
     return () => cancelAnimationFrame(raf);
   }, [draggedId]);
 
-  // Delete/Backspace for a mouse-drawn selection: no textarea is focused in
-  // that case, so handleKeyDown's per-block onKeyDownBlock never fires —
-  // handle it globally instead, but stay out of the way while typing.
+  const deleteSelectedBlocks = useCallback(() => {
+    const blocks = contentRef.current.blocks;
+    const removesTable = blocks.some((block) => {
+      if (block.type !== "table") return false;
+      const range = marqueeRanges.get(block.id);
+      return selectedBlockIds.has(block.id) || !!(range && coversTable(block.rows, range));
+    });
+    if (removesTable || marqueeRanges.size) {
+      const message = removesTable
+        ? "정말 선택한 표를 삭제할까요?"
+        : "선택한 표 셀의 내용을 지울까요?";
+      if (!window.confirm(message)) return;
+    }
+    setBlocks(blocks.flatMap((block) => {
+      if (selectedBlockIds.has(block.id)) return [];
+      const range = marqueeRanges.get(block.id);
+      if (block.type !== "table" || !range) return [block];
+      return coversTable(block.rows, range) ? [] : [{ ...block, rows: clearTableCells(block.rows, range) }];
+    }));
+    setSelectedBlockIds(new Set());
+    setMarqueeRanges(new Map());
+  }, [selectedBlockIds, marqueeRanges, setBlocks]);
+
+  useEffect(() => {
+    if (!editable) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.key !== "Backspace" && event.key !== "Delete") || event.defaultPrevented ||
+          event.isComposing || event.altKey || event.ctrlKey || event.metaKey) return;
+      const editor = editorRef.current;
+      if (!editor || document.querySelector("dialog[open]")) return;
+      const active = document.activeElement;
+      if (active?.closest("textarea, input, select, [contenteditable]:not([contenteditable='false'])")) return;
+
+      if (editor.contains(active) && (selectedBlockIds.size || marqueeRanges.size)) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!event.repeat) deleteSelectedBlocks();
+        return;
+      }
+
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed || !selection.rangeCount) return;
+      const range = selection.getRangeAt(0);
+      if (!editor.contains(range.startContainer) || !editor.contains(range.endContainer)) return;
+
+      const offsets = new Map<string, [number, number]>();
+      for (const text of editor.querySelectorAll<HTMLElement>("[data-inline-block-text]")) {
+        if (!range.intersectsNode(text)) continue;
+        const id = text.closest<HTMLElement>("[data-block-id]")?.dataset.blockId;
+        if (!id) continue;
+        const prefix = document.createRange();
+        prefix.selectNodeContents(text);
+        const offsetAt = (node: Node, offset: number, fallback: number) => {
+          if (!text.contains(node)) return fallback;
+          prefix.setEnd(node, offset);
+          return prefix.toString().length;
+        };
+        const start = offsetAt(range.startContainer, range.startOffset, 0);
+        const end = offsetAt(range.endContainer, range.endOffset, text.textContent?.length ?? 0);
+        if (start < end) offsets.set(id, [start, end]);
+      }
+      if (offsets.size === 0) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.repeat) return;
+      const blocks = contentRef.current.blocks.map((block) => {
+        const offsetsForBlock = offsets.get(block.id);
+        if (!("text" in block) || !offsetsForBlock) return block;
+        return { ...block, text: deleteInlineRange(block.text, ...offsetsForBlock) };
+      });
+      setBlocks(blocks);
+      selection.removeAllRanges();
+    };
+    // Capture the selection before the shell's Backspace navigation handler.
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [editable, selectedBlockIds, marqueeRanges, deleteSelectedBlocks, setBlocks]);
+
   useEffect(() => {
     if (selectedBlockIds.size === 0) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      const active = document.activeElement;
-      if (active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement) return;
-      if (e.key === "Delete" || e.key === "Backspace") {
-        e.preventDefault();
-        setBlocks(content.blocks.filter((b) => !selectedBlockIds.has(b.id)));
-        setSelectedBlockIds(new Set());
-      } else if (e.key === "Escape") {
-        setSelectedBlockIds(new Set());
-      }
+    const clearOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelectedBlockIds(new Set());
     };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [selectedBlockIds, content.blocks, setBlocks]);
+    window.addEventListener("keydown", clearOnEscape);
+    return () => window.removeEventListener("keydown", clearOnEscape);
+  }, [selectedBlockIds]);
 
   const updateBlock = (id: string, patch: Partial<PageBlock>) => {
     setBlocks(content.blocks.map((b) => (b.id === id ? ({ ...b, ...patch } as PageBlock) : b)));
@@ -1210,10 +1284,7 @@ export const Editor = forwardRef<EditorHandle, {
       }
       if (e.key === "Backspace" || e.key === "Delete") {
         e.preventDefault();
-        setBlocks(content.blocks.filter((candidate) => !selectedBlockIds.has(candidate.id)));
-        setSelectedBlockIds(new Set());
-        setActiveId(null);
-        onCursorReport(null, 0);
+        if (!e.repeat) deleteSelectedBlocks();
         return;
       }
       if (e.key === "ArrowUp" || e.key === "ArrowDown") {
@@ -1464,6 +1535,7 @@ export const Editor = forwardRef<EditorHandle, {
   return (
     <div
       className="editor"
+      tabIndex={-1}
       ref={editorRef}
       onMouseDown={startMarqueeSelect}
       onDragOver={(e) => {

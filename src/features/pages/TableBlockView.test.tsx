@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { PageBlock } from "@shared/types";
 import { pageContentSchema } from "../../../worker/lib/validation";
 import { TableBlockView } from "./TableBlockView";
@@ -192,8 +192,17 @@ describe("table view tools", () => {
 
     expect(container.querySelectorAll(".table-block__cell--selected")).toHaveLength(2);
     const anchor = screen.getByText("205");
-    fireEvent.keyDown(anchor, { key: "Delete" });
-    expect(latest.rows.map((row) => row[0])).toEqual(["객실", "203", "", "302", "110", "", "301"]);
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    try {
+      const unchanged = latest.rows;
+      fireEvent.keyDown(anchor, { key: "Backspace" });
+      expect(latest.rows).toEqual(unchanged);
+      confirm.mockReturnValue(true);
+      fireEvent.keyDown(anchor, { key: "Backspace" });
+      expect(latest.rows.map((row) => row[0])).toEqual(["객실", "203", "", "302", "110", "", "301"]);
+    } finally {
+      confirm.mockRestore();
+    }
   });
 
   it("shows status words as pills and keeps empty cells blank", () => {

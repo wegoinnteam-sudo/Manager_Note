@@ -53,3 +53,16 @@ export function tableCellRange(table: HTMLElement, rect: SelectionRect): TableCe
   }
   return rowIds.size ? { rowIds: [...rowIds], columnIds: [...columnIds] } : null;
 }
+
+export function coversTable(rows: string[][], range: TableCellRange): boolean {
+  return range.rowIds.length === rows.length && rows.every(
+    (row, index) => range.rowIds.includes(index) &&
+      row.every((_, column) => range.columnIds.includes(column)),
+  );
+}
+
+export function clearTableCells(rows: string[][], range: TableCellRange): string[][] {
+  return rows.map((row, r) => range.rowIds.includes(r)
+    ? row.map((value, c) => range.columnIds.includes(c) ? "" : value)
+    : row);
+}
