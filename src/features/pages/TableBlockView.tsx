@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { PageBlock } from "@shared/types";
 import { selectionRect, tableCellRange, type TableCellRange } from "./marqueeSelection";
+import { DEFAULT_COL_WIDTH, tableNaturalWidth } from "./tableDefaults";
 
 type TableBlock = Extract<PageBlock, { type: "table" }>;
 type CellPos = { r: number; c: number };
@@ -11,12 +12,25 @@ type CaretMode = "end" | "all";
 type StatusTone = "done" | "progress" | "pending" | "problem";
 
 const FONT_SIZE_PX: Record<FontSize, number> = { sm: 12, md: 13, lg: 16 };
-const DEFAULT_COL_WIDTH = 140;
 const TEXT_SWATCHES = ["#111827", "#dc2626", "#d97706", "#16a34a", "#2563eb", "#7c3aed"];
 const BG_SWATCHES = [null, "#fef3c7", "#dcfce7", "#dbeafe", "#fee2e2", "#ede9fe"];
-// Tables shorter than this stay toolbar-free for read-only viewers: there is
-// nothing to search in a five-row reference table.
+// Below this many rows there is nothing worth searching, so the search bar
+// (and, for read-only viewers, the sort/filter buttons) stays out of the way.
 const TOOLBAR_MIN_ROWS = 7;
+
+type CellStyles = NonNullable<TableBlock["cellStyles"]>;
+
+/** Re-key per-cell styles after rows/columns move. `map` returns the new position, or null to drop it. */
+function remapStyles(styles: TableBlock["cellStyles"], map: (r: number, c: number) => CellPos | null): TableBlock["cellStyles"] {
+  if (!styles) return styles;
+  const next: CellStyles = {};
+  for (const [key, value] of Object.entries(styles)) {
+    const [r, c] = key.split("-").map(Number);
+    const to = map(r, c);
+    if (to) next[cellKey(to.r, to.c)] = value;
+  }
+  return next;
+}
 
 // Cell values that read as a status get a colored pill. Matching is on the
 // whole (trimmed) cell value only, so free text is never decorated.
@@ -47,7 +61,8 @@ function pad2(n: number): string {
   return n < 10 ? `0${n}` : `${n}`;
 }
 
-function CellContent({ value, header, plain }: { value: string; header: boolean; plain: boolean }) {
+function CellContent({ value, header, plain, placeholder }: { value: string; header: boolean; plain: boolean; placeholder?: string }) {
+  if (header && placeholder && !value.trim()) return <span className="table-block__placeholder">{placeholder}</span>;
   if (!header && !plain) {
     const text = value.trim();
     const tone = STATUS_TONE.get(text.toLowerCase());
@@ -65,6 +80,7 @@ export function TableBlockView({
   onInsertParagraphAfter,
   marqueeRange,
   focusMarqueeRange,
+  autoFocus = false,
 }: {
   block: TableBlock;
   editable: boolean;
@@ -73,6 +89,8 @@ export function TableBlockView({
   onInsertParagraphAfter: () => void;
   marqueeRange?: TableCellRange;
   focusMarqueeRange?: boolean;
+  /** Open a cell for typing right after the table is inserted. */
+  autoFocus?: boolean;
 }) {
   const rows = block.rows;
   const colCount = rows[0]?.length ?? 0;
@@ -181,6 +199,17 @@ export function TableBlockView({
   const startEditRef = useRef(startEdit);
   startEditRef.current = startEdit;
 
+  // A freshly inserted table opens its first empty header cell (blank table)
+  // or its first body cell (preset with column names) so typing can start.
+  useEffect(() => {
+    if (!autoFocus || !editable || rows.length === 0) return;
+    const headerBlank = rows[0].every((cell) => !cell.trim());
+    if (headerBlank || rows.length === 1) startEditRef.current(0, 0, "end");
+    else startEditRef.current(1, 0, "end");
+    // Mount only: later re-activations of the block must not steal focus.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const focusCellBox = useCallback((r: number, c: number) => {
     requestAnimationFrame(() => {
       tableRef.current?.querySelector<HTMLElement>(`[data-cell="${cellKey(r, c)}"]`)?.focus({ preventScroll: false });
@@ -269,34 +298,65 @@ export function TableBlockView({
     setMenu(null);
   };
 
-  const addRow = () => onPatch({ rows: [...rows, rows[0].map(() => "")] });
-  const addColumn = () => onPatch({ rows: rows.map((row) => [...row, ""]) });
-  const removeRow = (r: number) => {
-    if (rows.length <= 1) return;
-    onPatch({ rows: rows.filter((_, ri) => ri !== r) });
-    setEditing(null);
-    setSelection(null);
+  const closeMenus = () => {
+    setMenu(null);
+    setColMenu(null);
   };
-  const removeColumn = (c: number) => {
-    if (rows[0].length <= 1) return;
-    onPatch({ rows: rows.map((row) => row.filter((_, ci) => ci !== c)) });
-    setEditing(null);
-    setSelection(null);
+
+  const addRow = () => {
+    onPatch({ rows: [...rows, rows[0].map(() => "")] });
+    if (!viewActive) startEdit(rows.length, 0, "end");
   };
+  /** Insert an empty row right below stored row `r` (styles of later rows move down with them). */
+  const insertRowBelow = (r: number) => {
+    const at = r + 1;
+    onPatch({
+      rows: [...rows.slice(0, at), rows[0].map(() => ""), ...rows.slice(at)],
+      cellStyles: remapStyles(block.cellStyles, (sr, sc) => ({ r: sr >= at ? sr + 1 : sr, c: sc })),
+    });
+    closeMenus();
+    startEdit(at, 0, "end");
+  };
+  /** Insert an empty column at index `at`; widths, styles and view state follow. */
+  const insertColumnAt = (at: number) => {
+    onPatch({
+      rows: rows.map((row) => [...row.slice(0, at), "", ...row.slice(at)]),
+      colWidths: block.colWidths ? [...block.colWidths.slice(0, at), DEFAULT_COL_WIDTH, ...block.colWidths.slice(at)] : undefined,
+      cellStyles: remapStyles(block.cellStyles, (sr, sc) => ({ r: sr, c: sc >= at ? sc + 1 : sc })),
+    });
+    setSort(null);
+    setFilters({});
+    closeMenus();
+    startEdit(0, at, "end");
+  };
+  const addColumn = () => insertColumnAt(colCount);
 
   const removeRows = (sel: Selection) => {
     if (rows.length - sel.rowIds.length < 1) return;
-    onPatch({ rows: rows.filter((_, ri) => !sel.rowIds.includes(ri)) });
+    const removed = new Set(sel.rowIds);
+    const shift = (r: number) => r - sel.rowIds.filter((x) => x < r).length;
+    onPatch({
+      rows: rows.filter((_, ri) => !removed.has(ri)),
+      cellStyles: remapStyles(block.cellStyles, (sr, sc) => (removed.has(sr) ? null : { r: shift(sr), c: sc })),
+    });
     setSelection(null);
     setEditing(null);
-    setMenu(null);
+    closeMenus();
   };
-  const removeColumns = (sel: Selection) => {
-    if (rows[0].length - sel.columnIds.length < 1) return;
-    onPatch({ rows: rows.map((row) => row.filter((_, ci) => !sel.columnIds.includes(ci))) });
+  const removeColumns = (columnIds: number[]) => {
+    if (rows[0].length - columnIds.length < 1) return;
+    const removed = new Set(columnIds);
+    const shift = (c: number) => c - columnIds.filter((x) => x < c).length;
+    onPatch({
+      rows: rows.map((row) => row.filter((_, ci) => !removed.has(ci))),
+      colWidths: block.colWidths?.filter((_, ci) => !removed.has(ci)),
+      cellStyles: remapStyles(block.cellStyles, (sr, sc) => (removed.has(sc) ? null : { r: sr, c: shift(sc) })),
+    });
+    setSort(null);
+    setFilters({});
     setSelection(null);
     setEditing(null);
-    setMenu(null);
+    closeMenus();
   };
 
   const applyStyle = (sel: Selection, patch: Partial<{ color: string; bg: string | undefined; fontSize: FontSize; fontSizePt: number | undefined }>) => {
@@ -364,7 +424,13 @@ export function TableBlockView({
     if (!inSelection(selection, r, c)) setSelection(singleCell(r, c));
     setColMenu(null);
     setSettingsOpen(false);
-    setMenu({ x: e.clientX, y: e.clientY });
+    // Opened from the keyboard (Menu key / Shift+F10) there is no pointer position.
+    if (e.clientX === 0 && e.clientY === 0) {
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      setMenu({ x: rect.left + 8, y: rect.bottom });
+    } else {
+      setMenu({ x: e.clientX, y: e.clientY });
+    }
   };
 
   // ---- Keyboard while a cell is open for editing ----
@@ -508,7 +574,7 @@ export function TableBlockView({
   };
 
   // ---- Toolbar helpers ----
-  const headerName = (c: number) => rows[0]?.[c]?.trim() || `${c + 1}열`;
+  const headerName = (c: number) => rows[0]?.[c]?.trim() || `열 ${c + 1}`;
   const openColMenu = (e: React.MouseEvent<HTMLButtonElement>, c: number) => {
     e.stopPropagation();
     const rect = e.currentTarget.getBoundingClientRect();
@@ -529,7 +595,13 @@ export function TableBlockView({
     setFilters({});
   };
 
-  const showToolbar = editable || rows.length >= TOOLBAR_MIN_ROWS;
+  const searchable = rows.length >= TOOLBAR_MIN_ROWS;
+  const showTopBar = searchable || viewActive;
+  // Sort/filter (and, when editable, insert/delete) live in the header menu.
+  const columnTools = editable || searchable;
+  // No explicit % width: the table sits at its own column widths instead of
+  // stretching a two-column table across the whole page.
+  const naturalWidth = block.width === undefined ? tableNaturalWidth(block) : undefined;
   const stickyCol = colCount > 1;
   const bodyCount = Math.max(0, rows.length - 1);
 
@@ -544,7 +616,7 @@ export function TableBlockView({
   return (
     <div className="block-row table-block-row">
       <div className="table-block-layout">
-        {showToolbar && (
+        {showTopBar && (
           <div className="table-block__toolbar" role="toolbar" aria-label="표 도구">
             <label className="table-block__search">
               <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
@@ -577,6 +649,134 @@ export function TableBlockView({
               </>
             )}
 
+          </div>
+        )}
+
+        <div
+          ref={tableRef}
+          data-table-selection
+          className={`table-block${stickyCol ? " table-block--sticky-col" : ""}`}
+          onKeyDown={handleTableKeyDown}
+          style={{ width: `${block.width ?? 100}%`, marginLeft: block.align === "center" || block.align === "right" ? "auto" : 0, marginRight: block.align === "center" ? "auto" : 0 }}
+        >
+          <table
+            style={{
+              tableLayout: "fixed",
+              width: naturalWidth,
+              marginLeft: naturalWidth !== undefined && (block.align === "center" || block.align === "right") ? "auto" : undefined,
+              marginRight: naturalWidth !== undefined && block.align === "center" ? "auto" : undefined,
+              minWidth: block.width !== undefined && !block.colWidths ? rows[0].length * 60 : rows[0].reduce((width, _, c) => width + colWidth(c), 0),
+            }}
+          >
+            <colgroup>
+              {rows[0].map((_, c) => (
+                <col key={c} style={{ width: block.width !== undefined && !block.colWidths ? undefined : colWidth(c) }} />
+              ))}
+            </colgroup>
+            <tbody>
+              {displayRows.map((r) => {
+                const row = rows[r];
+                const header = r === 0;
+                return (
+                  <tr key={r} className={header ? "table-block__head" : undefined}>
+                    {row.map((cell, c) => {
+                      const style = block.cellStyles?.[cellKey(r, c)];
+                      const isEditing = !!editing && editing.r === r && editing.c === c;
+                      const selected = inSelection(selection, r, c);
+                      const sortDir = header && sort?.col === c ? sort.dir : null;
+                      const filtered = header && !!filters[c]?.trim();
+                      const classes = [
+                        selected && (isRange || !isEditing) ? "table-block__cell--selected" : "",
+                        isEditing ? "table-block__cell--editing" : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ");
+                      return (
+                        <td
+                          key={c}
+                          className={classes || undefined}
+                          style={style?.bg ? { background: style.bg } : undefined}
+                          data-table-cell={cellKey(r, c)}
+                          onMouseDown={(e) => onCellMouseDown(r, c, e)}
+                          onContextMenu={(e) => onCellContextMenu(e, r, c)}
+                        >
+                          {isEditing ? (
+                            <textarea
+                              ref={editorRef}
+                              className="table-block__editor"
+                              rows={1}
+                              value={cell}
+                              aria-label={header ? `열 ${c + 1} 이름` : `${headerName(c)} 셀`}
+                              placeholder={header ? `열 ${c + 1}` : undefined}
+                              onChange={(e) => {
+                                updateCell(r, c, e.target.value);
+                                e.currentTarget.style.height = "auto";
+                                e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
+                              }}
+                              onKeyDown={(e) => handleEditorKeyDown(e, r, c)}
+                              onDragStart={(e) => e.preventDefault()}
+                              onBlur={() => setEditing((cur) => (cur && cur.r === r && cur.c === c ? null : cur))}
+                              style={cellTextStyle(r, c)}
+                            />
+                          ) : (
+                            <div
+                              className={`table-block__cell${header && columnTools ? " table-block__cell--with-btn" : ""}`}
+                              data-cell={cellKey(r, c)}
+                              tabIndex={editable ? -1 : undefined}
+                              style={cellTextStyle(r, c)}
+                            >
+                              <CellContent value={cell} header={header} plain={!!style?.color} placeholder={editable ? `열 ${c + 1}` : undefined} />
+                            </div>
+                          )}
+                          {header && columnTools && (
+                            <button
+                              type="button"
+                              className={`table-block__col-btn${sortDir || filtered ? " table-block__col-btn--active" : ""}`}
+                              aria-label={`${headerName(c)} 열 메뉴`}
+                              aria-haspopup="dialog"
+                              aria-expanded={colMenu?.c === c}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={(e) => openColMenu(e, c)}
+                            >
+                              {sortDir === "asc" ? "↑" : sortDir === "desc" ? "↓" : filtered ? "≡" : "⌄"}
+                            </button>
+                          )}
+                          {editable && header && (
+                            <span
+                              className="table-block__col-resize"
+                              aria-hidden="true"
+                              onPointerDown={(e) => startResize(e, c)}
+                              onPointerMove={doResize}
+                              onPointerUp={stopResize}
+                              onPointerCancel={stopResize}
+                            />
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {viewActive && displayRows.length === 1 && (
+            <div className="table-block__empty">
+              조건에 맞는 행이 없습니다.
+              <button type="button" className="table-settings__link" onClick={clearView}>
+                검색·필터 해제
+              </button>
+            </div>
+          )}
+        </div>
+
+        {editable && (
+          <div className={`table-block__actions${settingsOpen ? " table-block__actions--open" : ""}`}>
+            <button type="button" onClick={addRow}>
+              + 새 행
+            </button>
+            <button type="button" onClick={addColumn}>
+              + 새 열
+            </button>
             {editable && (
               <div className="table-block__settings-wrap" onMouseDown={(e) => e.stopPropagation()}>
                 <button
@@ -654,145 +854,6 @@ export function TableBlockView({
           </div>
         )}
 
-        <div
-          ref={tableRef}
-          data-table-selection
-          className={`table-block${stickyCol ? " table-block--sticky-col" : ""}`}
-          onKeyDown={handleTableKeyDown}
-          style={{ width: `${block.width ?? 100}%`, marginLeft: block.align === "center" || block.align === "right" ? "auto" : 0, marginRight: block.align === "center" ? "auto" : 0 }}
-        >
-          <table style={{ tableLayout: "fixed", minWidth: block.width !== undefined && !block.colWidths ? rows[0].length * 60 + (editable ? 28 : 0) : rows[0].reduce((width, _, c) => width + colWidth(c), editable ? 28 : 0) }}>
-            <colgroup>
-              {rows[0].map((_, c) => (
-                <col key={c} style={{ width: block.width !== undefined && !block.colWidths ? undefined : colWidth(c) }} />
-              ))}
-              {editable && <col style={{ width: 28 }} />}
-            </colgroup>
-            <tbody>
-              {displayRows.map((r) => {
-                const row = rows[r];
-                const header = r === 0;
-                return (
-                  <tr key={r} className={header ? "table-block__head" : undefined}>
-                    {row.map((cell, c) => {
-                      const style = block.cellStyles?.[cellKey(r, c)];
-                      const isEditing = !!editing && editing.r === r && editing.c === c;
-                      const selected = inSelection(selection, r, c);
-                      const sortDir = header && sort?.col === c ? sort.dir : null;
-                      const filtered = header && !!filters[c]?.trim();
-                      const classes = [
-                        selected && (isRange || !isEditing) ? "table-block__cell--selected" : "",
-                        isEditing ? "table-block__cell--editing" : "",
-                      ]
-                        .filter(Boolean)
-                        .join(" ");
-                      return (
-                        <td
-                          key={c}
-                          className={classes || undefined}
-                          style={style?.bg ? { background: style.bg } : undefined}
-                          data-table-cell={cellKey(r, c)}
-                          onMouseDown={(e) => onCellMouseDown(r, c, e)}
-                          onContextMenu={(e) => onCellContextMenu(e, r, c)}
-                        >
-                          {isEditing ? (
-                            <textarea
-                              ref={editorRef}
-                              className="table-block__editor"
-                              rows={1}
-                              value={cell}
-                              aria-label={header ? `${c + 1}열 제목` : `${headerName(c)} 셀`}
-                              onChange={(e) => {
-                                updateCell(r, c, e.target.value);
-                                e.currentTarget.style.height = "auto";
-                                e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
-                              }}
-                              onKeyDown={(e) => handleEditorKeyDown(e, r, c)}
-                              onDragStart={(e) => e.preventDefault()}
-                              onBlur={() => setEditing((cur) => (cur && cur.r === r && cur.c === c ? null : cur))}
-                              style={cellTextStyle(r, c)}
-                            />
-                          ) : (
-                            <div
-                              className={`table-block__cell${header && (editable || showToolbar) ? " table-block__cell--with-btn" : ""}`}
-                              data-cell={cellKey(r, c)}
-                              tabIndex={editable ? -1 : undefined}
-                              style={cellTextStyle(r, c)}
-                            >
-                              <CellContent value={cell} header={header} plain={!!style?.color} />
-                            </div>
-                          )}
-                          {header && showToolbar && (
-                            <button
-                              type="button"
-                              className={`table-block__col-btn${sortDir || filtered ? " table-block__col-btn--active" : ""}`}
-                              aria-label={`${headerName(c)} 열 정렬·필터`}
-                              aria-haspopup="dialog"
-                              aria-expanded={colMenu?.c === c}
-                              onMouseDown={(e) => e.stopPropagation()}
-                              onClick={(e) => openColMenu(e, c)}
-                            >
-                              {sortDir === "asc" ? "↑" : sortDir === "desc" ? "↓" : filtered ? "≡" : "⌄"}
-                            </button>
-                          )}
-                          {editable && header && (
-                            <span
-                              className="table-block__col-resize"
-                              aria-hidden="true"
-                              onPointerDown={(e) => startResize(e, c)}
-                              onPointerMove={doResize}
-                              onPointerUp={stopResize}
-                              onPointerCancel={stopResize}
-                            />
-                          )}
-                        </td>
-                      );
-                    })}
-                    {editable && (
-                      <td className="table-block__row-actions">
-                        <button type="button" onClick={() => removeRow(r)} title="행 삭제" aria-label={header ? "머리글 행 삭제" : `${displayIndex.get(r)}번째 행 삭제`}>
-                          ×
-                        </button>
-                      </td>
-                    )}
-                  </tr>
-                );
-              })}
-              {editable && (
-                <tr className="table-block__col-actions-row">
-                  {rows[0].map((_, c) => (
-                    <td key={c} className="table-block__col-actions">
-                      <button type="button" onClick={() => removeColumn(c)} title="열 삭제" aria-label={`${headerName(c)} 열 삭제`}>
-                        ×
-                      </button>
-                    </td>
-                  ))}
-                  <td className="table-block__col-actions" />
-                </tr>
-              )}
-            </tbody>
-          </table>
-          {viewActive && displayRows.length === 1 && (
-            <div className="table-block__empty">
-              조건에 맞는 행이 없습니다.
-              <button type="button" className="table-settings__link" onClick={clearView}>
-                검색·필터 해제
-              </button>
-            </div>
-          )}
-        </div>
-
-        {editable && (
-          <div className="table-block__actions">
-            <button type="button" onClick={addRow}>
-              + 행 추가
-            </button>
-            <button type="button" onClick={addColumn}>
-              + 열 추가
-            </button>
-          </div>
-        )}
-
         {colMenu && colMenu.c < colCount && (
           <div
             className="table-popover table-colmenu"
@@ -839,15 +900,34 @@ export function TableBlockView({
                 필터 지우기
               </button>
             )}
+            {editable && (
+              <>
+                <div className="table-colmenu__sep" />
+                <button type="button" onClick={() => insertColumnAt(colMenu.c)}>
+                  왼쪽에 열 추가
+                </button>
+                <button type="button" onClick={() => insertColumnAt(colMenu.c + 1)}>
+                  오른쪽에 열 추가
+                </button>
+                <button type="button" className="table-colmenu__danger" disabled={colCount <= 1} onClick={() => removeColumns([colMenu.c])}>
+                  열 삭제
+                </button>
+              </>
+            )}
           </div>
         )}
 
         {menu && selection && (
           <div className="table-popover table-context-menu" style={{ left: menu.x, top: menu.y }} onMouseDown={(e) => e.stopPropagation()}>
-            <button type="button" onClick={() => removeRows(selection)}>
+            {!isRange && (
+              <button type="button" onClick={() => insertRowBelow(selection.rowIds[0])}>
+                아래에 행 추가
+              </button>
+            )}
+            <button type="button" onClick={() => removeRows(selection)} disabled={rows.length - selection.rowIds.length < 1}>
               행 삭제
             </button>
-            <button type="button" onClick={() => removeColumns(selection)}>
+            <button type="button" onClick={() => removeColumns(selection.columnIds)} disabled={colCount - selection.columnIds.length < 1}>
               열 삭제
             </button>
             {isRange && (

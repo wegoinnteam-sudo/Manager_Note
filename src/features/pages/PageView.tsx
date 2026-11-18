@@ -7,6 +7,7 @@ import { Comments } from "@/features/comments/Comments";
 import { History } from "@/features/history/History";
 import { HandoffTools } from "./HandoffTools";
 import { usePageMargins } from "./PageMargins";
+import { tableNeedsWidePage } from "./tableDefaults";
 import type { PresenceUser } from "@/hooks/usePresence";
 
 type SaveState = "idle" | "saving" | "saved" | "error" | "conflict";
@@ -314,7 +315,7 @@ export function PageView({
       <div
         ref={margins.contentRef}
         style={margins.style}
-        className={`page-view${page.contentJson.blocks.some((block) => block.type === "table") ? " page-view--with-table" : ""}`}
+        className={`page-view${page.contentJson.blocks.some((block) => block.type === "table" && tableNeedsWidePage(block)) ? " page-view--with-table" : ""}`}
       >
         {!autoSave && canEdit && (
           <div className="page-view__manual-save">

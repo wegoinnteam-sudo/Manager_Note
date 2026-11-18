@@ -393,6 +393,7 @@ export function Block({
           onInsertParagraphAfter={onInsertParagraphAfter}
           marqueeRange={marqueeRange}
           focusMarqueeRange={focusMarqueeRange}
+          autoFocus={editable && active}
         />
       </div>
     );

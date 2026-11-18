@@ -11,6 +11,7 @@ import type { DatabaseViewType } from "./DatabaseView";
 import { api, uploadAttachment } from "@/lib/api";
 import { compressImageForUpload } from "@/lib/imageCompression";
 import { htmlToBlocks } from "./notionPaste";
+import { TABLE_PRESETS, type TablePresetKey } from "./tableDefaults";
 import type { PresenceUser } from "@/hooks/usePresence";
 
 // Must match the server's MAX_UPLOAD_MB (wrangler.toml) — otherwise the
@@ -144,7 +145,9 @@ const DB_VIEW_BY_COMMAND: Partial<Record<SlashCommandType, DatabaseViewType>> = 
   db_list: "list",
 };
 
-const SLASH_COMMANDS: { label: string; type: SlashCommandType; aliases: string[] }[] = [
+type SlashCommand = { label: string; type: SlashCommandType; aliases: string[]; hint?: string; preset?: TablePresetKey };
+
+const SLASH_COMMANDS: SlashCommand[] = [
   { label: "텍스트", type: "paragraph", aliases: ["text", "plain"] },
   { label: "제목1", type: "heading1", aliases: ["heading 1", "h1"] },
   { label: "제목2", type: "heading2", aliases: ["heading 2", "h2"] },
@@ -161,7 +164,10 @@ const SLASH_COMMANDS: { label: string; type: SlashCommandType; aliases: string[]
   { label: "민감정보", type: "secret", aliases: ["secret", "sensitive", "password", "비밀번호", "민감정보"] },
   { label: "오늘 날짜", type: "insert_date", aliases: ["date", "today", "날짜"] },
   { label: "알림 메모", type: "insert_reminder", aliases: ["reminder", "알림"] },
-  { label: "표", type: "table", aliases: ["table"] },
+  { label: "표", type: "table", preset: "blank", aliases: ["table", "빈 표"], hint: "행과 열로 정리하는 간단한 표" },
+  { label: "표 - 객실 관리", type: "table", preset: "rooms", aliases: ["table", "객실", "수리", "room"], hint: "객실 번호 · 문제 유형 · 처리 상태 · 담당자 · 메모" },
+  { label: "표 - 연락처", type: "table", preset: "contacts", aliases: ["table", "연락처", "contact"], hint: "구분 · 이름 · 연락처 · 메모" },
+  { label: "표 - 일정", type: "table", preset: "schedule", aliases: ["table", "일정", "schedule"], hint: "날짜 · 내용 · 담당자 · 상태" },
   { label: "목차", type: "toc", aliases: ["table of contents", "toc"] },
   { label: "임베드", type: "embed", aliases: ["embed", "youtube", "google drive"] },
   { label: "북마크", type: "bookmark", aliases: ["bookmark", "link", "book", "web"] },
@@ -171,7 +177,7 @@ const SLASH_COMMANDS: { label: string; type: SlashCommandType; aliases: string[]
   { label: "기존 페이지 연결", type: "link_existing_page", aliases: ["link to page", "기존 페이지"] },
   { label: "컬럼 (2~5단)", type: "columns", aliases: ["columns", "column", "단 나누기"] },
   { label: "템플릿", type: "template", aliases: ["template"] },
-  { label: "데이터베이스 - 테이블", type: "db_table", aliases: ["database", "table view"] },
+  { label: "데이터베이스 - 테이블", type: "db_table", aliases: ["database", "table view"], hint: "페이지를 행으로 모아 관리" },
   { label: "데이터베이스 - 보드", type: "db_board", aliases: ["board", "kanban"] },
   { label: "데이터베이스 - 갤러리", type: "db_gallery", aliases: ["gallery"] },
   { label: "데이터베이스 - 캘린더", type: "db_calendar", aliases: ["calendar"] },
@@ -885,7 +891,7 @@ export const Editor = forwardRef<EditorHandle, {
     setBlocks(blocks);
   };
 
-  const runSlashCommand = (block: PageBlock, cmd: { label: string; type: SlashCommandType }) => {
+  const runSlashCommand = (block: PageBlock, cmd: SlashCommand) => {
     setSlashMenu(null);
 
     if (cmd.type === "duplicate") {
@@ -1053,7 +1059,7 @@ export const Editor = forwardRef<EditorHandle, {
     }
 
     if (cmd.type === "table") {
-      updateBlock(block.id, { type: "table", rows: [["", ""], ["", ""]] } as Partial<PageBlock>);
+      updateBlock(block.id, { type: "table", ...TABLE_PRESETS[cmd.preset ?? "blank"]() } as Partial<PageBlock>);
       return;
     }
 
@@ -1616,7 +1622,8 @@ export const Editor = forwardRef<EditorHandle, {
                   }}
                   onMouseEnter={() => setSlashMenu({ ...slashMenu, highlighted: ci })}
                 >
-                  {cmd.label}
+                  <span className="slash-menu__label">{cmd.label}</span>
+                  {cmd.hint && <span className="slash-menu__hint">{cmd.hint}</span>}
                 </button>
               ))}
             </div>

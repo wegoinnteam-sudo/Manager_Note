@@ -4,12 +4,13 @@ import { describe, expect, it } from "vitest";
 import type { PageBlock } from "@shared/types";
 import { pageContentSchema } from "../../../worker/lib/validation";
 import { TableBlockView } from "./TableBlockView";
+import { TABLE_PRESETS, tableNeedsWidePage } from "./tableDefaults";
 
 type Table = Extract<PageBlock, { type: "table" }>;
 const initial: Table = { id: "table", type: "table", rows: [["A", "B"], ["C", "D"]] };
 
 let latest: Table = initial;
-function Harness({ start = initial, editable = true }: { start?: Table; editable?: boolean }) {
+function Harness({ start = initial, editable = true, autoFocus = false }: { start?: Table; editable?: boolean; autoFocus?: boolean }) {
   const [block, setBlock] = useState(start);
   latest = block;
   return (
@@ -19,6 +20,7 @@ function Harness({ start = initial, editable = true }: { start?: Table; editable
       onPatch={(patch) => setBlock((prev) => ({ ...prev, ...patch } as Table))}
       onRemoveBlock={() => {}}
       onInsertParagraphAfter={() => {}}
+      autoFocus={autoFocus}
     />
   );
 }
@@ -149,17 +151,17 @@ describe("table view tools", () => {
   };
 
   const bodyOrder = (container: HTMLElement) =>
-    Array.from(container.querySelectorAll("tbody tr:not(.table-block__head):not(.table-block__col-actions-row)")).map(
+    Array.from(container.querySelectorAll("tbody tr:not(.table-block__head)")).map(
       (tr) => tr.querySelector("td")?.textContent,
     );
 
   it("sorts, filters and searches without changing stored rows", () => {
     const { container } = render(<Harness start={rooms} />);
-    fireEvent.click(screen.getByRole("button", { name: "객실 열 정렬·필터" }));
+    fireEvent.click(screen.getByRole("button", { name: "객실 열 메뉴" }));
     fireEvent.click(screen.getByRole("button", { name: "오름차순 정렬" }));
     expect(bodyOrder(container)).toEqual(["101", "110", "203", "205", "301", "302"]);
 
-    fireEvent.click(screen.getByRole("button", { name: "상태 열 정렬·필터" }));
+    fireEvent.click(screen.getByRole("button", { name: "상태 열 메뉴" }));
     const menu = screen.getByRole("dialog", { name: "상태 열 옵션" });
     fireEvent.change(within(menu).getByPlaceholderText("포함할 내용"), { target: { value: "완료" } });
     expect(bodyOrder(container)).toEqual(["101", "205"]);
@@ -174,7 +176,7 @@ describe("table view tools", () => {
   it("drags across visible rows from an open editor and clears only those cells", () => {
     const { container } = render(<Harness start={rooms} />);
     fireEvent.change(screen.getByRole("searchbox", { name: "표에서 검색" }), { target: { value: "완료" } });
-    fireEvent.click(screen.getByRole("button", { name: "객실 열 정렬·필터" }));
+    fireEvent.click(screen.getByRole("button", { name: "객실 열 메뉴" }));
     fireEvent.click(screen.getByRole("button", { name: "내림차순 정렬" }));
     clickCell("205");
     const table = container.querySelector<HTMLElement>("[data-table-selection]")!;
@@ -201,5 +203,65 @@ describe("table view tools", () => {
     expect(screen.getByText("객실")).not.toHaveClass("table-block__status");
     const blank = container.querySelector('[data-cell="4-1"]');
     expect(blank?.textContent).toBe("");
+  });
+});
+
+describe("new tables (/표)", () => {
+  const blank: Table = { id: "new", type: "table", ...TABLE_PRESETS.blank() };
+
+  it("starts as a 3-column table with header hints and opens the first header cell", () => {
+    render(<Harness start={blank} autoFocus />);
+    expect(latest.rows).toEqual([["", "", ""], ["", "", ""], ["", "", ""]]);
+    const editor = screen.getByRole("textbox", { name: "열 1 이름" });
+    expect(editor).toHaveFocus();
+    expect(editor).toHaveAttribute("placeholder", "열 1");
+    expect(screen.getByText("열 2")).toHaveClass("table-block__placeholder");
+  });
+
+  it("opens the first body cell for presets that already name their columns", () => {
+    render(<Harness start={{ id: "rooms", type: "table", ...TABLE_PRESETS.rooms() }} autoFocus />);
+    expect(screen.getByRole("textbox", { name: "객실 번호 셀" })).toHaveFocus();
+  });
+
+  it("keeps header hints out of the saved data", () => {
+    render(<Harness start={blank} />);
+    expect(latest.rows[0]).toEqual(["", "", ""]);
+  });
+
+  it("sizes to its columns and only widens the page when it has to", () => {
+    const { container } = render(<Harness start={blank} />);
+    expect(container.querySelector("table")).toHaveStyle({ width: "480px" });
+    expect(tableNeedsWidePage(blank)).toBe(false);
+    expect(tableNeedsWidePage({ id: "w", type: "table", ...TABLE_PRESETS.rooms() })).toBe(true);
+    expect(tableNeedsWidePage({ ...blank, width: 80 })).toBe(true);
+  });
+
+  it("drops the row and column delete buttons from the grid", () => {
+    const { container } = render(<Harness />);
+    expect(container.querySelector(".table-block__row-actions, .table-block__col-actions")).toBeNull();
+    expect(container.querySelectorAll("tbody tr")).toHaveLength(2);
+  });
+
+  it("inserts and deletes columns from the header menu, keeping widths and cell styles aligned", () => {
+    const start: Table = { id: "t", type: "table", rows: [["A", "B"], ["C", "D"]], colWidths: [100, 200], cellStyles: { "1-1": { color: "#dc2626" } } };
+    render(<Harness start={start} />);
+    fireEvent.click(screen.getByRole("button", { name: "B 열 메뉴" }));
+    fireEvent.click(screen.getByRole("button", { name: "왼쪽에 열 추가" }));
+    expect(latest.rows).toEqual([["A", "", "B"], ["C", "", "D"]]);
+    expect(latest.colWidths).toEqual([100, 160, 200]);
+    expect(latest.cellStyles).toEqual({ "1-2": { color: "#dc2626" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "A 열 메뉴" }));
+    fireEvent.click(screen.getByRole("button", { name: "열 삭제" }));
+    expect(latest.rows).toEqual([["", "B"], ["", "D"]]);
+    expect(latest.colWidths).toEqual([160, 200]);
+    expect(latest.cellStyles).toEqual({ "1-1": { color: "#dc2626" } });
+  });
+
+  it("adds a row below from the right-click menu", () => {
+    render(<Harness start={{ id: "t", type: "table", rows: [["A", "B"], ["C", "D"], ["E", "F"]] }} />);
+    fireEvent.contextMenu(screen.getByText("C"), { clientX: 10, clientY: 10 });
+    fireEvent.click(screen.getByRole("button", { name: "아래에 행 추가" }));
+    expect(latest.rows).toEqual([["A", "B"], ["C", "D"], ["", ""], ["E", "F"]]);
   });
 });

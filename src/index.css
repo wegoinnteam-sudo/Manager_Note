@@ -1225,12 +1225,21 @@ code {
 }
 
 .slash-menu__item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
   text-align: left;
   border: none;
   background: none;
-  padding: 8px 12px;
+  padding: 7px 12px;
   font-size: 13px;
+  color: var(--color-text);
   cursor: pointer;
+}
+
+.slash-menu__hint {
+  color: var(--color-text-muted);
+  font-size: 11px;
 }
 
 .slash-menu__item--active,
@@ -1522,7 +1531,6 @@ code {
   min-width: 0;
   max-height: calc(100vh - 180px);
   overflow: auto;
-  border-top: 1px solid var(--tb-line);
   scrollbar-width: thin;
 }
 
@@ -1542,12 +1550,11 @@ code {
   vertical-align: top;
 }
 
-.table-block tr > td:last-child,
-.table-block tr > td:has(+ .table-block__row-actions) {
+.table-block tr > td:last-child {
   border-right: none;
 }
 
-.table-block tbody tr:not(.table-block__head):not(.table-block__col-actions-row):hover > td:not(.table-block__row-actions) {
+.table-block tbody tr:not(.table-block__head):hover > td {
   background-color: var(--tb-row-hover);
 }
 
@@ -1556,7 +1563,16 @@ code {
   position: sticky;
   top: 0;
   z-index: 2;
+  border-top: 1px solid var(--tb-line);
   background-color: var(--tb-head);
+}
+
+.table-block__placeholder {
+  color: color-mix(in srgb, var(--color-text-muted) 60%, transparent);
+}
+
+.table-block__editor::placeholder {
+  color: color-mix(in srgb, var(--color-text-muted) 60%, transparent);
 }
 
 /* Sticky first column (e.g. 객실 번호). */
@@ -1713,47 +1729,6 @@ code {
   opacity: 0.5;
 }
 
-/* Row / column delete affordances (edit mode only, revealed on hover). */
-.table-block td.table-block__row-actions,
-.table-block td.table-block__col-actions {
-  border: none;
-  background: var(--color-bg);
-  text-align: center;
-  vertical-align: middle;
-}
-
-.table-block__head > td.table-block__row-actions {
-  background: var(--color-bg);
-}
-
-.table-block__row-actions button,
-.table-block__col-actions button {
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: none;
-  color: var(--color-text-muted);
-  font-size: 14px;
-  line-height: 1;
-  cursor: pointer;
-  opacity: 0;
-}
-
-.table-block tr:hover .table-block__row-actions button,
-.table-block__col-actions button:hover,
-.table-block__row-actions button:focus-visible,
-.table-block__col-actions button:focus-visible {
-  opacity: 1;
-}
-
-.table-block__row-actions button:hover,
-.table-block__col-actions button:hover {
-  background: var(--color-danger-bg);
-  color: var(--color-danger);
-}
-
 .table-block__empty {
   display: flex;
   flex-wrap: wrap;
@@ -1763,10 +1738,31 @@ code {
   font-size: var(--text-sm);
 }
 
+/* Bottom bar: + 새 행 / + 새 열 / 보기 설정. Quiet until the table is
+   hovered or focused, so a fresh table is just the grid. */
 .table-block__actions {
   display: flex;
-  gap: var(--space-1);
-  margin-top: var(--space-1);
+  align-items: center;
+  gap: 2px;
+  margin-top: 2px;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.table-block-layout:hover .table-block__actions,
+.table-block-layout:focus-within .table-block__actions,
+.table-block__actions--open {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .table-block__actions {
+    opacity: 1;
+  }
+}
+
+.table-block__actions .table-block__settings-wrap {
+  margin-left: auto;
 }
 
 .table-block__actions button {
@@ -1824,6 +1820,17 @@ code {
 
 .table-colmenu > button[aria-pressed="true"] {
   color: var(--color-accent);
+}
+
+.table-colmenu > button.table-colmenu__danger {
+  color: var(--color-danger);
+}
+
+.table-colmenu > button:disabled,
+.table-context-menu > button:disabled {
+  opacity: 0.4;
+  cursor: default;
+  background: none;
 }
 
 .table-colmenu__sep {
