@@ -125,6 +125,14 @@ export function Block({
     fitTextareaToContent(localRef.current);
   }, [active, editableText]);
   const domId = `block-${block.id}`;
+  // Click-to-edit on a read-mode block. A click that ends a text drag must
+  // leave the highlighted text alone so it can be copied, not swap in the
+  // textarea (which would wipe the selection).
+  const focusUnlessSelectingText = () => {
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed && selection.toString().trim()) return;
+    onFocus();
+  };
   const remoteMarkers = active && editable ? <RemoteCaretMarkers textarea={localRef.current} users={remoteCursors} /> : <RemotePresenceBadge users={remoteCursors} />;
 
   if (block.type === "divider") {
@@ -409,7 +417,7 @@ export function Block({
                 autoFocus={active}
               />
             ) : (
-              <div className="block-input block-input--toggle-title" onClick={editable ? onFocus : undefined} style={{ minHeight: 24, cursor: editable ? "text" : "default", fontWeight: 600 }}>
+              <div className="block-input block-input--toggle-title" onClick={editable ? focusUnlessSelectingText : undefined} style={{ minHeight: 24, cursor: editable ? "text" : "default", fontWeight: 600 }}>
                 {block.text ? renderInline(block.text) : <span style={{ opacity: 0.35 }}>{editable ? "토글 제목" : ""}</span>}
               </div>
             )}
@@ -461,7 +469,7 @@ export function Block({
                 autoFocus={active}
               />
             ) : (
-              <div className="block-input" onClick={editable ? onFocus : undefined} style={{ minHeight: 24, cursor: editable ? "text" : "default" }}>
+              <div className="block-input" onClick={editable ? focusUnlessSelectingText : undefined} style={{ minHeight: 24, cursor: editable ? "text" : "default" }}>
                 {block.text ? renderInline(block.text) : <span style={{ opacity: 0.35 }}>{editable ? "강조할 내용을 입력하세요" : ""}</span>}
               </div>
             )}
@@ -494,7 +502,7 @@ export function Block({
               autoFocus={active}
             />
           ) : (
-            <div className="block-input" onClick={editable ? onFocus : undefined} style={{ minHeight: 24, cursor: editable ? "text" : "default" }}>
+            <div className="block-input" onClick={editable ? focusUnlessSelectingText : undefined} style={{ minHeight: 24, cursor: editable ? "text" : "default" }}>
               {block.text ? renderInline(block.text) : <span style={{ opacity: 0.35 }}>{editable ? "인용할 내용을 입력하세요" : ""}</span>}
             </div>
           )}
@@ -605,7 +613,7 @@ export function Block({
               autoFocus={active}
             />
           ) : (
-            <div className="block-input" onClick={editable ? onFocus : undefined} style={{ textDecoration: block.checked ? "line-through" : undefined, color: block.checked ? "var(--color-text-muted)" : undefined }}>
+            <div className="block-input" onClick={editable ? focusUnlessSelectingText : undefined} style={{ textDecoration: block.checked ? "line-through" : undefined, color: block.checked ? "var(--color-text-muted)" : undefined }}>
               {renderInline(block.text) || <span style={{ opacity: 0.4 }}>{index === 0 ? "체크리스트" : ""}</span>}
             </div>
           )}
@@ -642,7 +650,7 @@ export function Block({
               onInput={(e) => fitTextareaToContent(e.currentTarget)}
             />
           ) : (
-            <div className={cls} onClick={editable ? onFocus : undefined} style={{ minHeight: 24, cursor: editable ? "text" : "default" }}>
+            <div className={cls} onClick={editable ? focusUnlessSelectingText : undefined} style={{ minHeight: 24, cursor: editable ? "text" : "default" }}>
               {block.text ? renderInline(block.text) : <span style={{ opacity: 0.35 }}>{editable ? "내용을 입력하세요…" : ""}</span>}
             </div>
           )}

@@ -518,14 +518,17 @@ export const Editor = forwardRef<EditorHandle, {
     registerFileDropHandler((files) => droppedFilesHandlerRef.current(files));
   }, [registerFileDropHandler]);
 
-  // Click-and-drag anywhere in the editor background (not on a textarea,
-  // button, link, etc.) draws a selection rectangle; any block it overlaps
-  // gets added to selectedBlockIds, same set used by Ctrl+A/Escape select.
+  // Click-and-drag on the editor's empty background draws a selection
+  // rectangle; any block it overlaps gets added to selectedBlockIds, same set
+  // used by Ctrl+A/Escape select. A drag that starts on a block (its text,
+  // image, table…) is left to the browser so it behaves like normal text
+  // selection — no rectangle, no block selection, copy works as usual.
   const startMarqueeSelect = (e: React.MouseEvent) => {
     if (!editable || e.button !== 0) return;
     const target = e.target as HTMLElement;
     if (target.closest("textarea, input, button, a, select, [contenteditable], .table-block-layout")) return;
     setSelectedBlockIds(new Set());
+    if (target.closest("[data-block-id]")) return;
     setMarquee({ startX: e.clientX, startY: e.clientY, x: e.clientX, y: e.clientY });
   };
 
