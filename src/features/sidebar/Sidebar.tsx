@@ -612,6 +612,9 @@ export function Sidebar({
           </span>
         )}
       </button>
+      <button type="button" className="sidebar__link" onClick={() => onNavigate("/project")}>
+        📁 프로젝트
+      </button>
       <button type="button" className="sidebar__link" onClick={() => onNavigate(encodeURI(CANCELLATION_PATH))}>
         🧾 취소확인
       </button>

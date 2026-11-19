@@ -1,3 +1,4 @@
+import type { Project, ProjectDetail, ProjectInput, ProjectTaskInput } from "@shared/projects";
 import type {
   UserDTO,
   PageSummaryDTO,
@@ -58,7 +59,36 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return body as T;
 }
 
+const projectsPath = "/api/projects";
+
+function projectMutation(path: string, method: string, input?: object) {
+  return request<void>(projectsPath + path, { method, body: input && JSON.stringify(input) });
+}
+
 export const api = {
+  listProjects: () => request<Project[]>(projectsPath),
+  getProject: (id: string) => request<ProjectDetail>(`${projectsPath}/${encodeURIComponent(id)}`),
+  createProject: (input: ProjectInput) =>
+    request<Project>(projectsPath, { method: "POST", body: JSON.stringify(input) }),
+  updateProject: (id: string, input: ProjectInput & { version: number }) =>
+    projectMutation(`/${id}`, "PATCH", input),
+  deleteProject: (id: string) => projectMutation(`/${id}`, "DELETE"),
+  createProjectTask: (id: string, input: ProjectTaskInput & { author: string }) =>
+    projectMutation(`/${id}/tasks`, "POST", input),
+  updateProjectTask: (id: string, taskId: string, input: ProjectTaskInput & { author: string; version: number }) =>
+    projectMutation(`/${id}/tasks/${taskId}`, "PATCH", input),
+  deleteProjectTask: (id: string, taskId: string) => projectMutation(`/${id}/tasks/${taskId}`, "DELETE"),
+  reorderProjectTasks: (id: string, before: string[], after: string[]) =>
+    projectMutation(`/${id}/order`, "PATCH", { before, after }),
+  commentOnProjectTask: (id: string, taskId: string, author: string, body: string) =>
+    projectMutation(`/${id}/tasks/${taskId}/comments`, "POST", { author, body }),
+  uploadProjectPhoto: (id: string, taskId: string, author: string, file: File) =>
+    request<void>(`${projectsPath}/${id}/tasks/${taskId}/photos`, {
+      method: "POST",
+      headers: { "Content-Type": file.type, "X-File-Name": encodeURIComponent(file.name), "X-Project-Author": encodeURIComponent(author) },
+      body: file,
+    }),
+
   me: () => request<UserDTO>("/api/me"),
   logout: () => request<{ ok: true }>("/api/auth/logout", { method: "POST" }),
 

@@ -16,6 +16,7 @@ import { api } from "@/lib/api";
 import { Sidebar } from "@/features/sidebar/Sidebar";
 import { WegoinnBoard } from "@/features/board/WegoinnBoard";
 import { HandoverBoard } from "@/features/handover/HandoverBoard";
+import { ProjectBoard } from "@/features/projects/ProjectBoard";
 import { CancellationBoard } from "@/features/cancellations/CancellationBoard";
 import { isCancellationPath } from "@/features/cancellations/cancellationUtils";
 import { PageView } from "@/features/pages/PageView";
@@ -219,6 +220,8 @@ function AppShell({ user, identity, onChangeGuestName }: { user: UserDTO; identi
         guestName={identity.name}
       />
     );
+  } else if (path === "/project") {
+    content = <ProjectBoard canEdit={canEdit} author={identity.name || user.name} members={members} />;
   } else if (path === "/handover") {
     content = (
       <HandoverBoard
