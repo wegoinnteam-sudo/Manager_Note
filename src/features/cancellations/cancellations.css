@@ -1,5 +1,6 @@
-/* /취소확인 — free-cancellation dashboard. Fixed light palette like the
-   handover board, and every rule is scoped under .cx-page so nothing here
+/* /취소확인 — free-cancellation dashboard. Light palette by default; the
+   dark/gray themes re-map the --cx-* tokens below, so colors must go
+   through a --cx-* token rather than a literal. Every rule is scoped under .cx-page so nothing here
    can leak onto other screens (this is a plain global stylesheet). */
 
 .cx-page {
@@ -17,6 +18,16 @@
   --cx-orange-bg: #fdf1e3;
   --cx-orange-text: #b45309;
   --cx-radius: 10px;
+  --cx-ink-soft: #374151;
+  --cx-faint: #9ca3af;
+  --cx-accent-soft: #eef3fe;
+  --cx-green-bg: #e7f6ef;
+  --cx-green-text: #047857;
+  --cx-warn-bg: #fffbea;
+  --cx-warn-text: #8a6100;
+  --cx-warn-line: #e5c766;
+  --cx-danger: #dc2626;
+  --cx-shadow: rgba(17, 24, 39, 0.08);
   color-scheme: light;
   min-height: 100%;
   background: var(--cx-bg);
@@ -24,6 +35,34 @@
   font-size: 14px;
   line-height: 1.5;
   font-family: "Pretendard", "Noto Sans KR", "Apple SD Gothic Neo", "Segoe UI", sans-serif;
+}
+
+/* Follow the app theme (다크 / 회색) using the app's color tokens. */
+:root:is([data-theme="dark"], [data-theme="gray"]) .cx-page {
+  --cx-bg: var(--color-bg);
+  --cx-surface: var(--color-surface);
+  --cx-line: var(--color-border);
+  --cx-line-soft: color-mix(in srgb, var(--color-border) 60%, var(--color-surface));
+  --cx-head: var(--color-surface-muted);
+  --cx-hover: color-mix(in srgb, var(--color-accent) 5%, var(--color-surface));
+  --cx-ink: var(--color-text);
+  --cx-ink-soft: color-mix(in srgb, var(--color-text) 85%, var(--color-text-muted));
+  --cx-muted: var(--color-text-muted);
+  --cx-faint: color-mix(in srgb, var(--color-text-muted) 70%, var(--color-surface));
+  --cx-accent: var(--color-accent);
+  --cx-accent-soft: var(--color-accent-bg);
+  --cx-red-bg: var(--color-danger-bg);
+  --cx-red-text: var(--color-danger);
+  --cx-orange-bg: var(--color-warn-bg);
+  --cx-orange-text: color-mix(in srgb, #d97706 70%, var(--color-text));
+  --cx-green-bg: var(--color-success-bg);
+  --cx-green-text: color-mix(in srgb, #10b981 70%, var(--color-text));
+  --cx-warn-bg: var(--color-warn-bg);
+  --cx-warn-text: color-mix(in srgb, #ca8a04 70%, var(--color-text));
+  --cx-warn-line: color-mix(in srgb, #ca8a04 50%, var(--color-border));
+  --cx-danger: var(--color-danger);
+  --cx-shadow: var(--color-shadow);
+  color-scheme: inherit;
 }
 
 .cx-page * { box-sizing: border-box; }
@@ -51,16 +90,16 @@
   align-items: center;
   gap: 8px;
   padding: 6px 8px 6px 12px;
-  border: 1px dashed #d4a017;
+  border: 1px dashed var(--cx-warn-line);
   border-radius: 8px;
-  background: #fffbea;
-  color: #8a6100;
+  background: var(--cx-warn-bg);
+  color: var(--cx-warn-text);
   font-size: 13px;
   white-space: nowrap;
 }
 .cx-sample-flag button {
-  border: 1px solid #e5c766;
-  background: #fff;
+  border: 1px solid var(--cx-warn-line);
+  background: var(--cx-surface);
   border-radius: 6px;
   padding: 2px 8px;
   font-size: 12px;
@@ -133,7 +172,7 @@
 .cx-btn:hover:not(:disabled) { background: var(--cx-head); }
 .cx-btn:disabled { opacity: 0.45; cursor: default; }
 .cx-btn--primary { background: var(--cx-accent); border-color: var(--cx-accent); color: #fff !important; }
-.cx-btn--primary:hover:not(:disabled) { background: #1d4ed8; }
+.cx-btn--primary:hover:not(:disabled) { filter: brightness(0.92); }
 
 /* Table */
 .cx-table-wrap { overflow-x: auto; }
@@ -145,7 +184,7 @@
 }
 .cx-table th {
   background: var(--cx-head);
-  color: #374151;
+  color: var(--cx-ink-soft);
   font-size: 13px;
   font-weight: 700;
   text-align: left;
@@ -172,7 +211,7 @@
   padding: 0;
   font-weight: 700;
 }
-.cx-sort span { color: #9ca3af; font-size: 12px; }
+.cx-sort span { color: var(--cx-faint); font-size: 12px; }
 .cx-sort--active span { color: var(--cx-accent); }
 
 .cx-muted { color: var(--cx-muted); }
@@ -189,12 +228,12 @@
   border: 1px solid transparent;
   border-radius: 6px;
   background: none;
-  color: #9ca3af;
+  color: var(--cx-faint);
   font-size: 11px;
   font-weight: 600;
 }
-.cx-copy:hover { color: var(--cx-accent); background: #eef3fe; }
-.cx-copy--done { color: #047857 !important; background: #e7f6ef !important; padding: 0 6px; }
+.cx-copy:hover { color: var(--cx-accent); background: var(--cx-accent-soft); }
+.cx-copy--done { color: var(--cx-green-text) !important; background: var(--cx-green-bg) !important; padding: 0 6px; }
 
 .cx-badge {
   display: inline-flex;
@@ -248,7 +287,7 @@
   background: var(--cx-surface);
   border: 1px solid var(--cx-line);
   border-radius: 8px;
-  box-shadow: 0 6px 18px rgba(17, 24, 39, 0.08);
+  box-shadow: 0 6px 18px var(--cx-shadow);
 }
 .cx-menu__list button {
   display: block;
@@ -364,10 +403,10 @@
 .cx-page .cx-form__rate input[type="radio"] { width: auto; height: auto; }
 .cx-form__pct { display: inline-flex; align-items: center; gap: 4px; }
 .cx-page .cx-form__pct input { width: 72px; }
-.cx-form__error { margin: 0; color: #dc2626; font-size: 13px; }
+.cx-form__error { margin: 0; color: var(--cx-danger); font-size: 13px; }
 .cx-form__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
-.cx-btn--danger { color: #dc2626; }
-.cx-menu__list button.cx-menu__danger { color: #dc2626; }
+.cx-btn--danger { color: var(--cx-danger); }
+.cx-menu__list button.cx-menu__danger { color: var(--cx-danger); }
 .cx-mcard { cursor: pointer; }
 
 @media (max-width: 600px) {
