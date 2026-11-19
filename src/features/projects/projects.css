@@ -81,7 +81,7 @@
 .pj-progress p, .pj-muted, .pj-status { color: var(--hb-muted); margin: 5px 0 0; font-size: .9rem; }
 .pj-status:not(:empty) { display: block; margin-bottom: 10px; }
 .pj-error { padding: 9px 12px; background: var(--hb-red-soft); border-radius: 8px; }
-.pj-page .pj-alert, .pj-error { color: #a5222d; }
+.pj-page .pj-alert, .pj-error { color: var(--hb-red); }
 .pj-task-meta .pj-alert { background: var(--hb-red-soft); }
 .pj-filters { padding: 14px 0; }
 .pj-task { border: 1px solid var(--hb-line); border-radius: 12px; padding: 13px; margin-top: 10px; }

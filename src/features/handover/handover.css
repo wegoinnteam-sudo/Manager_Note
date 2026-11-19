@@ -1,8 +1,8 @@
 /* Wegoinn Hostel reception handover board. Ported from the approved UI
-   mockup (wegoinn-handover-code.zip/index.html) — kept visually identical
-   to that design rather than adapted to the app's light/dark/gray theme,
-   since the mockup itself is a fixed light palette and matching it exactly
-   was the explicit request. Every rule is scoped under .hb-page so it can't
+   mockup (wegoinn-handover-code.zip/index.html). The light theme keeps the
+   mockup's palette; dark and gray re-map the --hb-* tokens to the app's
+   theme colors (see the :root[data-theme] block below), so every color here
+   must go through a --hb-* token rather than a literal. Every rule is scoped under .hb-page so it can't
    leak onto the rest of the app (this file is a plain global stylesheet,
    not CSS modules). */
 
@@ -20,6 +20,22 @@
   --hb-surface: #ffffff;
   --hb-bg: #f3f6f8;
   --hb-shadow: 0 16px 40px rgba(16, 42, 67, 0.09);
+  /* Tokens that replaced one-off literals, so the dark/gray themes below can
+     restyle the board from one place. Light values match the mockup. */
+  --hb-strong: #102a43; /* filled backgrounds behind white text */
+  --hb-faint: #8f9ca8;
+  --hb-blue-text: #1552a6;
+  --hb-blue-line: #bed3f4;
+  --hb-soft: #f2f5f8;
+  --hb-hover: #fafcff;
+  --hb-panel: #eaf0f7;
+  --hb-panel-done: #e9f3ed;
+  --hb-green-soft: #eaf8f1;
+  --hb-green-text: #087355;
+  --hb-orange-soft: #fff2e6;
+  --hb-orange-text: #a8540b;
+  --hb-purple-soft: #f3e8ff;
+  --hb-purple-text: #7e22ce;
   color-scheme: light;
   display: block;
   background: var(--hb-bg);
@@ -27,6 +43,43 @@
   font-size: 16px;
   line-height: 1.55;
   font-family: "Pretendard", "Noto Sans KR", "Apple SD Gothic Neo", "Segoe UI", sans-serif;
+}
+
+/* Follow the app theme (설정 → 다크 / 회색). Built from the app's own color
+   tokens so the board matches every other screen in that theme. */
+:root:is([data-theme="dark"], [data-theme="gray"]) .hb-page {
+  --hb-navy: var(--color-text);
+  --hb-ink: var(--color-text);
+  --hb-muted: var(--color-text-muted);
+  --hb-faint: color-mix(in srgb, var(--color-text-muted) 70%, var(--color-surface));
+  --hb-blue: var(--color-accent);
+  --hb-blue-soft: var(--color-accent-bg);
+  --hb-blue-text: color-mix(in srgb, var(--color-accent) 75%, var(--color-text));
+  --hb-blue-line: color-mix(in srgb, var(--color-accent) 40%, var(--color-border));
+  --hb-red: var(--color-danger);
+  --hb-red-soft: var(--color-danger-bg);
+  --hb-line: var(--color-border);
+  --hb-line-strong: color-mix(in srgb, var(--color-border) 80%, var(--color-text));
+  --hb-surface: var(--color-surface);
+  --hb-bg: var(--color-bg);
+  --hb-soft: var(--color-surface-muted);
+  --hb-hover: color-mix(in srgb, var(--color-accent) 5%, var(--color-surface));
+  --hb-panel: color-mix(in srgb, var(--color-accent) 8%, var(--color-bg));
+  --hb-panel-done: color-mix(in srgb, var(--hb-green) 12%, var(--color-bg));
+  --hb-green-soft: var(--color-success-bg);
+  --hb-green-text: color-mix(in srgb, var(--hb-green) 70%, var(--color-text));
+  --hb-orange-soft: var(--color-warn-bg);
+  --hb-orange-text: color-mix(in srgb, #d97706 70%, var(--color-text));
+  --hb-purple-soft: color-mix(in srgb, #a855f7 18%, var(--color-surface));
+  --hb-purple-text: color-mix(in srgb, #a855f7 70%, var(--color-text));
+  --hb-shadow: 0 16px 40px var(--color-shadow);
+  color-scheme: inherit;
+}
+:root[data-theme="dark"] .hb-page {
+  --hb-strong: #2c3e5c;
+}
+:root[data-theme="gray"] .hb-page {
+  --hb-strong: #31455f;
 }
 
 .hb-page * {
@@ -108,7 +161,7 @@
   padding: 0 15px;
   border: 1px solid var(--hb-line-strong);
   border-radius: 10px;
-  background: white;
+  background: var(--hb-surface);
   color: var(--hb-navy);
   font-weight: 750;
 }
@@ -181,17 +234,17 @@
   border: 0;
   border-radius: 9px;
   background: transparent;
-  color: #5c6c7c;
+  color: var(--hb-muted);
   font-size: 0.88rem;
   font-weight: 800;
   white-space: nowrap;
 }
 .hb-view-tab:hover {
-  background: #f2f6fa;
+  background: var(--hb-soft);
   color: var(--hb-navy);
 }
 .hb-view-tab--active {
-  background: var(--hb-navy);
+  background: var(--hb-strong);
   color: white;
 }
 .hb-tab-count {
@@ -201,8 +254,8 @@
   display: inline-grid;
   place-items: center;
   border-radius: 99px;
-  background: #e8edf2;
-  color: #516273;
+  background: var(--hb-soft);
+  color: var(--hb-muted);
   font-size: 0.72rem;
 }
 .hb-view-tab--active .hb-tab-count {
@@ -213,9 +266,9 @@
 .hb-compose {
   margin-bottom: 18px;
   padding: 22px;
-  border: 1px solid #bed3f4;
+  border: 1px solid var(--hb-blue-line);
   border-radius: 16px;
-  background: #f8fbff;
+  background: var(--hb-surface);
   box-shadow: var(--hb-shadow);
   animation: hb-reveal 0.2s ease;
 }
@@ -248,7 +301,7 @@
 .hb-page label {
   display: grid;
   gap: 6px;
-  color: #425466;
+  color: var(--hb-muted);
   font-size: 0.8rem;
   font-weight: 800;
 }
@@ -259,13 +312,13 @@
   min-height: 44px;
   border: 1px solid var(--hb-line-strong);
   border-radius: 10px;
-  background: white;
+  background: var(--hb-surface);
   color: var(--hb-ink);
   padding: 9px 11px;
 }
 .hb-page input.hb-auto-field {
-  background: #eef3fb;
-  color: #5b6b80;
+  background: var(--hb-blue-soft);
+  color: var(--hb-muted);
   cursor: default;
 }
 .hb-page textarea {
@@ -428,9 +481,9 @@
 .hb-table thead th {
   height: 52px;
   padding: 0 14px;
-  background: #f7f9fb;
+  background: var(--hb-soft);
   border-bottom: 1px solid var(--hb-line-strong);
-  color: #516273;
+  color: var(--hb-muted);
   font-size: 0.78rem;
   font-weight: 850;
   letter-spacing: 0.035em;
@@ -445,10 +498,10 @@
   transition: background 0.15s ease;
 }
 .hb-row:hover {
-  background: #fafcff;
+  background: var(--hb-hover);
 }
 .hb-row--completed {
-  background: #fbfdfc;
+  background: var(--hb-surface);
 }
 .hb-table td {
   padding: 15px 14px;
@@ -480,7 +533,7 @@
   justify-content: center;
   border-radius: 8px;
   background: var(--hb-blue-soft);
-  color: #1552a6;
+  color: var(--hb-blue-text);
   font-size: 0.83rem;
   font-weight: 850;
 }
@@ -492,7 +545,7 @@
 }
 .hb-notice-text {
   margin: 0;
-  color: #263747;
+  color: var(--hb-ink);
   line-height: 1.62;
   word-break: keep-all;
   overflow-wrap: anywhere;
@@ -506,32 +559,32 @@
   margin-bottom: 6px;
   padding: 2px 7px;
   border-radius: 6px;
-  background: #eef2f6;
-  color: #526273;
+  background: var(--hb-soft);
+  color: var(--hb-muted);
   font-size: 0.7rem;
   font-weight: 850;
   letter-spacing: 0.025em;
   text-transform: uppercase;
 }
 .hb-notice-tag--hostel {
-  background: #eaf2ff;
-  color: #155bb9;
+  background: var(--hb-blue-soft);
+  color: var(--hb-blue-text);
 }
 .hb-notice-tag--reception {
-  background: #e7f8f2;
-  color: #087355;
+  background: var(--hb-green-soft);
+  color: var(--hb-green-text);
 }
 .hb-notice-tag--repair {
-  background: #fff2e6;
-  color: #a8540b;
+  background: var(--hb-orange-soft);
+  color: var(--hb-orange-text);
 }
 .hb-notice-tag--others {
-  background: #eef1f4;
-  color: #5d6873;
+  background: var(--hb-soft);
+  color: var(--hb-muted);
 }
 .hb-notice-tag--everyone {
-  background: #f3e8ff;
-  color: #7e22ce;
+  background: var(--hb-purple-soft);
+  color: var(--hb-purple-text);
 }
 
 .hb-notice-head {
@@ -558,7 +611,7 @@
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: #9aa7b3;
+  color: var(--hb-faint);
   font-size: 0.9rem;
   line-height: 1;
 }
@@ -617,7 +670,7 @@
   font-weight: 800;
 }
 .hb-comment-body {
-  color: #425466;
+  color: var(--hb-muted);
   word-break: break-word;
   white-space: pre-wrap;
 }
@@ -670,7 +723,7 @@ textarea.hb-comment-input {
   padding: 0;
   border: 1px solid var(--hb-line);
   border-radius: 50%;
-  background: white;
+  background: var(--hb-surface);
   color: var(--hb-muted);
   font-size: 0.72rem;
   line-height: 1;
@@ -690,10 +743,10 @@ textarea.hb-comment-input {
   padding: 0 10px;
   border: 1px dashed var(--hb-line-strong);
   border-radius: 8px;
-  color: #425466;
+  color: var(--hb-muted);
   font-size: 0.76rem;
   font-weight: 700;
-  background: #f7f9fb;
+  background: var(--hb-soft);
 }
 .hb-photo-add-btn:hover {
   border-color: var(--hb-blue);
@@ -725,9 +778,9 @@ textarea.hb-comment-input {
   width: 26px;
   height: 26px;
   margin: 0;
-  border: 2px solid #aebbc7;
+  border: 2px solid var(--hb-line-strong);
   border-radius: 8px;
-  background: white;
+  background: var(--hb-surface);
   transition: 0.16s ease;
   min-height: 0;
 }
@@ -775,14 +828,14 @@ textarea.hb-comment-input {
   padding: 6px 4px;
   border: 1px solid var(--hb-line-strong);
   border-radius: 8px;
-  background: #f7f9fb;
+  background: var(--hb-soft);
 }
 .hb-ack-item--acked {
   border-color: var(--hb-green);
-  background: #eefbf4;
+  background: var(--hb-green-soft);
 }
 .hb-ack-name {
-  color: #425466;
+  color: var(--hb-muted);
   font-size: 0.72rem;
   font-weight: 800;
 }
@@ -811,7 +864,7 @@ textarea.hb-comment-input {
 .hb-board-foot {
   padding: 14px 20px;
   border-top: 1px solid var(--hb-line);
-  background: #fbfcfd;
+  background: var(--hb-surface);
   color: var(--hb-muted);
   font-size: 0.79rem;
 }
@@ -827,7 +880,7 @@ textarea.hb-comment-input {
   align-items: center;
   gap: 10px;
   border-radius: 11px;
-  background: var(--hb-navy);
+  background: var(--hb-strong);
   color: white;
   box-shadow: 0 12px 32px rgba(16, 42, 67, 0.28);
   opacity: 0;
@@ -955,7 +1008,7 @@ textarea.hb-comment-input {
     content: attr(data-label);
     display: block;
     margin-bottom: 2px;
-    color: #83909c;
+    color: var(--hb-faint);
     font-size: 0.68rem;
     font-weight: 850;
     letter-spacing: 0.04em;
@@ -980,7 +1033,7 @@ textarea.hb-comment-input {
   gap: 12px;
   flex-wrap: wrap;
   padding: 10px 14px;
-  color: #516273;
+  color: var(--hb-muted);
   font-size: 0.82rem;
   border-bottom: 1px solid var(--hb-line-strong);
 }
@@ -999,8 +1052,8 @@ textarea.hb-comment-input {
   text-transform: uppercase;
   cursor: pointer;
 }
-.hb-column-filter-toggle:hover, .hb-column-filter-toggle--active { color: #1d4ed8; }
-.hb-column-filter-toggle:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.hb-column-filter-toggle:hover, .hb-column-filter-toggle--active { color: var(--hb-blue-text); }
+.hb-column-filter-toggle:focus-visible { outline: 2px solid var(--hb-blue); outline-offset: 2px; }
 .hb-column-filter-pop {
   position: fixed;
   z-index: 60;
@@ -1011,9 +1064,9 @@ textarea.hb-comment-input {
   padding: 10px;
   border: 1px solid var(--hb-line-strong);
   border-radius: 10px;
-  background: white;
+  background: var(--hb-surface);
   box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
-  color: #334155;
+  color: var(--hb-ink);
   font-size: 0.85rem;
   font-weight: 600;
   letter-spacing: normal;
@@ -1030,11 +1083,11 @@ textarea.hb-comment-input {
   text-align: left;
   cursor: pointer;
 }
-.hb-column-filter-option:hover { background: #f2f6fa; }
-.hb-column-filter-option--selected { background: #e8f0fe; color: #1d4ed8; font-weight: 800; }
+.hb-column-filter-option:hover { background: var(--hb-soft); }
+.hb-column-filter-option--selected { background: var(--hb-blue-soft); color: var(--hb-blue-text); font-weight: 800; }
 @media (max-width: 640px) {
   .hb-table thead { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
-  .hb-table thead tr { display: flex; flex-wrap: wrap; background: #f7f9fb; padding: 8px; gap: 8px; }
+  .hb-table thead tr { display: flex; flex-wrap: wrap; background: var(--hb-soft); padding: 8px; gap: 8px; }
   .hb-table thead th { display: none; height: auto; padding: 0 6px; border: 0; }
   .hb-table thead th:nth-child(1), .hb-table thead th:nth-child(3),
   .hb-table thead th:nth-child(4) { display: block; flex: 1 1 130px; }
@@ -1084,7 +1137,7 @@ textarea.hb-comment-input {
     padding: 8px 4px;
   }
   .hb-table td::before {
-    color: #4b5a68;
+    color: var(--hb-muted);
     font-size: 0.72rem;
     font-weight: 900;
   }
@@ -1096,32 +1149,32 @@ textarea.hb-comment-input {
   }
 
   .hb-date-main {
-    color: #0a1722;
+    color: var(--hb-ink);
     font-size: 1.02rem;
     font-weight: 900;
   }
   .hb-date-sub {
-    color: #1552a6;
+    color: var(--hb-blue-text);
     font-size: 0.82rem;
     font-weight: 800;
   }
   .hb-time-main {
-    color: #0a1722;
+    color: var(--hb-ink);
     font-size: 1.15rem;
     font-weight: 900;
   }
   .hb-from-badge {
     min-height: 34px;
     padding: 0 10px;
-    color: #0f3f85;
+    color: var(--hb-blue-text);
     font-size: 0.95rem;
     font-weight: 900;
   }
   .hb-reference-main {
     padding: 9px 11px;
     border-radius: 9px;
-    background: #f0f5fc;
-    color: #0a1722;
+    background: var(--hb-blue-soft);
+    color: var(--hb-ink);
     font-size: 1.12rem;
     font-weight: 900;
     line-height: 1.4;
@@ -1134,7 +1187,7 @@ textarea.hb-comment-input {
     font-weight: 900;
   }
   .hb-page .hb-notice-text {
-    color: #0a1722;
+    color: var(--hb-ink);
     font-size: 1.14rem;
     font-weight: 700;
     line-height: 1.7;
@@ -1147,11 +1200,11 @@ textarea.hb-comment-input {
   }
 
   .hb-comment-author {
-    color: #0a1722;
+    color: var(--hb-ink);
     font-weight: 900;
   }
   .hb-comment-body {
-    color: #1f2f3d;
+    color: var(--hb-ink);
     font-size: 9px;
     font-weight: 600;
   }
@@ -1166,13 +1219,13 @@ textarea.hb-comment-input {
     font-weight: 700;
   }
   .hb-ack-name {
-    color: #0a1722;
+    color: var(--hb-ink);
     font-weight: 900;
   }
 
   .hb-column-filter-toggle {
     min-height: 40px;
-    color: #263747;
+    color: var(--hb-ink);
     font-size: 0.9rem;
     font-weight: 900;
   }
@@ -1181,7 +1234,7 @@ textarea.hb-comment-input {
      values in the heaviest weight, plus a hairline stroke so they stay bold on
      fonts with no 800/900 face (which would otherwise fall back to 700). */
   .hb-table td:nth-child(-n + 4)::before {
-    color: #1f2f3d;
+    color: var(--hb-ink);
     font-weight: 900;
     -webkit-text-stroke: 0.3px currentColor;
   }
@@ -1262,11 +1315,11 @@ textarea.hb-comment-input {
     border: 0;
     border-left: 6px solid var(--hb-blue);
     border-radius: 16px;
-    background: #eaf0f7;
+    background: var(--hb-panel);
   }
   .hb-table tbody tr.hb-row--completed {
     border-left-color: var(--hb-green);
-    background: #e9f3ed;
+    background: var(--hb-panel-done);
   }
 
   /* Every cell is a white card; neighbours that belong together are flush. */
@@ -1274,9 +1327,9 @@ textarea.hb-comment-input {
     position: relative;
     min-width: 0;
     padding: 12px 10px;
-    border: 1px solid #dbe4ee;
+    border: 1px solid var(--hb-line);
     border-radius: 14px;
-    background: #fff;
+    background: var(--hb-surface);
   }
   .hb-page .hb-table tbody tr td::before {
     display: block;
@@ -1299,7 +1352,7 @@ textarea.hb-comment-input {
     border-left: 0;
     border-right: 0;
     border-radius: 0;
-    box-shadow: inset 1px 0 #e3e9f0, inset -1px 0 #e3e9f0;
+    box-shadow: inset 1px 0 var(--hb-line), inset -1px 0 var(--hb-line);
   }
   .hb-page .hb-table tbody tr td:nth-child(3) {
     border-left: 0;
@@ -1315,8 +1368,8 @@ textarea.hb-comment-input {
     margin-top: 6px;
     padding: 2px 10px;
     border-radius: 999px;
-    background: #e3eeff;
-    color: #1a5fd0;
+    background: var(--hb-blue-soft);
+    color: var(--hb-blue-text);
     font-size: 0.8rem;
     font-weight: 900;
   }
@@ -1330,7 +1383,7 @@ textarea.hb-comment-input {
     padding: 0;
     justify-content: flex-start;
     background: none;
-    color: #0a1722;
+    color: var(--hb-ink);
     font-size: 1.15rem;
     line-height: 1.25;
   }
@@ -1358,18 +1411,18 @@ textarea.hb-comment-input {
     content: "📢\00a0" attr(data-label);
     margin: 0;
     padding: 12px 14px 4px;
-    border: 1px solid #dbe4ee;
+    border: 1px solid var(--hb-line);
     border-bottom: 0;
     border-radius: 14px 14px 0 0;
-    background: #fff;
+    background: var(--hb-surface);
   }
   .hb-table td:nth-child(5) .hb-notice-head {
     justify-content: flex-start;
     margin: 0;
     padding: 2px 14px 6px;
-    border: solid #dbe4ee;
+    border: solid var(--hb-line);
     border-width: 0 1px;
-    background: #fff;
+    background: var(--hb-surface);
   }
   .hb-table td:nth-child(5) .hb-notice-tag {
     padding: 3px 12px;
@@ -1389,18 +1442,18 @@ textarea.hb-comment-input {
     min-width: 42px;
     min-height: 42px;
     border-radius: 50%;
-    background: #eef2f6;
-    color: #4a5b6c;
+    background: var(--hb-soft);
+    color: var(--hb-muted);
   }
   .hb-notice-delete {
-    color: #c0392b;
+    color: var(--hb-red);
   }
   .hb-page .hb-table td:nth-child(5) .hb-notice-text {
     padding: 4px 14px 16px;
-    border: 1px solid #dbe4ee;
+    border: 1px solid var(--hb-line);
     border-top: 0;
     border-radius: 0 0 14px 14px;
-    background: #fff;
+    background: var(--hb-surface);
   }
   .hb-table td:nth-child(5) .hb-photo-row {
     margin-top: 10px;
@@ -1416,17 +1469,17 @@ textarea.hb-comment-input {
     min-height: 52px;
     border: 0;
     border-radius: 12px;
-    background: #e1edff;
-    color: #1a5fd0;
+    background: var(--hb-blue-soft);
+    color: var(--hb-blue-text);
     font-size: 1.02rem;
     font-weight: 900;
   }
   .hb-table td:nth-child(5) .hb-comment-list:not(:empty) {
     margin-top: 10px;
     padding: 4px 14px;
-    border: 1px solid #dbe4ee;
+    border: 1px solid var(--hb-line);
     border-radius: 14px;
-    background: #fff;
+    background: var(--hb-surface);
   }
   .hb-table td:nth-child(5) .hb-comment {
     align-items: baseline;
@@ -1438,7 +1491,7 @@ textarea.hb-comment-input {
   .hb-page .hb-table td:nth-child(5) textarea.hb-comment-input {
     min-height: 52px;
     border-radius: 12px;
-    background: #fff;
+    background: var(--hb-surface);
   }
   .hb-table td:nth-child(5) .hb-comment-form .hb-secondary-button {
     min-width: 72px;
@@ -1458,7 +1511,7 @@ textarea.hb-comment-input {
   .hb-page .hb-table tbody tr:has(.hb-edit-textarea) td:nth-child(-n + 4) {
     grid-column: 1 / -1;
     padding: 12px 14px;
-    border: 1px solid #dbe4ee;
+    border: 1px solid var(--hb-line);
     border-radius: 14px;
     box-shadow: none;
   }
@@ -1482,9 +1535,9 @@ textarea.hb-comment-input {
   }
   .hb-page .hb-table tbody tr td:nth-child(5):has(.hb-edit-textarea) {
     padding: 12px 14px;
-    border: 1px solid #dbe4ee;
+    border: 1px solid var(--hb-line);
     border-radius: 14px;
-    background: #fff;
+    background: var(--hb-surface);
   }
   .hb-page .hb-table tbody tr td:nth-child(5):has(.hb-edit-textarea)::before {
     padding: 0 0 6px;
@@ -1512,7 +1565,7 @@ textarea.hb-comment-input {
   .hb-page .hb-table tbody tr td.hb-ack-cell {
     grid-column: 1 / -1;
     padding: 12px 14px 14px;
-    border: 1px solid #dbe4ee;
+    border: 1px solid var(--hb-line);
     border-radius: 14px;
   }
   .hb-page .hb-table tbody tr td.hb-ack-cell::before {
@@ -1531,10 +1584,10 @@ textarea.hb-comment-input {
     padding: 10px 14px;
     border: 0;
     border-radius: 12px;
-    background: #f0f3f6;
+    background: var(--hb-soft);
   }
   .hb-page .hb-ack-item--acked {
-    background: #e2f5e9;
+    background: var(--hb-green-soft);
   }
   .hb-ack-name {
     font-size: 1.05rem;
