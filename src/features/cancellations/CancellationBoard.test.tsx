@@ -1,4 +1,18 @@
 import { vi } from "vitest";
+
+const store = vi.hoisted(() => ({ records: [] as Array<Record<string, unknown>> }));
+vi.mock("@/lib/api", () => ({
+  api: {
+    listCancellations: vi.fn(async () => ({ records: [...store.records] })),
+    createCancellation: vi.fn(async (input: Record<string, unknown>) => {
+      const record = { ...input, id: `r${store.records.length + 1}`, createdAt: "2026-11-19T10:00:00Z" };
+      store.records.push(record);
+      return record;
+    }),
+    updateCancellation: vi.fn(),
+    deleteCancellation: vi.fn(),
+  },
+}));
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { CancellationBoard } from "./CancellationBoard";
 import { EMPTY_FILTERS, filterCancellations, isCancellationPath, sortCancellations, summarize } from "./cancellationUtils";
@@ -39,9 +53,13 @@ describe("cancellation utils", () => {
 });
 
 describe("CancellationBoard", () => {
-  it("shows the empty state by default and never shows sample rows unasked", () => {
+  beforeEach(() => {
+    store.records = [];
+  });
+
+  it("shows the empty state by default and never shows sample rows unasked", async () => {
     render(<CancellationBoard />);
-    expect(screen.getByText("등록된 무료 취소내역이 없습니다.")).toBeInTheDocument();
+    expect(await screen.findByText("등록된 무료 취소내역이 없습니다.")).toBeInTheDocument();
     expect(screen.queryByText("Fung Yee")).not.toBeInTheDocument();
   });
 
@@ -49,7 +67,7 @@ describe("CancellationBoard", () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.assign(navigator, { clipboard: { writeText } });
     render(<CancellationBoard />);
-    fireEvent.click(screen.getByText("샘플 데이터로 미리보기"));
+    fireEvent.click(await screen.findByText("샘플 데이터로 미리보기"));
     expect(screen.getByText("샘플 데이터 · 저장되지 않음")).toBeInTheDocument();
 
     const table = screen.getByRole("table");
@@ -68,5 +86,28 @@ describe("CancellationBoard", () => {
     fireEvent.click(within(screen.getByRole("table")).getByLabelText("예약번호 202807035 복사"));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("202807035"));
     expect(await within(screen.getByRole("table")).findByText("복사됨")).toBeInTheDocument();
+  });
+
+  it("lets editors register a record, which then shows in the list", async () => {
+    render(<CancellationBoard canEdit author="Jane" />);
+    fireEvent.click((await screen.findAllByRole("button", { name: "+ 취소내역 등록" }))[0]);
+    const dialog = screen.getByText("취소내역 등록").closest(".modal") as HTMLElement;
+    fireEvent.change(within(dialog).getByLabelText("체크인 날짜 *"), { target: { value: "2026-12-01" } });
+    fireEvent.change(within(dialog).getByLabelText("예약번호 *"), { target: { value: "555123" } });
+    fireEvent.change(within(dialog).getByLabelText("성함 *"), { target: { value: "Kim Minji" } });
+    fireEvent.click(within(dialog).getByLabelText("부분취소"));
+    fireEvent.change(within(dialog).getByLabelText("부분취소 비율"), { target: { value: "30" } });
+    expect(within(dialog).getByLabelText("담당자")).toHaveValue("Jane");
+    fireEvent.click(within(dialog).getByRole("button", { name: "등록" }));
+
+    expect(await within(await screen.findByRole("table")).findByText("Kim Minji")).toBeInTheDocument();
+    expect(store.records[0]).toMatchObject({ reservationNumber: "555123", cancellationRate: 30, manager: "Jane", checkInDate: "2026-12-01" });
+    expect(screen.queryByText("취소내역 등록")).not.toBeInTheDocument();
+  });
+
+  it("hides registration for read-only users", async () => {
+    render(<CancellationBoard />);
+    await screen.findByText("등록된 무료 취소내역이 없습니다.");
+    expect(screen.queryByRole("button", { name: "+ 취소내역 등록" })).not.toBeInTheDocument();
   });
 });

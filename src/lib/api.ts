@@ -1,3 +1,5 @@
+import type { CancellationInput } from "@shared/cancellations";
+import type { CancellationRecord } from "@/features/cancellations/types";
 import type { Project, ProjectDetail, ProjectInput, ProjectTaskInput } from "@shared/projects";
 import type {
   UserDTO,
@@ -65,7 +67,16 @@ function projectMutation(path: string, method: string, input?: object) {
   return request<void>(projectsPath + path, { method, body: input && JSON.stringify(input) });
 }
 
+const cancellationsPath = "/api/cancellations";
+
 export const api = {
+  listCancellations: () => request<{ records: CancellationRecord[] }>(cancellationsPath),
+  createCancellation: (input: CancellationInput) =>
+    request<CancellationRecord>(cancellationsPath, { method: "POST", body: JSON.stringify(input) }),
+  updateCancellation: (id: string, input: CancellationInput) =>
+    request<void>(`${cancellationsPath}/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(input) }),
+  deleteCancellation: (id: string) => request<void>(`${cancellationsPath}/${encodeURIComponent(id)}`, { method: "DELETE" }),
+
   listProjects: () => request<Project[]>(projectsPath),
   getProject: (id: string) => request<ProjectDetail>(`${projectsPath}/${encodeURIComponent(id)}`),
   createProject: (input: ProjectInput) =>

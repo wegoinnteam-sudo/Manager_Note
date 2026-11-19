@@ -16,6 +16,9 @@ import {
 } from "./cancellationUtils";
 import { MOCK_CANCELLATIONS } from "./mockCancellations";
 import { useCancellations } from "./useCancellations";
+import { CancellationForm } from "./CancellationForm";
+import type { CancellationInput } from "@shared/cancellations";
+import { api } from "@/lib/api";
 
 const PAGE_SIZES = [10, 20, 50];
 
@@ -87,7 +90,7 @@ function SortHeader({ label, sortKey, sort, onSort }: { label: string; sortKey: 
   );
 }
 
-function RowMenu({ onDetail, onCopy }: { onDetail: () => void; onCopy: () => void }) {
+function RowMenu({ onDetail, onCopy, onEdit, onDelete }: { onDetail: () => void; onCopy: () => void; onEdit?: () => void; onDelete?: () => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -107,6 +110,8 @@ function RowMenu({ onDetail, onCopy }: { onDetail: () => void; onCopy: () => voi
         <div className="cx-menu__list" role="menu">
           <button type="button" role="menuitem" onClick={() => { setOpen(false); onDetail(); }}>상세보기</button>
           <button type="button" role="menuitem" onClick={() => { setOpen(false); onCopy(); }}>예약번호 복사</button>
+          {onEdit && <button type="button" role="menuitem" onClick={() => { setOpen(false); onEdit(); }}>수정</button>}
+          {onDelete && <button type="button" role="menuitem" className="cx-menu__danger" onClick={() => { setOpen(false); onDelete(); }}>삭제</button>}
         </div>
       )}
     </div>
@@ -116,14 +121,17 @@ function RowMenu({ onDetail, onCopy }: { onDetail: () => void; onCopy: () => voi
 function Reason({ text, expanded, onToggle }: { text: string; expanded: boolean; onToggle: () => void }) {
   if (!text || text === "-") return <span className="cx-muted">-</span>;
   return (
-    <button type="button" className={expanded ? "cx-reason cx-reason--open" : "cx-reason"} title={text} onClick={onToggle}>
+    <button type="button" className={expanded ? "cx-reason cx-reason--open" : "cx-reason"} title={text} onClick={(e) => { e.stopPropagation(); onToggle(); }}>
       {text}
     </button>
   );
 }
 
-export function CancellationBoard() {
+export function CancellationBoard({ canEdit = false, author = "" }: { canEdit?: boolean; author?: string }) {
   const live = useCancellations();
+  // null: closed · "new": register form · record: edit form
+  const [editing, setEditing] = useState<CancellationRecord | "new" | null>(null);
+
   const [sampleMode, setSampleMode] = useState(false);
   // Sample rows are display-only and never mixed with real ones: if any
   // real data exists the sample toggle isn't offered at all.
@@ -196,6 +204,27 @@ export function CancellationBoard() {
   };
 
   const hasRecords = records.length > 0;
+  // Sample rows are not real records: no editing them.
+  const writable = canEdit && !sampleMode;
+
+  const saveRecord = async (input: CancellationInput) => {
+    if (editing && editing !== "new") await api.updateCancellation(editing.id, input);
+    else await api.createCancellation(input);
+    setEditing(null);
+    setDetail(null);
+    await live.reload();
+  };
+  const deleteRecord = async (record: CancellationRecord) => {
+    if (!window.confirm(`${record.guestName} (${record.reservationNumber}) 취소내역을 삭제할까요?`)) return;
+    try {
+      await api.deleteCancellation(record.id);
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "삭제하지 못했습니다.");
+      return;
+    }
+    setDetail(null);
+    await live.reload();
+  };
 
   return (
     <div className="cx-page">
@@ -205,6 +234,11 @@ export function CancellationBoard() {
             <h1>예약 무료 취소내역</h1>
             <p>예약 무료 취소 승인 내역을 관리하는 페이지입니다.</p>
           </div>
+          {writable && (
+            <button type="button" className="cx-btn cx-btn--primary" onClick={() => setEditing("new")}>
+              + 취소내역 등록
+            </button>
+          )}
           {sampleMode && (
             <div className="cx-sample-flag">
               <span>샘플 데이터 · 저장되지 않음</span>
@@ -277,8 +311,11 @@ export function CancellationBoard() {
           {!hasRecords ? (
             <div className="cx-empty">
               <strong>등록된 무료 취소내역이 없습니다.</strong>
-              <p>무료 취소 승인 내역이 등록되면 이곳에 표시됩니다.</p>
-              {!live.connected && (
+              <p>{live.error ? `불러오기 실패: ${live.error}` : writable ? "위의 ‘+ 취소내역 등록’ 버튼으로 첫 내역을 등록하세요." : "무료 취소 승인 내역이 등록되면 이곳에 표시됩니다."}</p>
+              {writable && (
+                <button type="button" className="cx-btn cx-btn--primary" onClick={() => setEditing("new")}>+ 취소내역 등록</button>
+              )}
+              {!writable && (
                 <button type="button" className="cx-btn" onClick={() => setSampleMode(true)}>샘플 데이터로 미리보기</button>
               )}
             </div>
@@ -335,7 +372,14 @@ export function CancellationBoard() {
                         <td><ManagerBadge name={r.manager} /></td>
                         <td><Reason text={r.reason} expanded={expandedReasons.has(r.id)} onToggle={() => toggleReason(r.id)} /></td>
                         <td className="cx-muted">{formatDateTime(r.createdAt)}</td>
-                        <td><RowMenu onDetail={() => setDetail(r)} onCopy={() => onCopy(r.id, r.reservationNumber)} /></td>
+                        <td>
+                          <RowMenu
+                            onDetail={() => setDetail(r)}
+                            onCopy={() => onCopy(r.id, r.reservationNumber)}
+                            onEdit={writable ? () => setEditing(r) : undefined}
+                            onDelete={writable ? () => void deleteRecord(r) : undefined}
+                          />
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -344,7 +388,7 @@ export function CancellationBoard() {
 
               <ul className="cx-cards">
                 {pageRows.map((r) => (
-                  <li key={r.id} className="cx-mcard">
+                  <li key={r.id} className="cx-mcard" onClick={() => setDetail(r)}>
                     <div className="cx-mcard__top">
                       <span className="cx-resno">
                         <span>{r.reservationNumber}</span>
@@ -404,6 +448,23 @@ export function CancellationBoard() {
             <dt>사유</dt><dd className="cx-detail__reason">{detail.reason || "-"}</dd>
             <dt>등록일</dt><dd>{formatDateTime(detail.createdAt)}</dd>
           </dl>
+          {writable && (
+            <div className="cx-form__actions">
+              <button type="button" className="cx-btn cx-btn--danger" onClick={() => void deleteRecord(detail)}>삭제</button>
+              <button type="button" className="cx-btn cx-btn--primary" onClick={() => setEditing(detail)}>수정</button>
+            </div>
+          )}
+        </Modal>
+      )}
+
+      {editing && (
+        <Modal title={editing === "new" ? "취소내역 등록" : `취소내역 수정 · ${editing.reservationNumber}`} onClose={() => setEditing(null)}>
+          <CancellationForm
+            initial={editing === "new" ? undefined : editing}
+            defaultManager={author}
+            onSubmit={saveRecord}
+            onCancel={() => setEditing(null)}
+          />
         </Modal>
       )}
     </div>

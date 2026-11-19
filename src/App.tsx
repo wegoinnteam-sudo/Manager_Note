@@ -234,7 +234,7 @@ function AppShell({ user, identity, onChangeGuestName }: { user: UserDTO; identi
       />
     );
   } else if (isCancellationPath(path)) {
-    content = <CancellationBoard />;
+    content = <CancellationBoard canEdit={canEdit} author={identity.name || user.name} />;
   } else if (path === "/trash") {
     content = <Trash canRestore={canEdit} onOpenPage={openPage} onRestored={refreshPages} />;
   } else if (path === "/admin") {

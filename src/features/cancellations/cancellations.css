@@ -335,3 +335,41 @@
   .cx-mcard dd { margin: 0; }
   .cx-pager__pages { margin-left: 0; }
 }
+
+/* Register / edit form (inside the modal). */
+.cx-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+  min-width: min(520px, 80vw);
+}
+.cx-form__wide,
+.cx-form__rate,
+.cx-form__error,
+.cx-form__actions { grid-column: 1 / -1; }
+.cx-form .cx-field input { width: 100%; }
+.cx-page .cx-form textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--cx-line);
+  border-radius: 7px;
+  background: var(--cx-surface);
+  color: inherit;
+  font: inherit;
+  resize: vertical;
+}
+.cx-form__rate { margin: 0; padding: 0; border: none; }
+.cx-form__rate > div { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; min-height: 34px; }
+.cx-form__rate label { display: inline-flex; align-items: center; gap: 6px; }
+.cx-page .cx-form__rate input[type="radio"] { width: auto; height: auto; }
+.cx-form__pct { display: inline-flex; align-items: center; gap: 4px; }
+.cx-page .cx-form__pct input { width: 72px; }
+.cx-form__error { margin: 0; color: #dc2626; font-size: 13px; }
+.cx-form__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.cx-btn--danger { color: #dc2626; }
+.cx-menu__list button.cx-menu__danger { color: #dc2626; }
+.cx-mcard { cursor: pointer; }
+
+@media (max-width: 600px) {
+  .cx-form { grid-template-columns: 1fr; min-width: 0; }
+}

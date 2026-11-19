@@ -22,6 +22,7 @@ import { guestColorsRoute } from "./routes/guestColors";
 import { activityRoute } from "./routes/activity";
 import { handoverRoute } from "./routes/handoverNotices";
 import { projectsRoute } from "./routes/projects";
+import { cancellationsRoute } from "./routes/cancellations";
 import { runDriveSync } from "./drive/sync";
 import { ensureDefaultTeam } from "./db/teams";
 
@@ -49,6 +50,7 @@ app.route("/api/guest-colors", guestColorsRoute);
 app.route("/api/activity", activityRoute);
 app.route("/api/handover", handoverRoute);
 app.route("/api/projects", projectsRoute);
+app.route("/api/cancellations", cancellationsRoute);
 
 app.onError((err, c) => {
   if (err instanceof AppError) {
