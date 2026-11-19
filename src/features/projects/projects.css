@@ -74,7 +74,28 @@
 .pj-notes div { background: var(--hb-bg); padding: 9px 12px; border-radius: 8px; min-width: 0; }
 .pj-notes dt { font-weight: 750; color: var(--hb-navy); }
 .pj-notes dd, .pj-updates p { white-space: pre-wrap; overflow-wrap: anywhere; margin: 3px 0 0; }
-.pj-project-notes { margin: 18px 0; }
+.pj-project-notes {
+  display: block;
+  margin: 18px 0;
+  border: 1px solid var(--hb-line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.pj-project-notes div {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 16px;
+  padding: 12px 16px;
+  border-radius: 0;
+  background: none;
+}
+.pj-project-notes div + div { border-top: 1px solid var(--hb-line); }
+.pj-project-notes dt { color: var(--hb-muted); font-size: .9rem; font-weight: 650; }
+.pj-project-notes dd { margin: 0; color: var(--hb-ink); }
+@media (max-width: 560px) {
+  .pj-project-notes div { grid-template-columns: 1fr; gap: 3px; }
+}
 .pj-progress { border-top: 1px solid var(--hb-line); padding-top: 12px; }
 .pj-progress div { display: flex; justify-content: space-between; }
 .pj-progress progress { display: block; width: 100%; accent-color: var(--hb-blue); height: 18px; }
