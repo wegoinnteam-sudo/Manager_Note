@@ -233,6 +233,8 @@ type PageBlockVariant =
       colWidths?: number[];
       width?: number;
       align?: "left" | "center" | "right";
+      /** Table color: tints the header row and grid lines. */
+      tone?: "gray" | "blue" | "green" | "yellow" | "red" | "purple";
       cellStyles?: Record<string, { color?: string; bg?: string; fontSize?: "sm" | "md" | "lg"; fontSizePt?: number }>;
     }
   | { id: string; type: "embed"; url: string }

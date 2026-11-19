@@ -47,7 +47,7 @@ describe("table formatting", () => {
     fireEvent.change(screen.getByLabelText("글자 크기 (pt)"), { target: { value: "1" } });
     fireEvent.click(screen.getByText("적용"));
     expect(editor).toHaveStyle({ fontSize: "1pt" });
-    expect(screen.getByText("B")).toHaveStyle({ fontSize: "13px" });
+    expect(screen.getByText("B")).toHaveStyle({ fontSize: "14px" });
     fireEvent.click(screen.getByText("표 전체로 바꾸기"));
     fireEvent.change(screen.getByLabelText("글자 크기 (pt)"), { target: { value: "10.5" } });
     fireEvent.click(screen.getByText("적용"));
@@ -267,10 +267,55 @@ describe("new tables (/표)", () => {
     expect(latest.cellStyles).toEqual({ "1-1": { color: "#dc2626" } });
   });
 
+  it("colors cells and the whole table from the right-click menu", () => {
+    const { container } = render(<Harness />);
+    fireEvent.contextMenu(screen.getByText("C"), { clientX: 10, clientY: 10 });
+    fireEvent.click(screen.getByRole("button", { name: "배경색 #dbeafe" }));
+    fireEvent.change(screen.getByLabelText("글자색 직접 고르기"), { target: { value: "#123456" } });
+    expect(latest.cellStyles?.["1-0"]).toEqual({ bg: "#dbeafe", color: "#123456" });
+
+    fireEvent.click(screen.getByRole("radio", { name: "표 색깔 파랑" }));
+    expect(latest.tone).toBe("blue");
+    expect(container.querySelector(".table-block-layout")).toHaveAttribute("data-tone", "blue");
+    expect(pageContentSchema.safeParse({ blocks: [latest] }).success).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "선택 셀 서식 지우기" }));
+    expect(latest.cellStyles).toBeUndefined();
+  });
+
   it("adds a row below from the right-click menu", () => {
     render(<Harness start={{ id: "t", type: "table", rows: [["A", "B"], ["C", "D"], ["E", "F"]] }} />);
     fireEvent.contextMenu(screen.getByText("C"), { clientX: 10, clientY: 10 });
     fireEvent.click(screen.getByRole("button", { name: "아래에 행 추가" }));
     expect(latest.rows).toEqual([["A", "B"], ["C", "D"], ["", ""], ["E", "F"]]);
+  });
+});
+
+describe("column width", () => {
+  const start: Table = { id: "w", type: "table", rows: [["객실 번호", "메모"], ["101", "에어컨 소음 발생, 업체 점검 요청"]], colWidths: [100, 100] };
+
+  it("can be resized from any row, not just the header", () => {
+    const { container } = render(<Harness start={start} />);
+    const handles = container.querySelectorAll('[data-table-cell="1-1"] .table-block__col-resize');
+    expect(handles).toHaveLength(1);
+    fireEvent.pointerEnter(handles[0]);
+    expect(container.querySelectorAll(".table-block__cell--guide")).toHaveLength(2); // header + body cell of column 2
+    fireEvent.pointerLeave(handles[0]);
+    expect(container.querySelectorAll(".table-block__cell--guide")).toHaveLength(0);
+  });
+
+  it("fits a column to its content on double-click", () => {
+    const { container } = render(<Harness start={start} />);
+    fireEvent.doubleClick(container.querySelector('[data-table-cell="1-1"] .table-block__col-resize')!);
+    expect(latest.colWidths![1]).toBeGreaterThan(200);
+    expect(latest.colWidths![1]).toBeLessThanOrEqual(480);
+    expect(latest.rows).toEqual(start.rows);
+  });
+
+  it("offers the same fit from the column menu", () => {
+    render(<Harness start={start} />);
+    fireEvent.click(screen.getByRole("button", { name: "객실 번호 열 메뉴" }));
+    fireEvent.click(screen.getByRole("button", { name: "내용에 맞게 너비 맞추기" }));
+    expect(latest.colWidths![0]).toBeGreaterThan(100);
   });
 });

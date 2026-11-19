@@ -35,6 +35,7 @@ export const pageBlockSchema = z.discriminatedUnion("type", [
     colWidths: z.array(z.number().min(20).max(2000)).max(20).optional(),
     width: z.number().min(10).max(100).optional(),
     align: z.enum(["left", "center", "right"]).optional(),
+    tone: z.enum(["gray", "blue", "green", "yellow", "red", "purple"]).optional(),
     cellStyles: z
       .record(
         z.string(),

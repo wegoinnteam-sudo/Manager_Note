@@ -11,9 +11,22 @@ type SortState = { col: number; dir: "asc" | "desc" } | null;
 type CaretMode = "end" | "all";
 type StatusTone = "done" | "progress" | "pending" | "problem";
 
-const FONT_SIZE_PX: Record<FontSize, number> = { sm: 12, md: 13, lg: 16 };
+const FONT_SIZE_PX: Record<FontSize, number> = { sm: 12, md: 14, lg: 16 };
+const MIN_COL_WIDTH = 60;
+const MAX_AUTO_COL_WIDTH = 480;
 const TEXT_SWATCHES = ["#111827", "#dc2626", "#d97706", "#16a34a", "#2563eb", "#7c3aed"];
 const BG_SWATCHES = [null, "#fef3c7", "#dcfce7", "#dbeafe", "#fee2e2", "#ede9fe"];
+type TableTone = NonNullable<TableBlock["tone"]>;
+/** Table colors (header row + grid lines). The swatch color is only for the picker. */
+const TABLE_TONES: { tone: TableTone | undefined; label: string; swatch: string }[] = [
+  { tone: undefined, label: "기본", swatch: "#f3f4f6" },
+  { tone: "gray", label: "회색", swatch: "#9ca3af" },
+  { tone: "blue", label: "파랑", swatch: "#3b82f6" },
+  { tone: "green", label: "초록", swatch: "#22c55e" },
+  { tone: "yellow", label: "노랑", swatch: "#eab308" },
+  { tone: "red", label: "빨강", swatch: "#ef4444" },
+  { tone: "purple", label: "보라", swatch: "#a855f7" },
+];
 // Below this many rows there is nothing worth searching, so the search bar
 // (and, for read-only viewers, the sort/filter buttons) stays out of the way.
 const TOOLBAR_MIN_ROWS = 7;
@@ -72,6 +85,35 @@ function CellContent({ value, header, plain, placeholder }: { value: string; hea
   return <>{value}</>;
 }
 
+function ToneSwatches({ value, onPick }: { value: TableTone | undefined; onPick: (tone: TableTone | undefined) => void }) {
+  return (
+    <span className="table-tone-swatches" role="radiogroup" aria-label="표 색깔">
+      {TABLE_TONES.map(({ tone, label, swatch }) => (
+        <button
+          key={tone ?? "default"}
+          type="button"
+          role="radio"
+          aria-checked={value === tone}
+          className="table-context-menu__swatch table-tone-swatch"
+          style={{ background: swatch }}
+          title={label}
+          aria-label={`표 색깔 ${label}`}
+          onClick={() => onPick(tone)}
+        />
+      ))}
+    </span>
+  );
+}
+
+/** Native color picker styled as one more swatch ("직접 고르기"). */
+function CustomColor({ label, value, onPick }: { label: string; value: string | undefined; onPick: (color: string) => void }) {
+  return (
+    <label className="table-context-menu__swatch table-context-menu__swatch--custom" title={label}>
+      <input type="color" aria-label={label} value={value && /^#[0-9a-f]{6}$/i.test(value) ? value : "#000000"} onChange={(e) => onPick(e.target.value)} />
+    </label>
+  );
+}
+
 export function TableBlockView({
   block,
   editable,
@@ -106,9 +148,13 @@ export function TableBlockView({
 
   const dragRef = useRef<{ anchor: CellPos; x: number; y: number; fromEditor: boolean; moved: boolean } | null>(null);
   const resizeRef = useRef<{ c: number; startX: number; startWidth: number; pointerId: number } | null>(null);
+  // Column whose edge is hovered or being dragged: the whole column gets a guide line.
+  const [guideCol, setGuideCol] = useState<number | null>(null);
+  const [resizing, setResizing] = useState(false);
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
   const caretModeRef = useRef<CaretMode | null>(null);
   const tableRef = useRef<HTMLDivElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const isRange = !!selection && (selection.rowIds.length > 1 || selection.columnIds.length > 1);
 
   // ---- View (search / filter / sort): display order only, never saved ----
@@ -174,6 +220,16 @@ export function TableBlockView({
       window.removeEventListener("keydown", onKey);
     };
   }, [menu, colMenu, settingsOpen]);
+
+  // Keep the right-click menu on screen (it is tall: actions + colors).
+  useLayoutEffect(() => {
+    const el = menuRef.current;
+    if (!el || !menu) return;
+    const rect = el.getBoundingClientRect();
+    const margin = 8;
+    el.style.left = `${Math.max(margin, Math.min(menu.x, window.innerWidth - rect.width - margin))}px`;
+    el.style.top = `${Math.max(margin, Math.min(menu.y, window.innerHeight - rect.height - margin))}px`;
+  }, [menu]);
 
   // ---- Editing: focus + auto-height for the single live textarea ----
   useLayoutEffect(() => {
@@ -354,7 +410,7 @@ export function TableBlockView({
     closeMenus();
   };
 
-  const applyStyle = (sel: Selection, patch: Partial<{ color: string; bg: string | undefined; fontSize: FontSize; fontSizePt: number | undefined }>) => {
+  const applyStyle = (sel: Selection, patch: Partial<{ color: string | undefined; bg: string | undefined; fontSize: FontSize; fontSizePt: number | undefined }>) => {
     const next = { ...(block.cellStyles ?? {}) };
     for (const r of sel.rowIds) {
       for (const c of sel.columnIds) {
@@ -364,6 +420,13 @@ export function TableBlockView({
     }
     onPatch({ cellStyles: next });
   };
+  /** Drop every per-cell style (colors, size) in the selection. */
+  const clearStyles = (sel: Selection) => {
+    if (!block.cellStyles) return;
+    const next = { ...block.cellStyles };
+    for (const r of sel.rowIds) for (const c of sel.columnIds) delete next[cellKey(r, c)];
+    onPatch({ cellStyles: Object.keys(next).length ? next : undefined });
+  };
 
   const colWidth = (c: number) => block.colWidths?.[c] ?? DEFAULT_COL_WIDTH;
   const fontSizeValid = Number.isFinite(Number(fontSizeInput)) && Number(fontSizeInput) >= 1 && Number(fontSizeInput) <= 200;
@@ -372,21 +435,76 @@ export function TableBlockView({
     applyStyle(selection ?? { rowIds: rows.map((_, r) => r), columnIds: rows[0].map((_, c) => c) }, { fontSizePt: Number(fontSizeInput) });
   };
 
-  // ---- Column resize (header handle) ----
+  // ---- Column resize (edge handle on every cell) ----
+  /** Current on-screen column widths, so the first drag/auto-fit starts from what the user sees. */
+  const measuredWidths = (row: HTMLTableRowElement | null | undefined) =>
+    rows[0].map((_, ci) => {
+      const w = row?.cells[ci]?.getBoundingClientRect().width;
+      return w ? Math.round(w) : colWidth(ci);
+    });
+
   const startResize = (e: React.PointerEvent<HTMLSpanElement>, c: number) => {
     if (e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
-    const tableRow = e.currentTarget.closest("tr");
-    const widths = rows[0].map((_, ci) => tableRow?.cells[ci]?.getBoundingClientRect().width ?? colWidth(ci));
+    const widths = measuredWidths(e.currentTarget.closest("tr"));
     onPatch({ colWidths: widths });
     resizeRef.current = { c, startX: e.clientX, startWidth: widths[c], pointerId: e.pointerId };
     e.currentTarget.setPointerCapture(e.pointerId);
+    setGuideCol(c);
+    setResizing(true);
   };
   const stopResize = (e: React.PointerEvent<HTMLSpanElement>) => {
     if (resizeRef.current?.pointerId !== e.pointerId) return;
     resizeRef.current = null;
+    setResizing(false);
+    setGuideCol(null);
     if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+  };
+
+  // Keep the col-resize cursor and suppress text selection page-wide while dragging.
+  useEffect(() => {
+    if (!resizing) return;
+    document.body.classList.add("table-col-resizing");
+    return () => document.body.classList.remove("table-col-resizing");
+  }, [resizing]);
+
+  /** Fit a column to its longest line (double-click on an edge, or the column menu). */
+  const autoFitColumn = (c: number) => {
+    const table = tableRef.current;
+    // Off-screen probe that copies each cell's font, so the measured width
+    // matches what is rendered (custom pt sizes, bold header, user font).
+    const probe = document.createElement("span");
+    probe.style.cssText = "position:absolute;visibility:hidden;white-space:pre;left:-9999px;top:0";
+    document.body.appendChild(probe);
+    let widest = 0;
+    rows.forEach((row, r) => {
+      const text = row[c] ?? "";
+      const el = table?.querySelector<HTMLElement>(`[data-table-cell="${cellKey(r, c)}"] > :first-child`);
+      const computed = el ? getComputedStyle(el) : null;
+      const fontPx = parseFloat(computed?.fontSize ?? "") || FONT_SIZE_PX.md;
+      if (computed) {
+        probe.style.fontFamily = computed.fontFamily;
+        probe.style.fontSize = computed.fontSize;
+        probe.style.fontWeight = computed.fontWeight;
+        probe.style.letterSpacing = computed.letterSpacing;
+      }
+      const lines = (text || (r === 0 ? `열 ${c + 1}` : "")).split("\n");
+      for (const line of lines) {
+        probe.textContent = line;
+        // No layout engine (tests) reports 0 — fall back to a CJK-friendly estimate.
+        let w = probe.getBoundingClientRect().width || line.length * fontPx * 0.95;
+        if (r > 0 && STATUS_TONE.has(line.trim().toLowerCase())) w += 18; // pill padding
+        if (r === 0) w += 26; // header menu button
+        widest = Math.max(widest, w);
+      }
+    });
+    probe.remove();
+    const fit = Math.min(MAX_AUTO_COL_WIDTH, Math.max(MIN_COL_WIDTH, Math.ceil(widest + 24 /* cell padding */ + 2)));
+    const widths = measuredWidths(table?.querySelector<HTMLTableRowElement>("tr.table-block__head"));
+    widths[c] = fit;
+    onPatch({ colWidths: widths });
+    closeMenus();
   };
   const doResize = (e: React.PointerEvent<HTMLSpanElement>) => {
     const cur = resizeRef.current;
@@ -397,7 +515,7 @@ export function TableBlockView({
     }
     const delta = e.clientX - cur.startX;
     const widths = rows[0].map((_, ci) => block.colWidths?.[ci] ?? DEFAULT_COL_WIDTH);
-    widths[cur.c] = Math.max(60, Math.round(cur.startWidth + delta));
+    widths[cur.c] = Math.max(MIN_COL_WIDTH, Math.round(cur.startWidth + delta));
     onPatch({ colWidths: widths });
   };
 
@@ -616,7 +734,7 @@ export function TableBlockView({
 
   return (
     <div className="block-row table-block-row">
-      <div className="table-block-layout">
+      <div className="table-block-layout" data-tone={block.tone}>
         {showTopBar && (
           <div className="table-block__toolbar" role="toolbar" aria-label="표 도구">
             <label className="table-block__search">
@@ -690,6 +808,7 @@ export function TableBlockView({
                       const classes = [
                         selected && (isRange || !isEditing) ? "table-block__cell--selected" : "",
                         isEditing ? "table-block__cell--editing" : "",
+                        guideCol === c ? "table-block__cell--guide" : "",
                       ]
                         .filter(Boolean)
                         .join(" ");
@@ -743,14 +862,21 @@ export function TableBlockView({
                               {sortDir === "asc" ? "↑" : sortDir === "desc" ? "↓" : filtered ? "≡" : "⌄"}
                             </button>
                           )}
-                          {editable && header && (
+                          {editable && (
                             <span
                               className="table-block__col-resize"
                               aria-hidden="true"
+                              title="드래그해서 너비 조절 · 더블클릭하면 내용에 맞춤"
                               onPointerDown={(e) => startResize(e, c)}
                               onPointerMove={doResize}
                               onPointerUp={stopResize}
                               onPointerCancel={stopResize}
+                              onPointerEnter={() => !resizeRef.current && setGuideCol(c)}
+                              onPointerLeave={() => !resizeRef.current && setGuideCol(null)}
+                              onDoubleClick={(e) => {
+                                e.stopPropagation();
+                                autoFitColumn(c);
+                              }}
                             />
                           )}
                         </td>
@@ -816,6 +942,10 @@ export function TableBlockView({
                         <option value="right">오른쪽</option>
                       </select>
                     </label>
+                    <div className="table-settings__row">
+                      <span>표 색깔</span>
+                      <ToneSwatches value={block.tone} onPick={(tone) => onPatch({ tone })} />
+                    </div>
                     <div className="table-settings__row">
                       <label htmlFor={`${block.id}-font-pt`}>글자 크기</label>
                       <span className="table-settings__inline">
@@ -905,6 +1035,9 @@ export function TableBlockView({
             {editable && (
               <>
                 <div className="table-colmenu__sep" />
+                <button type="button" onClick={() => autoFitColumn(colMenu.c)}>
+                  내용에 맞게 너비 맞추기
+                </button>
                 <button type="button" onClick={() => insertColumnAt(colMenu.c)}>
                   왼쪽에 열 추가
                 </button>
@@ -920,7 +1053,14 @@ export function TableBlockView({
         )}
 
         {menu && selection && (
-          <div className="table-popover table-context-menu" style={{ left: menu.x, top: menu.y }} onMouseDown={(e) => e.stopPropagation()}>
+          <div
+            ref={menuRef}
+            className="table-popover table-context-menu"
+            role="menu"
+            aria-label="표 셀 메뉴"
+            style={{ left: menu.x, top: menu.y }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
             {!isRange && (
               <button type="button" onClick={() => insertRowBelow(selection.rowIds[0])}>
                 아래에 행 추가
@@ -948,6 +1088,13 @@ export function TableBlockView({
             </button>
             <div className="table-context-menu__label">글자색</div>
             <div className="table-context-menu__row">
+              <button
+                type="button"
+                className="table-context-menu__swatch table-context-menu__swatch--none"
+                title="기본 글자색"
+                aria-label="기본 글자색"
+                onClick={() => applyStyle(selection, { color: undefined })}
+              />
               {TEXT_SWATCHES.map((c) => (
                 <button
                   key={c}
@@ -958,6 +1105,7 @@ export function TableBlockView({
                   onClick={() => applyStyle(selection, { color: c })}
                 />
               ))}
+              <CustomColor label="글자색 직접 고르기" value={block.cellStyles?.[cellKey(selection.rowIds[0], selection.columnIds[0])]?.color} onPick={(c) => applyStyle(selection, { color: c })} />
             </div>
             <div className="table-context-menu__label">배경색</div>
             <div className="table-context-menu__row">
@@ -972,6 +1120,7 @@ export function TableBlockView({
                   onClick={() => applyStyle(selection, { bg: c ?? undefined })}
                 />
               ))}
+              <CustomColor label="배경색 직접 고르기" value={block.cellStyles?.[cellKey(selection.rowIds[0], selection.columnIds[0])]?.bg} onPick={(c) => applyStyle(selection, { bg: c })} />
             </div>
             <div className="table-context-menu__label">글자 크기</div>
             <div className="table-context-menu__row">
@@ -985,6 +1134,21 @@ export function TableBlockView({
                 크게
               </button>
             </div>
+            <div className="table-context-menu__label">표 색깔 (표 전체)</div>
+            <div className="table-context-menu__row">
+              <ToneSwatches value={block.tone} onPick={(tone) => onPatch({ tone })} />
+            </div>
+            <div className="table-colmenu__sep" />
+            <button
+              type="button"
+              disabled={!block.cellStyles}
+              onClick={() => {
+                clearStyles(selection);
+                setMenu(null);
+              }}
+            >
+              선택 셀 서식 지우기
+            </button>
           </div>
         )}
       </div>
