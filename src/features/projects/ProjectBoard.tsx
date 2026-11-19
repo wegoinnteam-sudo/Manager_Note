@@ -216,6 +216,7 @@ function initialSelection() {
 export function ProjectBoard({ canEdit, author, members }: { canEdit: boolean; author: string; members: TeamMemberDTO[] }) {
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [projectId, setProjectId] = useState(initialSelection);
+  const [showAll, setShowAll] = useState(false);
   const [detail, setDetail] = useState<ProjectDetail | null>(null);
   const [roster, setRoster] = useState<readonly string[]>(HANDOVER_ALL_ACK_NAMES);
   const [projectForm, setProjectForm] = useState<"new" | "edit" | null>(null);
@@ -234,7 +235,7 @@ export function ProjectBoard({ canEdit, author, members }: { canEdit: boolean; a
     return () => { mounted.current = false; };
   }, []);
 
-  const select = useCallback((id: string) => {
+  const select = useCallback((id: string, historyMode: "push" | "replace" | "pop" = "push") => {
     requestSequence.current++;
     setProjectId(id);
     setDetail(null);
@@ -244,8 +245,18 @@ export function ProjectBoard({ canEdit, author, members }: { canEdit: boolean; a
     setAssignee("");
     setError("");
     setFeedback("");
-    window.history.replaceState(window.history.state, "", id ? `/project?id=${encodeURIComponent(id)}` : "/project");
+    const url = id ? `/project?id=${encodeURIComponent(id)}` : "/project";
+    if (historyMode === "push") window.history.pushState({ projectFromList: true }, "", url);
+    if (historyMode === "replace") window.history.replaceState({}, "", url);
   }, []);
+
+  useEffect(() => {
+    const onPop = () => {
+      if (window.location.pathname === "/project") select(initialSelection(), "pop");
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [select]);
 
   const refresh = useCallback(async (id: string) => {
     const sequence = ++requestSequence.current;
@@ -256,8 +267,7 @@ export function ProjectBoard({ canEdit, author, members }: { canEdit: boolean; a
     if (!mounted.current || sequence !== requestSequence.current) return;
     setProjects(list);
     setDetail(current);
-    if (!id && list.length) select(list[0].id);
-    else if (id && !current) select(list[0]?.id ?? "");
+    if (id && !current) select("", "replace");
   }, [select]);
 
   useEffect(() => {
@@ -265,7 +275,7 @@ export function ProjectBoard({ canEdit, author, members }: { canEdit: boolean; a
       if (saving.current || document.visibilityState === "hidden") return;
       void refresh(projectId).catch((cause: Error) => setError(cause.message));
     };
-    load();
+    void refresh(projectId).catch((cause: Error) => setError(cause.message));
     const timer = window.setInterval(load, 15_000);
     window.addEventListener("focus", load);
     return () => {
@@ -287,7 +297,7 @@ export function ProjectBoard({ canEdit, author, members }: { canEdit: boolean; a
     setFeedback("");
     try {
       await action();
-      if (!mounted.current) return;
+      if (!mounted.current || initialSelection() !== projectId) return;
       try {
         await refresh(projectId);
       } catch {
@@ -304,6 +314,7 @@ export function ProjectBoard({ canEdit, author, members }: { canEdit: boolean; a
   };
 
   const project = detail?.project;
+  const visibleProjects = projects?.filter((item) => showAll || item.status === "active");
   const tasks = detail?.tasks ?? [];
   const done = tasks.filter((task) => task.status === "done").length;
   const progress = tasks.length ? Math.round(done / tasks.length * 100) : 0;
@@ -327,28 +338,26 @@ export function ProjectBoard({ canEdit, author, members }: { canEdit: boolean; a
     <div className="hb-page pj-page">
       <main className="hb-main">
         <header className="hb-page-heading">
-          <div><h1>프로젝트</h1><p className="hb-heading-note">팀의 목표, 담당 업무, 인수인계와 확인 사항을 공유합니다.</p></div>
-          {canEdit && <button type="button" className="hb-primary-button" disabled={busy}
+          <h1>프로젝트</h1>
+          {canEdit && !projectId && <button type="button" className="hb-primary-button" disabled={busy}
             onClick={() => setProjectForm(projectForm === "new" ? null : "new")}>+ 프로젝트 만들기</button>}
         </header>
         <datalist id="project-staff">{names.map((name) => <option key={name} value={name} />)}</datalist>
         {error && <p className="pj-error" role="alert">{error} <button type="button" disabled={busy}
           onClick={() => { setError(""); void refresh(projectId).catch((cause: Error) => setError(cause.message)); }}>새로고침</button></p>}
         <span className="pj-status" role="status">{busy ? "저장 중…" : feedback}</span>
-        {projects?.length ? (
-          <div className="pj-picker">
-            <label>프로젝트 선택
-              <select value={projectId} disabled={busy} onChange={(event) => select(event.target.value)}>
-                {!projects.some((item) => item.id === projectId) && <option value={projectId}>프로젝트 선택</option>}
-                {projects.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
-              </select>
-            </label>
+        {projectId && (
+          <nav className="pj-project-nav" aria-label="프로젝트 탐색">
+            <button type="button" disabled={busy} onClick={() => {
+              if (window.history.state?.projectFromList) window.history.back();
+              else select("", "replace");
+            }}>← 프로젝트 목록</button>
             {project && <button type="button" onClick={() => {
               void navigator.clipboard.writeText(window.location.href).then(() => setFeedback("공유 링크를 복사했습니다."))
                 .catch(() => setError("링크를 복사하지 못했습니다. 주소 표시줄에서 복사해 주세요."));
             }}>공유 링크 복사</button>}
-          </div>
-        ) : null}
+          </nav>
+        )}
         {projectForm === "new" && (
           <section className="pj-panel">
             <h2>새 프로젝트</h2>
@@ -356,6 +365,38 @@ export function ProjectBoard({ canEdit, author, members }: { canEdit: boolean; a
               let createdId = "";
               void save(async () => { createdId = (await api.createProject(input)).id; }, () => select(createdId));
             }} />
+          </section>
+        )}
+        {!projectId && visibleProjects && (
+          <section aria-labelledby="project-list-heading">
+            <div className="pj-list-heading">
+              <h2 id="project-list-heading">{showAll ? "전체 프로젝트" : "진행 중인 프로젝트"}</h2>
+              {projects?.some((item) => item.status !== "active") && (
+                <button type="button" aria-pressed={showAll} onClick={() => setShowAll(!showAll)}>
+                  {showAll ? "진행 중만 보기" : "전체 프로젝트 보기"}
+                </button>
+              )}
+            </div>
+            {visibleProjects.length ? (
+              <ul className="pj-project-grid">
+                {visibleProjects.map((item) => (
+                  <li key={item.id}>
+                    <a className="pj-project-card" href={`/project?id=${item.id}`} onClick={(event) => {
+                      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                      event.preventDefault();
+                      if (!saving.current) select(item.id);
+                    }}>
+                      <span className="pj-chip">{projectStatuses[item.status]}</span>
+                      <h3>{item.title}</h3>
+                      <div className="pj-task-meta">
+                        <span>총괄 · {item.owner || "미배정"}</span>
+                        {item.dueDate && <span>마감 · {item.dueDate}</span>}
+                      </div>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="pj-muted">{showAll ? "등록된 프로젝트가 없습니다." : "진행 중인 프로젝트가 없습니다."}</p>}
           </section>
         )}
         {project && (
@@ -433,8 +474,8 @@ export function ProjectBoard({ canEdit, author, members }: { canEdit: boolean; a
             </section>
           </>
         )}
-        {!error && !project && !projectForm && (
-          <p className="pj-muted">{!projects || projectId ? "프로젝트를 불러오는 중…" : "등록된 프로젝트가 없습니다."}</p>
+        {!error && !project && (projectId || !projects) && (
+          <p className="pj-muted">프로젝트를 불러오는 중…</p>
         )}
       </main>
     </div>

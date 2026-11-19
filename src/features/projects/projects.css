@@ -1,6 +1,6 @@
 .pj-page .hb-main { max-width: 1120px; }
 .pj-page .hb-page-heading { align-items: center; }
-.pj-panel, .pj-picker {
+.pj-panel {
   background: var(--hb-surface);
   border: 1px solid var(--hb-line);
   border-radius: 16px;
@@ -8,14 +8,13 @@
   margin-bottom: 18px;
   padding: clamp(14px, 3vw, 24px);
 }
-.pj-picker, .pj-section-head, .pj-task-head, .pj-filters, .pj-actions {
+.pj-section-head, .pj-task-head, .pj-filters, .pj-actions {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
 }
-.pj-picker, .pj-section-head, .pj-filters { justify-content: space-between; }
-.pj-picker { padding-block: 12px; }
+.pj-section-head, .pj-filters { justify-content: space-between; }
 .pj-page h2, .pj-page h3 { margin: 0; color: var(--hb-navy); overflow-wrap: anywhere; }
 .pj-page h2 { font-size: 1.35rem; }
 .pj-page h3 { font-size: 1.02rem; }
@@ -42,7 +41,7 @@
   background: var(--hb-surface);
 }
 .pj-page select { max-width: 100%; }
-.pj-picker label, .pj-filters label { display: flex; gap: 8px; align-items: center; max-width: 100%; }
+.pj-filters label { display: flex; gap: 8px; align-items: center; max-width: 100%; }
 .pj-form { margin: 14px 0; }
 .pj-form fieldset {
   border: 0;
@@ -104,3 +103,33 @@
 .pj-attach { position: relative; cursor: pointer; }
 .pj-attach input { position: absolute; inset: 0; width: 100%; opacity: 0; cursor: pointer; }
 .pj-attach:focus-within { outline: 2px solid var(--hb-blue); }
+
+.pj-project-nav, .pj-list-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.pj-project-grid {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(245px, 100%), 1fr));
+  gap: 16px;
+}
+.pj-project-card {
+  display: block;
+  height: 100%;
+  padding: 20px;
+  border: 1px solid var(--hb-line);
+  border-radius: 16px;
+  background: var(--hb-surface);
+  box-shadow: var(--hb-shadow);
+  color: var(--hb-navy);
+  text-decoration: none;
+}
+.pj-project-card:hover, .pj-project-card:focus-visible { border-color: var(--hb-blue); }
+.pj-page .pj-project-card h3 { font-size: 1.25rem; margin-bottom: 10px; }
