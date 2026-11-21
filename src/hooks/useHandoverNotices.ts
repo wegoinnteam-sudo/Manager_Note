@@ -10,11 +10,17 @@ const POLL_INTERVAL_MS = 20000;
 export function useHandoverNotices() {
   const [notices, setNotices] = useState<HandoverNoticeDTO[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    const { notices: rows } = await api.listHandoverNotices();
-    setNotices(rows);
-    setLoaded(true);
+    try {
+      const { notices: rows } = await api.listHandoverNotices();
+      setNotices(rows);
+      setLoaded(true);
+      setError(null);
+    } catch {
+      setError("인수인계 목록을 불러오지 못했습니다.");
+    }
   }, []);
 
   useEffect(() => {
@@ -23,5 +29,5 @@ export function useHandoverNotices() {
     return () => window.clearInterval(interval);
   }, [refresh]);
 
-  return { notices, loaded, refresh };
+  return { notices, loaded, error, refresh };
 }

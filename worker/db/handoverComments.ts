@@ -14,22 +14,16 @@ function toDto(row: HandoverCommentRow): HandoverCommentDTO {
   return { id: row.id, authorName: row.author_name, body: row.body, createdAt: row.created_at };
 }
 
-// One query for every notice on the board, grouped by notice_id — mirrors
-// listPhotosByNoticeIds/listAcksByNoticeIds for the same reason (the board
-// renders every notice at once).
-export async function listCommentsByNoticeIds(db: Env["DB"], noticeIds: string[]): Promise<Map<string, HandoverCommentDTO[]>> {
+export async function listCommentsByTeam(db: Env["DB"], teamId: string): Promise<Map<string, HandoverCommentDTO[]>> {
   const byNotice = new Map<string, HandoverCommentDTO[]>();
-  if (noticeIds.length === 0) return byNotice;
-
-  const placeholders = noticeIds.map((_, i) => `?${i + 1}`).join(", ");
   const { results } = await db
     .prepare(
       `SELECT c.id, c.notice_id, COALESCE(c.author_name, u.name) as author_name, c.body, c.created_at
        FROM handover_notice_comments c JOIN users u ON u.id = c.author_id
-       WHERE c.notice_id IN (${placeholders}) AND c.is_deleted = 0
+       WHERE c.notice_id IN (SELECT id FROM handover_notices WHERE team_id = ?1 AND is_deleted = 0) AND c.is_deleted = 0
        ORDER BY c.created_at ASC`,
     )
-    .bind(...noticeIds)
+    .bind(teamId)
     .all<HandoverCommentRow>();
 
   for (const row of results ?? []) {

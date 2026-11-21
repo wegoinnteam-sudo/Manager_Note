@@ -2,9 +2,9 @@ import type { Env } from "../types";
 import type { HandoverCategory, HandoverNoticeDTO } from "../../shared/types";
 import { HANDOVER_ALL_ACK_COUNT } from "../../shared/types";
 import { newId, nowIso } from "../lib/ids";
-import { listPhotosByNoticeIds, toHandoverPhotoDTO } from "./handoverPhotos";
-import { listAcksByNoticeIds, listAcksForNotice, setAck } from "./handoverNoticeAcks";
-import { listCommentsByNoticeIds } from "./handoverComments";
+import { listPhotosByTeam, toHandoverPhotoDTO } from "./handoverPhotos";
+import { listAcksByTeam, listAcksForNotice, setAck } from "./handoverNoticeAcks";
+import { listCommentsByTeam } from "./handoverComments";
 import { getHandoverAckRoster } from "./handoverAckRoster";
 
 interface HandoverNoticeRow {
@@ -65,11 +65,11 @@ export async function listHandoverNotices(db: Env["DB"], teamId: string): Promis
     .bind(teamId)
     .all<HandoverNoticeRow>();
   const rows = results ?? [];
-  const noticeIds = rows.map((row) => row.id);
+  if (rows.length === 0) return [];
   const [photosByNotice, acksByNotice, commentsByNotice] = await Promise.all([
-    listPhotosByNoticeIds(db, noticeIds),
-    listAcksByNoticeIds(db, noticeIds),
-    listCommentsByNoticeIds(db, noticeIds),
+    listPhotosByTeam(db, teamId),
+    listAcksByTeam(db, teamId),
+    listCommentsByTeam(db, teamId),
   ]);
   return rows.map((row) =>
     toDto(

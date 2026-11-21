@@ -144,6 +144,7 @@ export function HandoverBoard({
   guestColors,
   notices,
   loaded,
+  loadError,
   onNoticesChanged,
 }: {
   canEdit: boolean;
@@ -151,6 +152,7 @@ export function HandoverBoard({
   guestColors: Record<string, string>;
   notices: HandoverNoticeDTO[];
   loaded: boolean;
+  loadError: string | null;
   onNoticesChanged: () => Promise<void> | void;
 }) {
   const [view, setView] = useState<ViewMode>(readInitialView);
@@ -628,9 +630,14 @@ export function HandoverBoard({
             onPointerDown={startResize("top")}
           />
           <div className="hb-table-wrap">
-            {!loaded ? (
+            {loadError && (
+              <div className="hb-empty-state" role="status">
+                {loadError} <button type="button" onClick={() => void onNoticesChanged()}>다시 시도</button>
+              </div>
+            )}
+            {!loaded && !loadError ? (
               <div className="hb-empty-state">불러오는 중…</div>
-            ) : (
+            ) : loaded && (
               <table className="hb-table">
                 <colgroup>
                   <col className="hb-col-date" /><col className="hb-col-time" /><col className="hb-col-from" />

@@ -40,6 +40,7 @@ class FakeD1Statement {
   }
 
   bind(...args: unknown[]) {
+    if (args.length > 100) throw new Error("D1 supports at most 100 bound parameters per query");
     this.args = args;
     return this;
   }

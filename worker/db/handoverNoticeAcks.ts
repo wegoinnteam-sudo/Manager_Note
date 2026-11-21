@@ -3,14 +3,11 @@ import type { Env } from "../types";
 // "All" category notices need every one of a fixed set of people to
 // individually confirm they've seen it — a row's existence means that
 // person acked; there's no "unacked" row to update.
-export async function listAcksByNoticeIds(db: Env["DB"], noticeIds: string[]): Promise<Map<string, string[]>> {
+export async function listAcksByTeam(db: Env["DB"], teamId: string): Promise<Map<string, string[]>> {
   const byNotice = new Map<string, string[]>();
-  if (noticeIds.length === 0) return byNotice;
-
-  const placeholders = noticeIds.map((_, i) => `?${i + 1}`).join(", ");
   const { results } = await db
-    .prepare(`SELECT notice_id, name FROM handover_notice_acks WHERE notice_id IN (${placeholders})`)
-    .bind(...noticeIds)
+    .prepare(`SELECT notice_id, name FROM handover_notice_acks WHERE notice_id IN (SELECT id FROM handover_notices WHERE team_id = ?1 AND is_deleted = 0)`)
+    .bind(teamId)
     .all<{ notice_id: string; name: string }>();
 
   for (const row of results ?? []) {

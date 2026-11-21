@@ -29,17 +29,14 @@ export function toHandoverPhotoDTO(row: HandoverPhotoRow): HandoverPhotoDTO {
 // One query for every notice on the board at once, grouped by notice_id —
 // the board renders every notice on a single screen, so fetching photos
 // per-row would mean one request per notice instead of one for all of them.
-export async function listPhotosByNoticeIds(db: Env["DB"], noticeIds: string[]): Promise<Map<string, HandoverPhotoRow[]>> {
+export async function listPhotosByTeam(db: Env["DB"], teamId: string): Promise<Map<string, HandoverPhotoRow[]>> {
   const byNotice = new Map<string, HandoverPhotoRow[]>();
-  if (noticeIds.length === 0) return byNotice;
-
-  const placeholders = noticeIds.map((_, i) => `?${i + 1}`).join(", ");
   const { results } = await db
     .prepare(
       `SELECT id, notice_id, team_id, file_name, mime_type, size_bytes, drive_file_id, drive_web_view_link, uploaded_by, created_at
-       FROM handover_notice_photos WHERE notice_id IN (${placeholders}) ORDER BY created_at ASC`,
+       FROM handover_notice_photos WHERE notice_id IN (SELECT id FROM handover_notices WHERE team_id = ?1 AND is_deleted = 0) ORDER BY created_at ASC`,
     )
-    .bind(...noticeIds)
+    .bind(teamId)
     .all<HandoverPhotoRow>();
 
   for (const row of results ?? []) {

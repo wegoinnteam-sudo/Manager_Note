@@ -37,7 +37,7 @@ function AppShell({ user, identity, onChangeGuestName }: { user: UserDTO; identi
   const { preference: theme, setTheme } = useTheme();
   const displaySettings = useDisplaySettings();
   const { categories, refresh: refreshCategories } = usePageCategories();
-  const { notices: handoverNotices, loaded: handoverLoaded, refresh: refreshHandoverNotices } = useHandoverNotices();
+  const { notices: handoverNotices, loaded: handoverLoaded, error: handoverError, refresh: refreshHandoverNotices } = useHandoverNotices();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [justCreatedPageId, setJustCreatedPageId] = useState<string | null>(null);
   // Each entry is one level of "peeked" page (opened from a Wegoinn DB card,
@@ -230,6 +230,7 @@ function AppShell({ user, identity, onChangeGuestName }: { user: UserDTO; identi
         guestColors={guestColors}
         notices={handoverNotices}
         loaded={handoverLoaded}
+        loadError={handoverError}
         onNoticesChanged={refreshHandoverNotices}
       />
     );

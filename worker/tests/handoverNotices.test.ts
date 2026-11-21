@@ -34,6 +34,14 @@ const sampleInput = {
 };
 
 describe("handoverNotices", () => {
+  it("lists every notice when the board exceeds the D1 bound-parameter limit", async () => {
+    for (let i = 0; i < 101; i++) {
+      await createHandoverNotice(db, TEAM, sampleInput, USER);
+    }
+
+    expect(await listHandoverNotices(db, TEAM)).toHaveLength(101);
+  });
+
   it("creates and lists a notice, newest first", async () => {
     const first = await createHandoverNotice(db, TEAM, sampleInput, USER);
     const second = await createHandoverNotice(
