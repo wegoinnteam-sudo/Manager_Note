@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import type { Project } from "@shared/projects";
 import { api } from "@/lib/api";
@@ -9,7 +9,9 @@ afterEach(() => {
   window.history.replaceState({}, "", "/");
 });
 
-it("shows one card per active project and loads details only after opening a card", async () => {
+const listLinks = () => within(screen.getByRole("region", { name: /프로젝트$/ })).getAllByRole("link");
+
+it("shows one card per active project and opens its details from a card", async () => {
   window.history.replaceState({}, "", "/project");
   const projects: Project[] = ["717호 객실 오픈", "로비 정비", "예약 안내 개편", "완료된 프로젝트"].map((title, index) => ({
     id: `00000000-0000-4000-8000-00000000000${index}`,
@@ -22,16 +24,79 @@ it("shows one card per active project and loads details only after opening a car
   const getProject = vi.spyOn(api, "getProject").mockResolvedValue({ project: projects[0], tasks: [], updates: [] });
 
   render(<ProjectBoard canEdit author="Jane" members={[]} />);
-  expect(await screen.findAllByRole("link")).toHaveLength(3);
+  await screen.findByRole("heading", { name: "진행 중인 프로젝트" });
+  expect(listLinks()).toHaveLength(3);
   expect(screen.queryByText("업무 체크리스트")).toBeNull();
-  expect(getProject).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "전체 프로젝트 보기" }));
-  expect(screen.getAllByRole("link")).toHaveLength(4);
+  expect(listLinks()).toHaveLength(4);
   fireEvent.click(screen.getByRole("button", { name: "진행 중만 보기" }));
-  fireEvent.click(screen.getByRole("link", { name: /717호 객실 오픈/ }));
+  fireEvent.click(listLinks()[0]);
   expect(await screen.findByRole("heading", { name: "업무 체크리스트" })).toBeInTheDocument();
   expect(getProject).toHaveBeenCalledWith(projects[0].id);
   expect(window.location.search).toBe(`?id=${projects[0].id}`);
   fireEvent.click(screen.getByRole("button", { name: /프로젝트 목록/ }));
-  expect(await screen.findAllByRole("link")).toHaveLength(3);
+  await screen.findByRole("heading", { name: "진행 중인 프로젝트" });
+  expect(listLinks()).toHaveLength(3);
+});
+
+it("shows the owner the full schedule and an assignee only their own tasks in the 내 할 일 box", async () => {
+  const project: Project = {
+    id: "00000000-0000-4000-8000-000000000009", title: "717 도미토리", owner: "Daniel", dueDate: "2026-12-24",
+    goal: "", expected: "", handover: "", verification: "", outcome: "", status: "active", version: 1,
+  };
+  const task = (title: string, assignee: string, dueDate: string) => ({
+    id: crypto.randomUUID(), title, assignee, dueDate, priority: "normal" as const, status: "todo" as const,
+    handover: "", verification: "", subtasks: [], version: 1, completedBy: null, completedAt: null,
+  });
+  const tasks = [task("침구 발주", "Jane", "2026-12-01"), task("사진 촬영", "Mike", "2026-12-10")];
+  vi.spyOn(api, "listProjects").mockResolvedValue([project]);
+  vi.spyOn(api, "listHandoverAckRoster").mockResolvedValue({ names: [] });
+  vi.spyOn(api, "getProject").mockResolvedValue({ project, tasks, updates: [] });
+
+  window.history.replaceState({}, "", `/project?id=${project.id}`);
+  const owner = render(<ProjectBoard canEdit author="Daniel" members={[]} />);
+  const ownerBox = await screen.findByRole("complementary");
+  await waitFor(() => expect(ownerBox).toHaveTextContent("전체 일정"));
+  expect(ownerBox).toHaveTextContent("침구 발주");
+  expect(ownerBox).toHaveTextContent("사진 촬영");
+  owner.unmount();
+
+  render(<ProjectBoard canEdit author="Jane" members={[]} />);
+  const janeBox = await screen.findByRole("complementary");
+  await waitFor(() => expect(janeBox).toHaveTextContent("침구 발주"));
+  expect(janeBox).not.toHaveTextContent("전체 일정");
+  expect(janeBox).toHaveTextContent("침구 발주");
+  expect(janeBox).not.toHaveTextContent("사진 촬영");
+  expect(within(janeBox).getByRole("checkbox", { name: /침구 발주/ })).toBeInTheDocument();
+
+  fireEvent.click(within(janeBox).getByRole("button", { name: "내 할 일 접기" }));
+  expect(janeBox).not.toHaveTextContent("침구 발주");
+  fireEvent.click(within(janeBox).getByRole("button", { name: "내 할 일 펼치기" }));
+  expect(janeBox).toHaveTextContent("침구 발주");
+});
+
+it("lists my work across active projects on the project list page", async () => {
+  window.history.replaceState({}, "", "/project");
+  const make = (index: number, owner: string): Project => ({
+    id: `00000000-0000-4000-8000-00000000001${index}`, title: `프로젝트 ${index}`, owner, dueDate: "",
+    goal: "", expected: "", handover: "", verification: "", outcome: "", status: "active", version: 1,
+  });
+  const projects = [make(1, "Daniel"), make(2, "Mike"), make(3, "Mike")];
+  vi.spyOn(api, "listProjects").mockResolvedValue(projects);
+  vi.spyOn(api, "listHandoverAckRoster").mockResolvedValue({ names: [] });
+  vi.spyOn(api, "getProject").mockImplementation(async (id) => {
+    const project = projects.find((item) => item.id === id)!;
+    const tasks = project.title === "프로젝트 2" ? [{
+      id: crypto.randomUUID(), title: "현장 점검", assignee: "Daniel", dueDate: "", priority: "normal" as const,
+      status: "todo" as const, handover: "", verification: "", subtasks: [], version: 1, completedBy: null, completedAt: null,
+    }] : [];
+    return { project, tasks, updates: [] };
+  });
+
+  render(<ProjectBoard canEdit author="Daniel" members={[]} />);
+  const box = await screen.findByRole("complementary");
+  await waitFor(() => expect(box).toHaveTextContent("현장 점검"));
+  expect(within(box).getByRole("link", { name: "프로젝트 1" })).toBeInTheDocument();
+  expect(within(box).getByRole("link", { name: "프로젝트 2" })).toBeInTheDocument();
+  expect(within(box).queryByRole("link", { name: "프로젝트 3" })).toBeNull();
 });

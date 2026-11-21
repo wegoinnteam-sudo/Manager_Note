@@ -208,6 +208,121 @@ function TaskCard({ task, projectId, updates, canEdit, busy, author, save, move,
   );
 }
 
+const samePerson = (a: string, b: string) => !!a.trim() && a.trim().toLowerCase() === b.trim().toLowerCase();
+const byDueDate = (a: ProjectTask, b: ProjectTask) =>
+  (a.dueDate || "9999-12-31").localeCompare(b.dueDate || "9999-12-31");
+
+const collapseKey = "pj-mine-collapsed";
+function readCollapsed() {
+  try { return window.localStorage.getItem(collapseKey) === "1"; } catch { return false; }
+}
+
+function MyWorkGroup({ project, tasks, author, canEdit, busy, save, open: openProject }: {
+  project: Project; tasks: ProjectTask[]; author: string; canEdit: boolean; busy: boolean; save: Save;
+  open?: (id: string) => void;
+}) {
+  const today = seoulDate.format(new Date());
+  const isOwner = samePerson(project.owner, author);
+  const mine = tasks.filter((task) => samePerson(task.assignee, author)).sort(byDueDate);
+  const remaining = tasks.filter((task) => task.status !== "done").sort(byDueDate);
+  const update = (task: ProjectTask, input: ProjectTaskInput) =>
+    void save(() => api.updateProjectTask(project.id, task.id, { ...input, version: task.version, author }));
+  const due = (task: ProjectTask) => {
+    const overdue = task.status !== "done" && task.dueDate && task.dueDate < today;
+    return <span className={overdue ? "pj-alert" : ""}>{task.dueDate || "마감일 없음"}{overdue && " · 초과"}</span>;
+  };
+  return (
+    <section className="pj-mine-group" aria-label={project.title}>
+      {openProject && (
+        <h3><a href={`/project?id=${project.id}`} onClick={(event) => {
+          if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+          event.preventDefault();
+          openProject(project.id);
+        }}>{project.title}</a> <small>{isOwner ? "총괄" : "업무 담당"}</small></h3>
+      )}
+      {isOwner && (
+        <>
+          <h4>전체 일정</h4>
+          <ul className="pj-mine-list">
+            {project.dueDate && <li className="pj-mine-goal"><strong>프로젝트 마감</strong>
+              <span className={project.dueDate < today && project.status !== "finished" ? "pj-alert" : ""}>{project.dueDate}</span></li>}
+            {remaining.map((task) => (
+              <li key={task.id}>
+                <span className="pj-mine-title">{task.title}</span>
+                <span className="pj-mine-meta"><span>{task.assignee || "미배정"}</span>{due(task)}</span>
+              </li>
+            ))}
+          </ul>
+          {!remaining.length && <p className="pj-muted">남은 업무가 없습니다.</p>}
+          <p className="pj-muted">남은 업무 {remaining.length} / 전체 {tasks.length}</p>
+        </>
+      )}
+      {(!isOwner || mine.length > 0) && (
+        <>
+          {isOwner && <h4>내 업무</h4>}
+          <ul className="pj-mine-list">
+            {mine.map((task) => (
+              <li key={task.id} data-done={task.status === "done"}>
+                <label className="pj-mine-check">
+                  <input type="checkbox" checked={task.status === "done"}
+                    disabled={!canEdit || busy || !!task.subtasks.length}
+                    title={task.subtasks.length ? "하위 업무를 모두 체크하면 완료됩니다." : undefined}
+                    onChange={() => update(task, { ...task, status: task.status === "done" ? "todo" : "done" })} />
+                  <span className="pj-mine-title">{task.title}</span>
+                </label>
+                <span className="pj-mine-meta"><span>{priorities[task.priority]}</span>{due(task)}</span>
+                {!!task.subtasks.length && (
+                  <ul className="pj-subtasks">
+                    {task.subtasks.map((item) => (
+                      <li key={item.id}><label>
+                        <input type="checkbox" checked={item.done} disabled={!canEdit || busy}
+                          onChange={() => update(task, { ...task, subtasks: task.subtasks.map((part) =>
+                            part.id === item.id ? { ...part, done: !part.done } : part) })} />
+                        {item.title}
+                      </label></li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            ))}
+          </ul>
+          {!mine.length && <p className="pj-muted">이 프로젝트에 배정된 업무가 없습니다.</p>}
+        </>
+      )}
+    </section>
+  );
+}
+
+function MyWork({ items, author, canEdit, busy, save, open, collapsed, setCollapsed }: {
+  items: ProjectDetail[] | null; author: string; canEdit: boolean; busy: boolean; save: Save;
+  open?: (id: string) => void; collapsed: boolean; setCollapsed: (value: boolean) => void;
+}) {
+  const relevant = open
+    ? items?.filter(({ project, tasks }) => samePerson(project.owner, author) || tasks.some((task) => samePerson(task.assignee, author)))
+    : items;
+  return (
+    <aside className="pj-panel pj-mine" data-collapsed={collapsed} aria-labelledby="pj-mine-heading">
+      <div className="pj-mine-head">
+        <h2 id="pj-mine-heading">내 할 일</h2>
+        <button type="button" className="pj-mine-toggle" aria-expanded={!collapsed} aria-controls="pj-mine-body"
+          aria-label={collapsed ? "내 할 일 펼치기" : "내 할 일 접기"} title={collapsed ? "펼치기" : "접기"}
+          onClick={() => setCollapsed(!collapsed)}>{collapsed ? "+" : "−"}</button>
+      </div>
+      {!collapsed && (
+        <div id="pj-mine-body">
+          <p className="pj-muted">{author || "이름 없음"}</p>
+          {!relevant && <p className="pj-muted">불러오는 중…</p>}
+          {relevant?.length === 0 && <p className="pj-muted">진행 중인 프로젝트에 배정된 일이 없습니다.</p>}
+          {relevant?.map(({ project, tasks }) => (
+            <MyWorkGroup key={project.id} project={project} tasks={tasks} author={author}
+              canEdit={canEdit} busy={busy} save={save} open={open} />
+          ))}
+        </div>
+      )}
+    </aside>
+  );
+}
+
 function initialSelection() {
   const value = new URLSearchParams(window.location.search).get("id");
   return value && /^[0-9a-f-]{36}$/i.test(value) ? value : "";
@@ -218,6 +333,12 @@ export function ProjectBoard({ canEdit, author, members }: { canEdit: boolean; a
   const [projectId, setProjectId] = useState(initialSelection);
   const [showAll, setShowAll] = useState(false);
   const [detail, setDetail] = useState<ProjectDetail | null>(null);
+  const [overview, setOverview] = useState<ProjectDetail[] | null>(null);
+  const [collapsed, setCollapsedState] = useState(readCollapsed);
+  const setCollapsed = (value: boolean) => {
+    setCollapsedState(value);
+    try { window.localStorage.setItem(collapseKey, value ? "1" : "0"); } catch { /* per-browser convenience only */ }
+  };
   const [roster, setRoster] = useState<readonly string[]>(HANDOVER_ALL_ACK_NAMES);
   const [projectForm, setProjectForm] = useState<"new" | "edit" | null>(null);
   const [taskForm, setTaskForm] = useState<string | null>(null);
@@ -264,9 +385,12 @@ export function ProjectBoard({ canEdit, author, members }: { canEdit: boolean; a
       if (cause instanceof ApiClientError && cause.status === 404) return null;
       throw cause;
     }) : null]);
+    const details = id ? null : await Promise.all(list.filter((item) => item.status === "active").map((item) =>
+      api.getProject(item.id).catch(() => null)));
     if (!mounted.current || sequence !== requestSequence.current) return;
     setProjects(list);
     setDetail(current);
+    if (details) setOverview(details.filter((item): item is ProjectDetail => !!item));
     if (id && !current) select("", "replace");
   }, [select]);
 
@@ -358,6 +482,11 @@ export function ProjectBoard({ canEdit, author, members }: { canEdit: boolean; a
             }}>공유 링크 복사</button>}
           </nav>
         )}
+        <div className="pj-layout" data-collapsed={collapsed}>
+        <MyWork items={projectId ? (detail ? [detail] : null) : overview} author={author} canEdit={canEdit} busy={busy}
+          save={save} open={projectId ? undefined : (id) => { if (!saving.current) select(id); }}
+          collapsed={collapsed} setCollapsed={setCollapsed} />
+        <div className="pj-layout-main">
         {projectForm === "new" && (
           <section className="pj-panel">
             <h2>새 프로젝트</h2>
@@ -477,6 +606,8 @@ export function ProjectBoard({ canEdit, author, members }: { canEdit: boolean; a
         {!error && !project && (projectId || !projects) && (
           <p className="pj-muted">프로젝트를 불러오는 중…</p>
         )}
+        </div>
+        </div>
       </main>
     </div>
   );
