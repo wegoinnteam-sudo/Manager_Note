@@ -90,9 +90,11 @@ npx wrangler secret put GEMINI_API_KEY
 2. 서비스 계정 생성 (IAM & 관리자 → 서비스 계정) → JSON 키 발급.
 3. Google Drive에 팀 공유 폴더를 만들고, 그 폴더를 **서비스 계정 이메일**과 공유(편집자 권한). 이 폴더 ID를 `GOOGLE_DRIVE_FOLDER_ID`로 사용합니다.
 4. Workspace의 Shared Drive를 쓴다면 Shared Drive ID를 `GOOGLE_DRIVE_SHARED_DRIVE_ID`에 설정하고, 서비스 계정을 Shared Drive 멤버로 추가합니다.
-5. 앱이 처음 파일을 다루면 `Pages / Attachments / Archive / Deleted / Backup` 하위 폴더를 자동 생성합니다 (`worker/drive/folders.ts`).
+5. 앱은 필요한 하위 폴더(`Pages / Attachments / Archive / Deleted / Backup`)를 자동으로 생성합니다 (`worker/drive/folders.ts`).
 6. **Google 로그인용 OAuth 클라이언트**(웹 애플리케이션 유형)를 별도로 만들고, 승인된 리디렉션 URI에 `${OAUTH_REDIRECT_BASE_URL}/api/auth/google/callback`을 등록합니다.
 7. 서비스 계정 방식이 조직 정책상 막혀 있다면 OAuth + refresh token 방식(`GOOGLE_OAUTH_CLIENT_ID/SECRET/REFRESH_TOKEN`)으로 대체할 수 있습니다 — 이 경우 해당 OAuth 계정 소유자 개인 Drive 권한으로 API가 호출됩니다.
+
+`GOOGLE_OAUTH_REFRESH_TOKEN`이 설정되어 있으면 해당 계정의 Drive 권한을 확인합니다. 앱 로그인으로 Drive를 연결하는 구성에서는 팀 폴더를 조회하고 파일을 추가할 수 있는 Google 계정으로 다시 로그인하고 Drive 접근에 동의하면 공용 연결이 갱신됩니다. 기존 첨부파일을 보려면 연결 계정에 해당 파일의 읽기 권한도 있어야 합니다.
 
 ## Cloudflare 설정
 

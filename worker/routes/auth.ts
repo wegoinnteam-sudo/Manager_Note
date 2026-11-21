@@ -11,6 +11,7 @@ import { requireAuth } from "../middleware/rbac";
 import { logActivity } from "../db/activityLog";
 import { ensureDefaultTeam, ensureTeamMembership } from "../db/teams";
 import { setEncryptedSetting } from "../db/appSettings";
+import { canUseTeamFolder } from "../drive/client";
 
 export const authRoute = new Hono<AppBindings>();
 
@@ -102,7 +103,7 @@ authRoute.get("/google/callback", async (c) => {
     console.error("Google OAuth token exchange failed:", tokenRes.status, rawError.slice(0, 500));
     throw Errors.upstream(`Google 로그인 토큰 교환에 실패했습니다. (HTTP ${tokenRes.status}: ${reason})`);
   }
-  const tokenJson = (await tokenRes.json()) as { access_token: string; refresh_token?: string };
+  const tokenJson = (await tokenRes.json()) as { access_token: string; refresh_token?: string; scope?: string };
 
   const userinfoRes = await fetch(GOOGLE_USERINFO_URL, {
     headers: { Authorization: `Bearer ${tokenJson.access_token}` },
@@ -145,9 +146,15 @@ authRoute.get("/google/callback", async (c) => {
     defaultRole,
   );
 
-  if (tokenJson.refresh_token) {
-    const encryptedRefreshToken = await encryptSecret(c.env.SESSION_SECRET, tokenJson.refresh_token);
-    await setEncryptedSetting(c.env.DB, DRIVE_REFRESH_TOKEN_SETTING, encryptedRefreshToken);
+  if (tokenJson.refresh_token && tokenJson.scope?.split(/\s+/).includes(DRIVE_SCOPE) && !c.env.GOOGLE_OAUTH_REFRESH_TOKEN) {
+    const canUseFolder = await canUseTeamFolder(c.env, tokenJson.access_token).catch((error: unknown) => {
+      console.warn("Google Drive folder check failed", error instanceof Error ? error.message : "Unknown error");
+      return false;
+    });
+    if (canUseFolder) {
+      const encryptedRefreshToken = await encryptSecret(c.env.SESSION_SECRET, tokenJson.refresh_token);
+      await setEncryptedSetting(c.env.DB, DRIVE_REFRESH_TOKEN_SETTING, encryptedRefreshToken);
+    }
   }
 
   const team = await ensureDefaultTeam(c.env.DB, c.env);

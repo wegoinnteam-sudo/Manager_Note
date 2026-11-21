@@ -4,13 +4,14 @@ import { getAttachmentById } from "../db/attachments";
 
 const uploadFileStreaming = vi.fn();
 const deleteFilePermanently = vi.fn();
+const getTeamFolderId = vi.fn();
 
 vi.mock("../drive/client", () => ({
   uploadFileStreaming: (...args: unknown[]) => uploadFileStreaming(...args),
   deleteFilePermanently: (...args: unknown[]) => deleteFilePermanently(...args),
 }));
 vi.mock("../drive/folders", () => ({
-  getTeamFolderIds: async () => ({ Pages: "f_pages", Attachments: "f_attachments", Archive: "f_archive", Deleted: "f_deleted", Backup: "f_backup" }),
+  getTeamFolderId: (...args: unknown[]) => getTeamFolderId(...args),
 }));
 
 const { runUploadPipeline } = await import("../lib/uploadPipeline");
@@ -31,6 +32,7 @@ function fakeStream(): ReadableStream<Uint8Array> {
 
 beforeEach(async () => {
   vi.clearAllMocks();
+  getTeamFolderId.mockResolvedValue("f_attachments");
   db = createTestDb();
   await db.prepare("INSERT INTO teams (id, name) VALUES (?1, ?2)").bind(TEAM, "Test Team").run();
   await db.prepare("INSERT INTO users (id, email, name, role) VALUES (?1, ?2, ?3, 'editor')").bind(USER, "u@test.local", "Tester").run();
@@ -53,6 +55,19 @@ const baseReq = () => ({
 });
 
 describe("upload pipeline", () => {
+  it("allows the same upload to be retried after Drive rejects the folder lookup", async () => {
+    const env = { DB: db, ENABLE_R2_BACKUP: "false" } as any;
+    const req = { ...baseReq(), idempotencyKey: "key-folder" };
+    getTeamFolderId.mockRejectedValueOnce(new Error("Drive 폴더 조회 실패 (403)"));
+
+    await expect(runUploadPipeline(env, req)).rejects.toThrow("403");
+    expect(uploadFileStreaming).not.toHaveBeenCalled();
+
+    uploadFileStreaming.mockResolvedValueOnce({ id: "drive_after_folder_retry" });
+    await expect(runUploadPipeline(env, req)).resolves.toMatchObject({ status: "ready" });
+    expect(getTeamFolderId).toHaveBeenCalledWith(env, "Attachments");
+  });
+
   it("marks the attachment ready on a successful Drive upload", async () => {
     uploadFileStreaming.mockResolvedValue({ id: "drive_1", webViewLink: "https://drive/1", md5Checksum: "abc123" });
 

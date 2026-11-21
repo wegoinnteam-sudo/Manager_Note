@@ -5,6 +5,29 @@ import { Errors } from "../lib/errors";
 const DRIVE_FILES_URL = "https://www.googleapis.com/drive/v3/files";
 const DRIVE_UPLOAD_URL = "https://www.googleapis.com/upload/drive/v3/files";
 
+async function driveError(response: Response, operation: string) {
+  const error = await response.json().catch(() => null) as {
+    error?: { errors?: Array<{ reason?: string }> };
+  } | null;
+  const reason = error?.error?.errors?.[0]?.reason;
+  let details = "";
+  switch (reason) {
+    case "insufficientPermissions":
+      details = " Google Drive에 연결한 계정의 Drive 접근 동의를 확인해 주세요.";
+      break;
+    case "insufficientFilePermissions":
+      details = " Google Drive에 연결한 계정의 폴더 또는 파일 공유 권한을 확인해 주세요.";
+      break;
+    case "accessNotConfigured":
+      details = " Google Cloud 프로젝트의 Drive API 활성화 상태를 확인해 주세요.";
+      break;
+    case "storageQuotaExceeded":
+      details = " Google Drive에 연결한 계정의 저장공간을 확인해 주세요.";
+      break;
+  }
+  return Errors.upstream(`${operation} 실패 (${response.status}).${details}`);
+}
+
 export interface DriveFileMeta {
   id: string;
   name: string;
@@ -30,6 +53,23 @@ function driveQuery(env: Env, extra: Record<string, string> = {}): URLSearchPara
 async function authHeader(env: Env): Promise<Record<string, string>> {
   const token = await getDriveAccessToken(env);
   return { Authorization: `Bearer ${token}` };
+}
+
+export async function canUseTeamFolder(env: Env, accessToken: string): Promise<boolean> {
+  const root = env.GOOGLE_DRIVE_FOLDER_ID;
+  if (!root) return false;
+  const query = driveQuery(env, { fields: "mimeType,trashed,capabilities(canAddChildren,canListChildren)" });
+  const response = await fetch(`${DRIVE_FILES_URL}/${encodeURIComponent(root)}?${query}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok) throw await driveError(response, "Drive 연결 확인");
+  const folder = await response.json() as {
+    mimeType: string;
+    trashed: boolean;
+    capabilities?: { canAddChildren?: boolean; canListChildren?: boolean };
+  };
+  return folder.mimeType === "application/vnd.google-apps.folder" && !folder.trashed &&
+    folder.capabilities?.canAddChildren === true && folder.capabilities?.canListChildren === true;
 }
 
 /**
@@ -61,7 +101,7 @@ export async function uploadFileStreaming(
     body: JSON.stringify({ name: params.name, parents: [params.parentFolderId] }),
   });
   if (!startRes.ok) {
-    throw Errors.upstream(`Drive 업로드 세션 생성 실패 (${startRes.status})`);
+    throw await driveError(startRes, "Drive 업로드 세션 생성");
   }
   const uploadUrl = startRes.headers.get("Location");
   if (!uploadUrl) throw Errors.upstream("Drive 업로드 세션 URL을 받지 못했습니다.");
@@ -75,7 +115,7 @@ export async function uploadFileStreaming(
     body: params.body,
   });
   if (!putRes.ok) {
-    throw Errors.upstream(`Drive 파일 업로드 실패 (${putRes.status})`);
+    throw await driveError(putRes, "Drive 파일 업로드");
   }
   return (await putRes.json()) as DriveFileMeta;
 }
@@ -88,7 +128,7 @@ export async function getFileMediaStream(env: Env, fileId: string): Promise<Resp
     { headers },
   );
   if (!res.ok) {
-    throw Errors.upstream(`Drive 파일 다운로드 실패 (${res.status})`);
+    throw await driveError(res, "Drive 파일 다운로드");
   }
   return res;
 }
@@ -163,7 +203,7 @@ export async function findOrCreateSubfolder(env: Env, parentFolderId: string, na
     q.set("driveId", env.GOOGLE_DRIVE_SHARED_DRIVE_ID);
   }
   const listRes = await fetch(`${DRIVE_FILES_URL}?${q.toString()}`, { headers });
-  if (!listRes.ok) throw Errors.upstream(`Drive 폴더 조회 실패 (${listRes.status})`);
+  if (!listRes.ok) throw await driveError(listRes, "Drive 폴더 조회");
   const listJson = (await listRes.json()) as { files: { id: string; name: string }[] };
   if (listJson.files?.[0]) return listJson.files[0].id;
 
@@ -172,7 +212,7 @@ export async function findOrCreateSubfolder(env: Env, parentFolderId: string, na
     headers: { ...headers, "Content-Type": "application/json" },
     body: JSON.stringify({ name, mimeType: "application/vnd.google-apps.folder", parents: [parentFolderId] }),
   });
-  if (!createRes.ok) throw Errors.upstream(`Drive 폴더 생성 실패 (${createRes.status})`);
+  if (!createRes.ok) throw await driveError(createRes, "Drive 폴더 생성");
   const created = (await createRes.json()) as { id: string };
   return created.id;
 }

@@ -1,6 +1,6 @@
 import type { Env } from "../types";
 import { uploadFileStreaming, deleteFilePermanently } from "../drive/client";
-import { getTeamFolderIds } from "../drive/folders";
+import { getTeamFolderId } from "../drive/folders";
 import {
   createPendingAttachment,
   findByIdempotencyKey,
@@ -57,17 +57,16 @@ export async function runUploadPipeline(env: Env, req: UploadRequest): Promise<A
     idempotencyKey: req.idempotencyKey,
   });
 
-  const folders = await getTeamFolderIds(env);
-  const r2Enabled = env.ENABLE_R2_BACKUP === "true" && !!env.BACKUP_BUCKET;
-  const [driveStream, backupStream] = r2Enabled ? req.body.tee() : [req.body, null];
-
   let driveResult;
   try {
+    const parentFolderId = await getTeamFolderId(env, "Attachments");
+    const r2Enabled = env.ENABLE_R2_BACKUP === "true" && !!env.BACKUP_BUCKET;
+    const [driveStream, backupStream] = r2Enabled ? req.body.tee() : [req.body, null];
     const [driveOutcome, backupOutcome] = await Promise.allSettled([
       uploadFileStreaming(env, {
         name: req.fileName,
         mimeType: req.mimeType,
-        parentFolderId: folders.Attachments,
+        parentFolderId,
         sizeBytes: req.sizeBytes,
         body: driveStream,
       }),

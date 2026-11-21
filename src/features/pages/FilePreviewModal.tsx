@@ -33,10 +33,17 @@ function isImage(attachment: AttachmentDTO) {
   return attachment.isImage || attachment.mimeType.startsWith("image/");
 }
 
-async function loadParsedPreview(attachment: AttachmentDTO, signal: AbortSignal): Promise<LoadedPreview> {
+async function fetchPreview(attachment: AttachmentDTO, signal: AbortSignal) {
   const response = await fetch(previewUrl(attachment), { credentials: "include", signal });
-  if (!response.ok) throw new Error(`파일 내용을 불러오지 못했습니다. (${response.status})`);
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(typeof body?.message === "string" ? body.message : `파일 내용을 불러오지 못했습니다. (${response.status})`);
+  }
+  return response;
+}
 
+async function loadParsedPreview(attachment: AttachmentDTO, signal: AbortSignal): Promise<LoadedPreview> {
+  const response = await fetchPreview(attachment, signal);
   const extension = attachment.extension.toLowerCase();
   if (["xls", "xlsx", "csv"].includes(extension)) {
     const workbook = XLSX.read(await response.arrayBuffer(), { type: "array" });
@@ -158,16 +165,17 @@ function PdfPreview({ attachment }: { attachment: AttachmentDTO }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    let loadedDocument: PDFDocumentProxy | null = null;
+    let loadingTask: ReturnType<typeof getDocument> | undefined;
 
-    fetch(previewUrl(attachment), { credentials: "include", signal: controller.signal })
-      .then((response) => {
-        if (!response.ok) throw new Error(`PDF 내용을 불러오지 못했습니다. (${response.status})`);
-        return response.arrayBuffer();
+    fetchPreview(attachment, controller.signal)
+      .then((response) => response.arrayBuffer())
+      .then((data) => {
+        if (controller.signal.aborted) return;
+        loadingTask = getDocument({ data });
+        return loadingTask.promise;
       })
-      .then((data) => getDocument({ data }).promise)
       .then((pdf) => {
-        loadedDocument = pdf;
+        if (!pdf || controller.signal.aborted) return;
         setDocument(pdf);
         setPageNumber(1);
       })
@@ -179,7 +187,7 @@ function PdfPreview({ attachment }: { attachment: AttachmentDTO }) {
 
     return () => {
       controller.abort();
-      loadedDocument?.destroy();
+      void loadingTask?.destroy().catch(() => {});
     };
   }, [attachment]);
 
@@ -237,7 +245,7 @@ export function FilePreviewModal({ attachment, onClose }: { attachment: Attachme
   const extension = attachment.extension.toLowerCase();
   const directPreview =
     isImage(attachment) ||
-    attachment.mimeType === "application/pdf" ||
+    attachment.mimeType === "application/pdf" || extension === "pdf" ||
     attachment.mimeType.startsWith("video/") ||
     attachment.mimeType.startsWith("audio/") ||
     ["ppt", "pptx"].includes(extension);
@@ -295,7 +303,11 @@ export function FilePreviewModal({ attachment, onClose }: { attachment: Attachme
   }
 
   return (
-    <Modal title={`${attachment.fileName} 미리보기`} onClose={onClose}>
+    <Modal
+      title={`${attachment.fileName} 미리보기`}
+      onClose={onClose}
+      headerExtra={<a href={`/api/attachments/${attachment.id}/download`} download>다운로드</a>}
+    >
       <div className="file-preview">{content}</div>
     </Modal>
   );
