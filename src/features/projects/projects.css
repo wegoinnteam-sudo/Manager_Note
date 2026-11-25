@@ -111,6 +111,7 @@
 .pj-grip { cursor: grab; font-size: 1.3rem; padding: 0 6px; }
 .pj-subtasks { list-style: none; padding: 0 0 0 8px; margin: 10px 0; }
 .pj-subtasks label { display: flex; align-items: center; gap: 8px; overflow-wrap: anywhere; }
+.pj-subtasks li[data-done="true"] label { color: var(--hb-muted); text-decoration: line-through; }
 .pj-subtask-edit { display: flex; gap: 8px; margin-bottom: 6px; }
 .pj-subtask-edit input { flex: 1; }
 .pj-updates { margin-top: 10px; }

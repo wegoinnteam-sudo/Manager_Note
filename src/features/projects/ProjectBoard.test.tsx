@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import type { Project } from "@shared/projects";
+import type { Project, ProjectTask } from "@shared/projects";
 import { api } from "@/lib/api";
 import { ProjectBoard } from "./ProjectBoard";
 
@@ -99,4 +99,45 @@ it("lists my work across active projects on the project list page", async () => 
   expect(within(box).getByRole("link", { name: "프로젝트 1" })).toBeInTheDocument();
   expect(within(box).getByRole("link", { name: "프로젝트 2" })).toBeInTheDocument();
   expect(within(box).queryByRole("link", { name: "프로젝트 3" })).toBeNull();
+});
+
+it("includes partial checklist completion in project progress and moves checked work down", async () => {
+  const project: Project = {
+    id: crypto.randomUUID(), title: "객실 준비", owner: "Daniel", dueDate: "",
+    goal: "", expected: "", handover: "", verification: "", outcome: "", status: "active", version: 1,
+  };
+  const task: ProjectTask = {
+    id: crypto.randomUUID(), title: "침구 준비", assignee: "Mike", dueDate: "", priority: "normal" as const,
+    status: "doing", handover: "", verification: "", version: 1,
+    completedBy: null, completedAt: null,
+    subtasks: [
+      { id: crypto.randomUUID(), title: "이불 확인", done: true },
+      { id: crypto.randomUUID(), title: "베개 확인", done: false },
+    ],
+  };
+  const other = { ...task, id: crypto.randomUUID(), title: "객실 청소", status: "todo" as const, subtasks: [] };
+  const previous = { ...other, id: crypto.randomUUID(), title: "재고 확인", status: "done" as const };
+  vi.spyOn(api, "listProjects").mockResolvedValue([project]);
+  vi.spyOn(api, "listHandoverAckRoster").mockResolvedValue({ names: [] });
+  vi.spyOn(api, "getProject").mockImplementation(async () => ({ project, tasks: [previous, task, other], updates: [] }));
+  vi.spyOn(api, "updateProjectTask").mockImplementation(async (_projectId, _taskId, input) => {
+    task.subtasks = input.subtasks;
+    task.status = "done";
+  });
+
+  window.history.replaceState({}, "", `/project?id=${project.id}`);
+  render(<ProjectBoard canEdit author="Daniel" members={[]} />);
+  await screen.findByText("하위 업무 · 완료 50% · 남은 50%");
+  const progress = screen.getByRole("progressbar", { name: "업무 진행률" });
+  expect(progress).toHaveAttribute("value", "50");
+  const card = screen.getByRole("heading", { name: task.title }).closest("article")!;
+  expect(within(card).getAllByRole("checkbox").map((checkbox) => (checkbox as HTMLInputElement).checked))
+    .toEqual([false, false, true]);
+  const taskTitles = () => screen.getAllByRole("article").map((article) => within(article).getByRole("heading").textContent);
+  expect(taskTitles()).toEqual([task.title, other.title, previous.title]);
+
+  fireEvent.click(within(card).getByRole("checkbox", { name: "베개 확인" }));
+  await screen.findByText("하위 업무 · 완료 100% · 남은 0%");
+  expect(progress).toHaveAttribute("value", "67");
+  expect(taskTitles()).toEqual([other.title, previous.title, task.title]);
 });

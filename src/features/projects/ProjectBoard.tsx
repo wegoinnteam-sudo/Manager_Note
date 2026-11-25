@@ -104,10 +104,42 @@ function TaskForm({ task, busy, save, cancel }: {
   );
 }
 
+function taskCompletion(task: ProjectTask) {
+  if (!task.subtasks.length) return Number(task.status === "done");
+  return task.subtasks.filter((item) => item.done).length / task.subtasks.length;
+}
+
+function compareTaskCompletion(a: ProjectTask, b: ProjectTask) {
+  return Number(a.status === "done") - Number(b.status === "done");
+}
+
+function SubtaskChecklist({ task, disabled, update }: {
+  task: ProjectTask; disabled: boolean; update: (input: ProjectTaskInput) => void;
+}) {
+  if (!task.subtasks.length) return null;
+  const progress = Math.round(taskCompletion(task) * 100);
+  const items = [...task.subtasks].sort((a, b) => Number(a.done) - Number(b.done));
+  return (
+    <div>
+      <p className="pj-muted">하위 업무 · 완료 {progress}% · 남은 {100 - progress}%</p>
+      <ul className="pj-subtasks">
+        {items.map((item) => (
+          <li key={item.id} data-done={item.done}><label>
+            <input type="checkbox" checked={item.done} disabled={disabled}
+              onChange={() => update({ ...task, subtasks: task.subtasks.map((part) =>
+                part.id === item.id ? { ...part, done: !part.done } : part) })} />
+            {item.title}
+          </label></li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function TaskCard({ task, projectId, updates, canEdit, busy, author, save, move, editing, setEditing, drag }: {
   task: ProjectTask; projectId: string; updates: ProjectTaskUpdate[]; canEdit: boolean; busy: boolean; author: string;
   save: Save; move: (offset: number) => void; editing: boolean; setEditing: (value: boolean) => void;
-  drag: { start: () => void; end: () => void; drop: () => void } | null;
+  drag: { canMoveUp: boolean; canMoveDown: boolean; start: () => void; end: () => void; drop: () => void } | null;
 }) {
   const [comment, setComment] = useState("");
   const done = task.status === "done";
@@ -136,8 +168,8 @@ function TaskCard({ task, projectId, updates, canEdit, busy, author, save, move,
             {drag && <span className="pj-grip" draggable title="드래그하여 순서 변경"
               onDragStart={(event) => { event.dataTransfer.setData("text/plain", task.id); drag.start(); }}
               onDragEnd={drag.end}>⠿</span>}
-            {drag && <><button type="button" aria-label="업무 위로" onClick={() => move(-1)}>↑</button>
-              <button type="button" aria-label="업무 아래로" onClick={() => move(1)}>↓</button></>}
+            {drag && <><button type="button" aria-label="업무 위로" disabled={!drag.canMoveUp} onClick={() => move(-1)}>↑</button>
+              <button type="button" aria-label="업무 아래로" disabled={!drag.canMoveDown} onClick={() => move(1)}>↓</button></>}
             <button type="button" disabled={busy} onClick={() => setEditing(!editing)}>{editing ? "수정 닫기" : "수정"}</button>
           </div>
         )}
@@ -146,18 +178,7 @@ function TaskCard({ task, projectId, updates, canEdit, busy, author, save, move,
         <TaskForm task={task} busy={busy} cancel={() => setEditing(false)} save={(input, version) => void update(input, version, () => setEditing(false))} />
       ) : (
         <>
-          {!!task.subtasks.length && (
-            <ul className="pj-subtasks">
-              {task.subtasks.map((item) => (
-                <li key={item.id}><label>
-                  <input type="checkbox" checked={item.done} disabled={!canEdit || busy}
-                    onChange={() => void update({ ...task, subtasks: task.subtasks.map((part) =>
-                      part.id === item.id ? { ...part, done: !part.done } : part) })} />
-                  {item.title}
-                </label></li>
-              ))}
-            </ul>
-          )}
+          <SubtaskChecklist task={task} disabled={!canEdit || busy} update={(input) => void update(input)} />
           {(task.handover || task.verification) && (
             <dl className="pj-notes">
               {task.handover && <div><dt>인수인계</dt><dd>{task.handover}</dd></div>}
@@ -223,7 +244,7 @@ function MyWorkGroup({ project, tasks, author, canEdit, busy, save, open: openPr
 }) {
   const today = seoulDate.format(new Date());
   const isOwner = samePerson(project.owner, author);
-  const mine = tasks.filter((task) => samePerson(task.assignee, author)).sort(byDueDate);
+  const mine = tasks.filter((task) => samePerson(task.assignee, author)).sort((a, b) => compareTaskCompletion(a, b) || byDueDate(a, b));
   const remaining = tasks.filter((task) => task.status !== "done").sort(byDueDate);
   const update = (task: ProjectTask, input: ProjectTaskInput) =>
     void save(() => api.updateProjectTask(project.id, task.id, { ...input, version: task.version, author }));
@@ -271,18 +292,7 @@ function MyWorkGroup({ project, tasks, author, canEdit, busy, save, open: openPr
                   <span className="pj-mine-title">{task.title}</span>
                 </label>
                 <span className="pj-mine-meta"><span>{priorities[task.priority]}</span>{due(task)}</span>
-                {!!task.subtasks.length && (
-                  <ul className="pj-subtasks">
-                    {task.subtasks.map((item) => (
-                      <li key={item.id}><label>
-                        <input type="checkbox" checked={item.done} disabled={!canEdit || busy}
-                          onChange={() => update(task, { ...task, subtasks: task.subtasks.map((part) =>
-                            part.id === item.id ? { ...part, done: !part.done } : part) })} />
-                        {item.title}
-                      </label></li>
-                    ))}
-                  </ul>
-                )}
+                <SubtaskChecklist task={task} disabled={!canEdit || busy} update={(input) => update(task, input)} />
               </li>
             ))}
           </ul>
@@ -441,20 +451,24 @@ export function ProjectBoard({ canEdit, author, members }: { canEdit: boolean; a
   const visibleProjects = projects?.filter((item) => showAll || item.status === "active");
   const tasks = detail?.tasks ?? [];
   const done = tasks.filter((task) => task.status === "done").length;
-  const progress = tasks.length ? Math.round(done / tasks.length * 100) : 0;
+  const progress = tasks.length ? Math.round(tasks.reduce((sum, task) => sum + taskCompletion(task), 0) / tasks.length * 100) : 0;
   const names = [...new Set([...roster, ...members.map((member) => member.name), author].filter(Boolean))];
   const visible = tasks.filter((task) => (filter === "all" || (task.status === "done") === (filter === "done")) &&
-    (!assignee || task.assignee === assignee));
+    (!assignee || task.assignee === assignee)).sort(compareTaskCompletion);
   const canReorder = canEdit && !busy && !taskForm && filter === "all" && !assignee;
 
   const reorder = (taskId: string, index: number) => {
-    if (!project || index < 0 || index >= tasks.length || !canReorder) return;
+    const target = visible[index];
+    if (!project || !target || !canReorder) return;
+    const source = tasks.find((task) => task.id === taskId);
+    if (!source || compareTaskCompletion(source, target) !== 0) return;
     const before = tasks.map((task) => task.id);
     const from = before.indexOf(taskId);
-    if (from < 0 || from === index) return;
+    const to = before.indexOf(target.id);
+    if (from === to) return;
     const after = [...before];
     after.splice(from, 1);
-    after.splice(index, 0, taskId);
+    after.splice(to, 0, taskId);
     void save(() => api.reorderProjectTasks(project.id, before, after));
   };
 
@@ -595,6 +609,8 @@ export function ProjectBoard({ canEdit, author, members }: { canEdit: boolean; a
                   editing={taskForm === task.id} setEditing={(open) => setTaskForm(open ? task.id : null)}
                   move={(offset) => reorder(task.id, index + offset)}
                   drag={canReorder ? {
+                    canMoveUp: index > 0 && compareTaskCompletion(task, visible[index - 1]) === 0,
+                    canMoveDown: index < visible.length - 1 && compareTaskCompletion(task, visible[index + 1]) === 0,
                     start: () => { dragged.current = task.id; },
                     end: () => { dragged.current = null; },
                     drop: () => { if (dragged.current) reorder(dragged.current, index); dragged.current = null; },
